@@ -1,0 +1,124 @@
+================================================================================
+MD CONVENT PUBLIC SCHOOL — SCHOOL MANAGEMENT SYSTEM (SMS)
+Installation & First-Time Setup Guide
+================================================================================
+
+1. INSTALLATION ON A WINDOWS PC
+--------------------------------------------------------------------------------
+1. Connect the USB drive or open the "MDConvent_Handover" folder on your PC.
+2. Open the "Installer" subfolder.
+3. Double-click "MD_Convent_SMS_Setup_v2.0.exe".
+4. The Inno Setup wizard will start:
+   - Installation Location: By default, installs to:
+     C:\Program Files\MD Convent SMS
+     (Or user local directory if running without administrator rights).
+   - Desktop Shortcut: Check "Create a desktop icon".
+5. Click "Install". Installation completes in approximately 10 to 15 seconds.
+6. Check "Launch MD Convent SMS" and click "Finish".
+
+
+2. HOW THE DATABASE INITIALIZES (FIRST RUN)
+--------------------------------------------------------------------------------
+When the application opens for the first time on a new computer:
+
+* AUTOMATIC STORAGE DISCOVERY:
+  The application automatically queries Windows for your personal Documents folder.
+  It automatically creates:
+    Documents\MDConvent_SMS\
+    Documents\MDConvent_SMS\backups\
+
+* IMPORTANT NOTE ON ONEDRIVE VS STANDARD DOCUMENTS:
+  - If your PC has Microsoft OneDrive active with folder backup enabled, your database
+    will automatically be stored at:
+    C:\Users\<YourUsername>\OneDrive\Documents\MDConvent_SMS\school_data.json
+  - If OneDrive is disabled or standard local Windows storage is used, it stores at:
+    C:\Users\<YourUsername>\Documents\MDConvent_SMS\school_data.json
+
+  In either case, the app detects this automatically! You never have to manually enter
+  or configure file paths.
+
+* DEFAULT CONFIGURATION:
+  Because no records exist on a fresh machine, the application establishes clean default
+  settings:
+    - Active Academic Session: 2026-27 (with 2027-28 available)
+    - School Name: MD Convent Public School
+    - Class Hierarchy: Nursery, LKG, UKG, Class 1 through Class 12
+    - Standard Fee Schedules for each class
+    - Empty student, fee, transport, and attendance ledgers
+
+
+3. INITIAL CONFIGURATION (STEP-BY-STEP)
+--------------------------------------------------------------------------------
+
+STEP 1: SYSTEM SETTINGS & SCHOOL LOGO
+--------------------------------------
+1. In the left navigation menu, click "Settings" under the "SYSTEM" header.
+2. Verify or update:
+   - School Name: MD Convent Public School
+   - Address: College Road, Infront of Devi Mata Mandir, Amanpur (Kasganj)
+   - Affiliation Code / Registration No.
+   - Principal Name: Divyansh Parashar (Ph: 6397049941)
+3. Upload School Logo:
+   - Click the "Choose Logo" button.
+   - Select your official logo file (.png or .jpg).
+   - The logo is automatically converted to an embedded Base64 string and stored
+     directly inside your database. It will immediately appear on all Fee Receipts,
+     Transport Receipts, and Student Report Cards.
+4. Click "Save Settings".
+
+
+STEP 2: CLASS FEE STRUCTURE
+----------------------------
+1. On the "Settings" page, scroll down to "Class Fee Structure".
+2. Review the monthly Tuition Fee and Admission Fee for each class (NC to 12).
+3. If fees for any class need adjustment, update the values and click
+   "Save Fee Structure".
+
+
+STEP 3: REGISTERING STUDENTS
+-----------------------------
+1. Click "Add Student" in the sidebar menu.
+2. Fill out the student details:
+   - Admission No: Enter a unique identifier (e.g. 101, ADM-2026-001).
+                   Duplicate admission numbers are automatically blocked.
+   - Full Name: Student's official name.
+   - Class & Section: Select class and section (e.g. Class 1, Section A).
+   - Roll No: Roll numbers are automatically checked for uniqueness within that class/section.
+   - Father's Name & Contact Mobile: Phone number for fee alerts and records.
+   - Custom Tuition Fee (Optional): If a student has an agreed concession or special fee
+     rate, enter that monthly amount. Leave as 0 to use standard class fee.
+3. Click "Save Student Record".
+
+
+STEP 4: SETTING UP BUS TRANSPORT (OPTIONAL)
+--------------------------------------------
+If students use school transportation:
+1. Click "Transport Fees" under the "FINANCE" section in the sidebar.
+2. Click "Manage Stops" at the top right.
+3. Click "Add New Stop", enter the stop name (e.g. Bilram Chauraha), monthly fare (e.g. 600),
+   and effective start month. Click "Save Stop".
+4. To assign a student, click "Assign Transport", choose the student, select their
+   Pickup Stop and Drop Stop, and save.
+
+
+STEP 5: COLLECTING FEES & PRINTING RECEIPTS
+--------------------------------------------
+1. Click "Fee Collection" under "FINANCE".
+2. Select Class and Student (or type the student's name/admission number in the top
+   Global Search bar).
+3. Check the months being paid (e.g. April 2026, May 2026).
+4. Enter Amount Received. If granting a fee discount, enter the Discount amount and
+   provide a mandatory Discount Reason (e.g. Sibling Concession).
+5. Click "Collect Fee", verify the confirmation summary, and click "Confirm Payment".
+6. A clean, printable receipt opens in preview. Click "Print Receipt" to print to your
+   connected thermal or laser receipt printer.
+
+
+4. UNINSTALLATION & DATA SAFETY
+--------------------------------------------------------------------------------
+If you ever uninstall or reinstall MD Convent SMS from Windows Control Panel:
+  * The uninstaller deletes ONLY the program files in Program Files.
+  * Your school database (Documents\MDConvent_SMS\school_data.json) is NEVER deleted!
+  * Reinstalling or updating the app will automatically pick up your existing data.
+
+================================================================================

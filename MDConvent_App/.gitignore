@@ -1,0 +1,13 @@
+# MDConvent_App .gitignore
+node_modules/
+dist/
+dist-installer/
+win-unpacked/
+*.exe
+*.zip
+*.asar
+*.tmp
+*.bak
+*.log
+school_data.json
+test-data/

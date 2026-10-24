@@ -1,0 +1,85 @@
+# ==============================================================================
+# MD Convent SMS — Official .gitignore
+# Prevents large binaries, node_modules, and sensitive user data from Git repository
+# ==============================================================================
+
+# 1. Dependency Directories
+node_modules/
+jspm_packages/
+.pnp/
+.pnp.js
+
+# 2. Build Artifacts & Large Binary Distributions
+dist/
+dist-installer/
+out/
+build/
+win-unpacked/
+*.exe
+*.msi
+*.zip
+*.tar.gz
+*.7z
+*.rar
+*.asar
+*.asar.unpacked
+
+# 3. Development Archives & Temporary Scratch Folders
+_dev_archive_*/
+scratch/
+test-data/
+DEMO_TEST_KIT/demo_data/
+.system_generated/
+*.bak
+*.tmp
+*.temp
+
+# 4. Production Databases & Private School Data
+school_data.json
+school_data.json.tmp
+*.backup.json
+MDConvent_SMS/
+backups/
+safety_backups/
+test_school_data_*
+corrupted_*.json
+*.db
+
+# 5. Logs & Debugging Artifacts
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# 6. Operating System & Editor Metadata
+.DS_Store
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+.idea/
+.vscode/
+*.sublime-project
+*.sublime-workspace
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+# 7. Environment & Secrets
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# 8. Whitelist Exceptions (Ensure documentation & checksums in HANDOVER are tracked)
+!HANDOVER/README.txt
+!HANDOVER/SETUP_GUIDE.txt
+!HANDOVER/DATA_BACKUP_GUIDE.txt
+!HANDOVER/RELEASE_MANIFEST.txt
+!HANDOVER/checksums.sha256
+!MDConvent_App/icon.ico
+!MDConvent_App/src/logo.png

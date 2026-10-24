@@ -1,0 +1,124 @@
+================================================================================
+MD CONVENT PUBLIC SCHOOL — SCHOOL MANAGEMENT SYSTEM (SMS)
+Data Protection, Backup & Disaster Recovery Guide
+================================================================================
+
+1. DATA STORAGE OVERVIEW
+--------------------------------------------------------------------------------
+Because MD Convent SMS works completely offline without depending on internet
+cloud servers, your school records are stored locally on your hard drive:
+
+  LIVE DATABASE FILE:
+  Documents\MDConvent_SMS\school_data.json
+
+  AUTOMATIC BACKUPS SUBFOLDER:
+  Documents\MDConvent_SMS\backups\
+
+Regular backups are essential to protect your school data against hardware failure,
+hard drive damage, or laptop loss.
+
+
+2. AUTOMATIC MANAGED BACKUPS (BUILT-IN)
+--------------------------------------------------------------------------------
+The application automatically creates and manages timestamped backups in the
+"Documents\MDConvent_SMS\backups\" subfolder:
+
+  - Startup Backup: Generated on app launch if no backup exists within the last 12 hours.
+  - Pre-Restore Safety Snapshot: Generated automatically before restoring any backup.
+  - Pre-Promotion Snapshot: Generated automatically before bulk promoting students.
+  - Empty Save Guard: Protects existing records from accidental empty writes.
+  - Automatic Retention Limit: The system retains the 10 most recent valid backups
+    and automatically cleans older expired snapshots so your disk stays clean.
+
+
+3. METHOD 1: CREATING A MANUAL USB BACKUP (IN-APP)
+--------------------------------------------------------------------------------
+You should perform a manual backup at least once a week, or at the end of every busy
+fee collection day:
+
+1. Open MD Convent SMS.
+2. In the left sidebar, click "Data & Backup" under the "SYSTEM" header.
+3. Locate the "Backup & Data Protection" card.
+4. Click the "Backup All Data" button.
+5. A Windows file save dialog will appear:
+   - File Name: The app automatically suggests a timestamped file name:
+     MD_Convent_Public_School_Backup_YYYY-MM-DDTHH-MM-SS.json
+   - Destination: Select your USB Flash Drive, External Hard Drive, or Desktop.
+6. Click "Save". A confirmation notification will appear.
+7. Keep this USB drive in a safe location outside the school office.
+
+
+4. METHOD 2: RESTORING DATA FROM A BACKUP
+--------------------------------------------------------------------------------
+To restore your database from a previously saved backup file:
+
+1. Connect your USB flash drive containing your backup file (or browse to Documents\MDConvent_SMS\backups\).
+2. Open MD Convent SMS.
+3. In the sidebar, navigate to "System" > "Data & Backup".
+4. Click the "Restore Backup" button.
+5. Browse and select your ".json" backup file.
+6. A safety confirmation modal will display:
+   - Student count in the backup file
+   - School Name & Session
+7. Click "Confirm Restore".
+8. The database reloads immediately. All student bio-data, marks, attendance, and
+   fee receipts are fully restored.
+
+NOTE ON SAFETY & INTEGRITY:
+When you restore a backup file, the application atomically replaces the active
+database state with the exact verified state saved in the backup file. It does
+NOT merge or append partial records, which eliminates any risk of duplicate
+receipt numbers or corrupted partial balances.
+Furthermore, before replacing data, the app automatically creates an emergency
+snapshot of your previous state in "Documents\MDConvent_SMS\backups\"
+named "backup_<timestamp>_pre_restore.json".
+
+
+5. METHOD 3: DIRECT FILE COPY (OFFLINE HARD DRIVE MIGRATION)
+--------------------------------------------------------------------------------
+If you prefer direct file copying without opening the app:
+
+STEP 1 (ON OLD COMPUTER):
+1. Press Windows Key + R on your keyboard.
+2. Type:  %USERPROFILE%\Documents\MDConvent_SMS
+   and press Enter.
+3. Copy the file named "school_data.json" onto your USB flash drive.
+
+STEP 2 (ON NEW COMPUTER):
+1. Install and launch MD Convent SMS once, then close it (this creates the folder).
+2. Press Windows Key + R, type %USERPROFILE%\Documents\MDConvent_SMS and press Enter.
+3. Paste "school_data.json" from your USB drive into this folder (replace any existing file).
+4. Launch MD Convent SMS. Your entire school database is live!
+
+
+6. DISASTER RECOVERY & AUTOMATIC PROTECTION
+--------------------------------------------------------------------------------
+MD Convent SMS includes built-in safeguards to protect against unexpected events:
+
+1. POWER FAILURE PROTECTION (ATOMIC SAVES):
+   When you save any record or fee payment, the app writes to "school_data.json.tmp"
+   first. Only after the file is 100% written and verified on disk does it atomically
+   rename it to "school_data.json". An unexpected power cut or sudden reboot can NEVER
+   leave a half-written or corrupted file.
+
+2. CORRUPTION QUARANTINE:
+   If a third-party antivirus or disk cleanup program ever corrupts "school_data.json",
+   the app startup loader detects the syntax issue, automatically copies the damaged
+   file to "backups\corrupted_<timestamp>.json" so no bytes are lost, and
+   notifies you to restore from your USB backup.
+
+3. MISSING DATABASE PROTECTION:
+   If "school_data.json" is ever accidentally moved or deleted while backups exist in
+   the "backups\" folder, the system halts and notifies you immediately instead of
+   silently creating an empty database, preventing any accidental data loss.
+
+
+7. POST-RESTORE VERIFICATION CHECKLIST
+--------------------------------------------------------------------------------
+After restoring data, check these 3 items to confirm complete restoration:
+  [ ] Open "Dashboard": Verify Total Students and Total Collections match your expectation.
+  [ ] Open "Student Directory": Search for 2 or 3 students to confirm bio-data and classes.
+  [ ] Open "Fee Collection": Open any student's ledger and click "Reprint" on a past receipt
+      to confirm historical receipts and payments are intact.
+
+================================================================================

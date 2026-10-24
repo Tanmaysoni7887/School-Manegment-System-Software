@@ -1,0 +1,41 @@
+{
+  "name": "mdconvent-sms",
+  "version": "1.0.0",
+  "description": "MD Convent Public School - School Management System",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "package": "electron-packager . \"MD Convent SMS\" --platform=win32 --arch=x64 --out=dist --icon=icon.ico --overwrite --asar",
+    "build:installer": "innosetup-compiler installer.iss",
+    "dist": "npm run package && npm run build:installer",
+    "build": "electron-builder --win --x64"
+  },
+  "build": {
+    "appId": "com.mdconvent.sms",
+    "productName": "MD Convent SMS",
+    "win": {
+      "target": "nsis",
+      "icon": "icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "MD Convent SMS"
+    },
+    "files": [
+      "main.js",
+      "src/**/*",
+      "icon.ico"
+    ]
+  },
+  "devDependencies": {
+    "@skyfalcode/inno-setup": "^1.0.0",
+    "electron": "^28.3.3",
+    "electron-builder": "^24.13.3",
+    "electron-installer-windows": "^3.0.0",
+    "electron-packager": "^17.1.2",
+    "innosetup-compiler": "^6.3.1"
+  }
+}
