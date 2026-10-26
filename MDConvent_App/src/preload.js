@@ -13,4 +13,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   exportCSV:             (filename, content) => ipcRenderer.invoke('export-csv', { filename, content }),
   printContent:          (html)              => ipcRenderer.invoke('print-content', html),
   getDataPath:           ()                  => ipcRenderer.invoke('get-data-path'),
+  selectStudentPhoto:    ()                  => ipcRenderer.invoke('select-student-photo'),
+  saveStudentPhoto:      (opts)              => ipcRenderer.invoke('save-student-photo', opts),
+  deleteStudentPhoto:    (filename)          => ipcRenderer.invoke('delete-student-photo', filename),
+  getStudentPhotoData:   (filename)          => ipcRenderer.invoke('get-student-photo-data', filename),
+  getStudentPhotosPath:  ()                  => ipcRenderer.invoke('get-student-photos-path'),
 });

@@ -2,12 +2,14 @@ const { app, BrowserWindow, ipcMain, dialog, shell } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const os = require('os');
+const crypto = require('crypto');
 
 // ==============================================================================
 // PERSISTENT STORAGE PATH RESOLUTION
 // Dedicated persistent storage folder: Documents/MDConvent_SMS/
-//   - school_data.json  (Live persistent database)
-//   - backups/          (Automatically managed timestamped backups)
+//   - school_data.json   (Live persistent database)
+//   - backups/           (Automatically managed timestamped backups)
+//   - Student_Photos/    (Optional student photograph storage)
 // ==============================================================================
 function resolveStoragePaths() {
   const docs = app.getPath('documents');
@@ -23,14 +25,16 @@ function resolveStoragePaths() {
 
   const dataFilePath = path.join(chosenPath, 'school_data.json');
   const backupsDir = path.join(chosenPath, 'backups');
+  const photosDir = path.join(chosenPath, 'Student_Photos');
 
   if (!fs.existsSync(chosenPath)) fs.mkdirSync(chosenPath, { recursive: true });
   if (!fs.existsSync(backupsDir)) fs.mkdirSync(backupsDir, { recursive: true });
+  if (!fs.existsSync(photosDir)) fs.mkdirSync(photosDir, { recursive: true });
 
-  return { userDataPath: chosenPath, dataFilePath, backupsDir };
+  return { userDataPath: chosenPath, dataFilePath, backupsDir, photosDir };
 }
 
-const { userDataPath, dataFilePath, backupsDir } = resolveStoragePaths();
+const { userDataPath, dataFilePath, backupsDir, photosDir } = resolveStoragePaths();
 
 let mainWindow;
 function createWindow() {
@@ -498,3 +502,132 @@ ipcMain.handle('print-content', async (e, html) => {
 
 // Get data path
 ipcMain.handle('get-data-path', () => dataFilePath);
+
+// ==============================================================================
+// STUDENT PHOTOGRAPH MANAGEMENT (OPTIONAL)
+// ==============================================================================
+const MAX_PHOTO_BYTES = 5 * 1024 * 1024; // 5 MB maximum
+const ALLOWED_PHOTO_EXTS = ['jpg', 'jpeg', 'png', 'webp'];
+
+ipcMain.handle('select-student-photo', async () => {
+  const win = (mainWindow && !mainWindow.isDestroyed() && !mainWindow.isMinimized()) 
+    ? mainWindow 
+    : (BrowserWindow.getFocusedWindow() || null);
+  const { canceled, filePaths } = await dialog.showOpenDialog(win, {
+    title: 'Select Student Photograph (Optional)',
+    filters: [
+      { name: 'Image Files (*.jpg;*.jpeg;*.png;*.webp)', extensions: ALLOWED_PHOTO_EXTS },
+      { name: 'All Files (*.*)', extensions: ['*'] }
+    ],
+    properties: ['openFile']
+  });
+  if (canceled || !filePaths || !filePaths.length) return { canceled: true, selected: false };
+
+  const filePath = filePaths[0];
+  try {
+    const stats = fs.statSync(filePath);
+    if (stats.size > MAX_PHOTO_BYTES) {
+      return {
+        error: `Selected image size (${(stats.size / (1024 * 1024)).toFixed(1)} MB) exceeds the 5 MB limit. Please select a photo under 5 MB.`
+      };
+    }
+
+    const ext = path.extname(filePath).slice(1).toLowerCase();
+    if (!ALLOWED_PHOTO_EXTS.includes(ext)) {
+      return { error: 'Invalid file format. Please select a JPG, JPEG, PNG, or WebP photo.' };
+    }
+
+    const mime = ext === 'png' ? 'image/png' : ext === 'webp' ? 'image/webp' : 'image/jpeg';
+    const base64 = fs.readFileSync(filePath, 'base64');
+    const previewDataUri = `data:${mime};base64,${base64}`;
+
+    return {
+      canceled: false,
+      selected: true,
+      sourcePath: filePath,
+      previewDataUri,
+      fileName: path.basename(filePath),
+      ext: ext === 'jpeg' ? 'jpg' : ext,
+      size: stats.size
+    };
+  } catch (err) {
+    return { error: 'Failed to access selected photo: ' + err.message };
+  }
+});
+
+ipcMain.handle('save-student-photo', async (e, { sourcePath, admNo, existingPhoto }) => {
+  try {
+    if (!sourcePath || !fs.existsSync(sourcePath)) {
+      return { error: 'Source photo file not found on disk.' };
+    }
+
+    const stats = fs.statSync(sourcePath);
+    if (stats.size > MAX_PHOTO_BYTES) {
+      return { error: 'Selected image exceeds the 5 MB file size limit.' };
+    }
+
+    const ext = path.extname(sourcePath).slice(1).toLowerCase();
+    const normExt = ext === 'jpeg' ? 'jpg' : ext;
+    if (!['jpg', 'png', 'webp'].includes(normExt)) {
+      return { error: 'Unsupported photo format: .' + ext };
+    }
+
+    if (!fs.existsSync(photosDir)) {
+      fs.mkdirSync(photosDir, { recursive: true });
+    }
+
+    // Generate unique, filesystem-safe filename: MDC_1001_a8f31c.jpg
+    const safeAdm = String(admNo || 'STU').trim().replace(/[^a-zA-Z0-9_-]/g, '_');
+    const randomSuffix = crypto.randomBytes(3).toString('hex');
+    const destFilename = `${safeAdm}_${randomSuffix}.${normExt}`;
+    const destPath = path.join(photosDir, destFilename);
+
+    fs.copyFileSync(sourcePath, destPath);
+
+    // After successful copy, safely remove previous photo if replacing
+    if (existingPhoto && typeof existingPhoto === 'string') {
+      const oldSafe = path.basename(existingPhoto);
+      const oldPath = path.join(photosDir, oldSafe);
+      if (fs.existsSync(oldPath) && oldSafe !== destFilename) {
+        try { fs.unlinkSync(oldPath); } catch (_) {}
+      }
+    }
+
+    return { success: true, filename: destFilename };
+  } catch (err) {
+    console.error('save-student-photo error:', err);
+    return { error: 'Failed to save student photo: ' + err.message };
+  }
+});
+
+ipcMain.handle('delete-student-photo', async (e, filename) => {
+  try {
+    if (!filename || typeof filename !== 'string') return { success: true };
+    const safeFilename = path.basename(filename);
+    const targetPath = path.join(photosDir, safeFilename);
+    if (fs.existsSync(targetPath)) {
+      fs.unlinkSync(targetPath);
+    }
+    return { success: true };
+  } catch (err) {
+    return { error: err.message };
+  }
+});
+
+ipcMain.handle('get-student-photo-data', async (e, filename) => {
+  try {
+    if (!filename || typeof filename !== 'string') return null;
+    const safeFilename = path.basename(filename);
+    const targetPath = path.join(photosDir, safeFilename);
+    if (!fs.existsSync(targetPath)) return null;
+
+    const ext = path.extname(safeFilename).slice(1).toLowerCase();
+    const mime = ext === 'png' ? 'image/png' : ext === 'webp' ? 'image/webp' : 'image/jpeg';
+    const base64 = fs.readFileSync(targetPath, 'base64');
+    return `data:${mime};base64,${base64}`;
+  } catch (_) {
+    return null;
+  }
+});
+
+ipcMain.handle('get-student-photos-path', () => photosDir);

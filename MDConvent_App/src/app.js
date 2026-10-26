@@ -2514,10 +2514,14 @@ function renderSt() {
   tb.innerHTML = list.map(s => {
     const stClass = s.status === 'Active' ? 'cg' : s.status === 'Inactive' ? 'cy' : 'cgr';
     const srChip = s.srNo ? `<span class="chip" style="background:var(--card);border:1px solid var(--bdr);font-size:11px">${s.srNo}</span>` : '<span style="color:var(--txt2);font-size:11px">–</span>';
+    const initials = (s.name || '?').split(' ').map(w => w[0]).join('').substring(0, 2).toUpperCase();
+    const avatarHtml = s.photo
+      ? `<span class="st-avatar-wrap" data-photo="${s.photo}" style="display:inline-flex;width:28px;height:28px;border-radius:50%;overflow:hidden;border:1px solid var(--bdr);background:var(--bg);align-items:center;justify-content:center;flex-shrink:0;vertical-align:middle;margin-right:8px"><img class="st-avatar-img" src="" style="width:100%;height:100%;object-fit:cover;display:none"><span class="st-avatar-fallback" style="font-size:10px;font-weight:700;color:var(--txt2)">${initials}</span></span>`
+      : `<span style="display:inline-flex;width:28px;height:28px;border-radius:50%;overflow:hidden;border:1px solid var(--bdr);background:var(--bg);align-items:center;justify-content:center;flex-shrink:0;vertical-align:middle;margin-right:8px;font-size:10px;font-weight:700;color:var(--txt2)">${initials}</span>`;
     return `<tr>
       <td><span class="chip cb2">${s.admno}</span></td>
       <td>${srChip}</td>
-      <td><strong>${s.name}</strong></td>
+      <td><div style="display:flex;align-items:center">${avatarHtml}<strong>${s.name}</strong></div></td>
       <td><span class="chip cr">${clL(s.cls)}</span> <span style="font-size:11px;color:var(--txt2)">Sec ${s.section || 'A'}</span></td>
       <td>${s.father}</td>
       <td><a href="tel:${s.phone}" style="color:var(--blu);text-decoration:none">${s.phone}</a></td>
@@ -2530,6 +2534,23 @@ function renderSt() {
       </td>
     </tr>`;
   }).join('');
+
+  // Asynchronously populate visible student avatar images
+  const avatarWraps = tb.querySelectorAll('.st-avatar-wrap[data-photo]');
+  avatarWraps.forEach(wrap => {
+    const photoFile = wrap.getAttribute('data-photo');
+    if (!photoFile) return;
+    resolveStudentPhotoUrl(photoFile).then(uri => {
+      if (!uri) return;
+      const img = wrap.querySelector('.st-avatar-img');
+      const fallback = wrap.querySelector('.st-avatar-fallback');
+      if (img) {
+        img.src = uri;
+        img.style.display = 'block';
+        if (fallback) fallback.style.display = 'none';
+      }
+    });
+  });
 }
 
 // Helper: Get local date formatted as YYYY-MM-DD
@@ -2642,9 +2663,100 @@ function openAddStudent(btn) {
   showPage('addstudent', btn || null);
 }
 
+// ==========================================
+// STUDENT PHOTO MANAGEMENT
+// ==========================================
+let pendingStudentPhotoAction = null; // null | { type: 'set', sourcePath, previewDataUri, fileName } | { type: 'remove' }
+let currentEditingStudentPhoto = '';
+const studentPhotoCache = new Map();
+
+async function resolveStudentPhotoUrl(filename) {
+  if (!filename || typeof filename !== 'string') return null;
+  const cleanName = filename.trim();
+  if (!cleanName) return null;
+  if (studentPhotoCache.has(cleanName)) {
+    return studentPhotoCache.get(cleanName);
+  }
+  if (window.electronAPI && typeof window.electronAPI.getStudentPhotoData === 'function') {
+    try {
+      const dataUri = await window.electronAPI.getStudentPhotoData(cleanName);
+      if (dataUri) {
+        studentPhotoCache.set(cleanName, dataUri);
+        return dataUri;
+      }
+    } catch (err) {
+      console.warn('Could not load student photo:', cleanName, err);
+    }
+  }
+  return null;
+}
+
+async function chooseStudentPhoto() {
+  if (!window.electronAPI || typeof window.electronAPI.selectStudentPhoto !== 'function') {
+    toast('Photo selection is only supported in the desktop app.', 'warning');
+    return;
+  }
+  try {
+    const res = await window.electronAPI.selectStudentPhoto();
+    if (!res || res.canceled) {
+      // User cancelled dialog cleanly without errors
+      return;
+    }
+    if (res.error) {
+      toast(res.error, 'error');
+      const statusTxt = document.getElementById('s_photo_status');
+      if (statusTxt) statusTxt.textContent = res.error;
+      return;
+    }
+    if (!res.sourcePath || !res.previewDataUri) {
+      toast('Failed to load image preview. Please try another file.', 'error');
+      return;
+    }
+
+    pendingStudentPhotoAction = {
+      type: 'set',
+      sourcePath: res.sourcePath,
+      previewDataUri: res.previewDataUri,
+      fileName: res.fileName
+    };
+    
+    const prevImg = document.getElementById('s_photo_prev');
+    const placeholder = document.getElementById('s_photo_placeholder');
+    const removeBtn = document.getElementById('btnRemoveStudentPhoto');
+    const statusTxt = document.getElementById('s_photo_status');
+
+    if (prevImg) {
+      prevImg.src = res.previewDataUri;
+      prevImg.style.display = 'block';
+    }
+    if (placeholder) placeholder.style.display = 'none';
+    if (removeBtn) removeBtn.style.display = 'inline-flex';
+    if (statusTxt) statusTxt.textContent = `Selected: ${res.fileName} (${(res.size / 1024).toFixed(0)} KB)`;
+  } catch (err) {
+    console.error('Error selecting photo:', err);
+    toast(err.message || 'Failed to select student photo.', 'error');
+  }
+}
+
+function removeStudentPhoto() {
+  pendingStudentPhotoAction = { type: 'remove' };
+  const prevImg = document.getElementById('s_photo_prev');
+  const placeholder = document.getElementById('s_photo_placeholder');
+  const removeBtn = document.getElementById('btnRemoveStudentPhoto');
+  const statusTxt = document.getElementById('s_photo_status');
+
+  if (prevImg) {
+    prevImg.src = '';
+    prevImg.style.display = 'none';
+  }
+  if (placeholder) placeholder.style.display = 'block';
+  if (removeBtn) removeBtn.style.display = 'none';
+  if (statusTxt) statusTxt.textContent = 'No photo selected (photo will be removed upon save)';
+}
+
 let isStudentSaving = false;
 
-function saveStudent() {
+async function saveStudent() {
   if (isStudentSaving) {
     console.warn('Student save operation already in progress, ignoring duplicate trigger.');
     return;
@@ -2775,6 +2887,51 @@ function saveStudent() {
     DB.nextAdm = gen.nextSeq;
   }
 
+  // 4b. Student Photo Handling (Optional)
+  let finalPhoto = '';
+  if (eid) {
+    const existingStudent = DB.students.find(s => s.id === parseInt(eid));
+    finalPhoto = existingStudent ? (existingStudent.photo || '') : '';
+  }
+
+  if (pendingStudentPhotoAction && pendingStudentPhotoAction.type === 'remove') {
+    if (eid && finalPhoto && window.electronAPI && typeof window.electronAPI.deleteStudentPhoto === 'function') {
+      try {
+        await window.electronAPI.deleteStudentPhoto(finalPhoto);
+      } catch (err) {
+        console.warn('Failed to delete old student photo:', err);
+      }
+    }
+    finalPhoto = '';
+  } else if (pendingStudentPhotoAction && pendingStudentPhotoAction.type === 'set') {
+    if (window.electronAPI && typeof window.electronAPI.saveStudentPhoto === 'function') {
+      try {
+        const photoRes = await window.electronAPI.saveStudentPhoto({
+          sourcePath: pendingStudentPhotoAction.sourcePath,
+          admNo: admVal,
+          existingPhoto: eid ? finalPhoto : undefined
+        });
+        if (photoRes && photoRes.error) {
+          toast(`Photo save failed: ${photoRes.error}`, 'error');
+          return;
+        }
+        if (photoRes && photoRes.success && photoRes.filename) {
+          finalPhoto = photoRes.filename;
+          if (pendingStudentPhotoAction.previewDataUri) {
+            studentPhotoCache.set(finalPhoto, pendingStudentPhotoAction.previewDataUri);
+          }
+        } else {
+          toast('Failed to save student photo. Please try selecting the photo again.', 'error');
+          return;
+        }
+      } catch (err) {
+        console.error('Failed to save student photo:', err);
+        toast('Failed to save student photo: ' + (err.message || 'Unknown error'), 'error');
+        return;
+      }
+    }
+  }
+
   // 5. Build Student Object
   const studentObj = {
     id: eid ? parseInt(eid) : (DB.nextId++),
@@ -2795,6 +2952,7 @@ function saveStudent() {
     admissionDate,
     session,
     status: document.getElementById('s_stat').value || 'Active',
+    photo: finalPhoto || '',
     academicHistory: [],
     enrollments: []
   };
@@ -2860,6 +3018,20 @@ function resetForm() {
   if (document.getElementById('s_cl')) document.getElementById('s_cl').value = '';
   populateStudentSections('', 'A');
 
+  pendingStudentPhotoAction = null;
+  currentEditingStudentPhoto = '';
+  const prevImg = document.getElementById('s_photo_prev');
+  const placeholder = document.getElementById('s_photo_placeholder');
+  const removeBtn = document.getElementById('btnRemoveStudentPhoto');
+  const statusTxt = document.getElementById('s_photo_status');
+  if (prevImg) {
+    prevImg.src = '';
+    prevImg.style.display = 'none';
+  }
+  if (placeholder) placeholder.style.display = 'block';
+  if (removeBtn) removeBtn.style.display = 'none';
+  if (statusTxt) statusTxt.textContent = 'No photo selected (Optional — Max 5 MB, JPG/JPEG/PNG/WebP)';
+
   const admDtEl = document.getElementById('s_admdt');
   if (admDtEl) admDtEl.value = getTodayLocalDate();
 
@@ -2905,6 +3077,39 @@ function editSt(id) {
   document.getElementById('s_sec').value = s.section || 'A';
   document.getElementById('s_rn').value = s.rollno || '';
   document.getElementById('s_stat').value = s.status || 'Active';
+
+  // Load student photo in edit form if present
+  currentEditingStudentPhoto = s.photo || '';
+  pendingStudentPhotoAction = null;
+  const prevImg = document.getElementById('s_photo_prev');
+  const placeholder = document.getElementById('s_photo_placeholder');
+  const removeBtn = document.getElementById('btnRemoveStudentPhoto');
+  const statusTxt = document.getElementById('s_photo_status');
+
+  if (s.photo) {
+    if (statusTxt) statusTxt.textContent = `Current photo: ${s.photo}`;
+    if (removeBtn) removeBtn.style.display = 'inline-flex';
+    if (placeholder) placeholder.style.display = 'none';
+    if (prevImg) {
+      prevImg.style.display = 'block';
+      resolveStudentPhotoUrl(s.photo).then(uri => {
+        if (uri && prevImg) {
+          prevImg.src = uri;
+        } else if (placeholder) {
+          prevImg.style.display = 'none';
+          placeholder.style.display = 'block';
+        }
+      });
+    }
+  } else {
+    if (prevImg) {
+      prevImg.src = '';
+      prevImg.style.display = 'none';
+    }
+    if (placeholder) placeholder.style.display = 'block';
+    if (removeBtn) removeBtn.style.display = 'none';
+    if (statusTxt) statusTxt.textContent = 'No photo selected';
+  }
 }
 
 function delSt(id) {
@@ -2935,6 +3140,9 @@ function delSt(id) {
   }
 
   if (confirm(`Are you sure you want to delete student "${s.name}" (Adm: ${s.admno})? This action cannot be undone.`)) {
+    if (s.photo && window.electronAPI && typeof window.electronAPI.deleteStudentPhoto === 'function') {
+      window.electronAPI.deleteStudentPhoto(s.photo).catch(err => console.warn('Photo cleanup error:', err));
+    }
     DB.students = DB.students.filter(x => x.id !== id);
     saveDB(true);
     renderSt();
@@ -2963,7 +3171,10 @@ function viewProf(id) {
 
   document.getElementById('profB').innerHTML = `
     <div class="ph">
-      <div class="pa">${initials}</div>
+      <div class="pa" id="profAvatarBox" style="padding:0;overflow:hidden;display:flex;align-items:center;justify-content:center;background:var(--pri);color:#fff;font-weight:700">
+        <span id="profAvatarInitials">${initials}</span>
+        <img id="profAvatarImg" src="" alt="${s.name}" style="display:none;width:100%;height:100%;object-fit:cover;border-radius:50%">
+      </div>
       <div>
         <h2 style="font-size:18px;margin-bottom:4px">${s.name}</h2>
         <p style="opacity:.9">${clL(s.cls)} – Section ${s.section || 'A'} | Adm No: ${s.admno}${s.srNo ? ` | SR No: ${s.srNo}` : ''}</p>
@@ -3005,6 +3216,17 @@ function viewProf(id) {
       <button class="btn bo bsm" onclick="editSt(${id});closeM('profM')">✏ Edit Profile</button>
       <button class="btn bp bsm" onclick="closeM('profM');curFSid=${id};showPage('fees',null)">💳 View Fee Ledger</button>
     </div>`;
+  if (s.photo) {
+    resolveStudentPhotoUrl(s.photo).then(uri => {
+      const img = document.getElementById('profAvatarImg');
+      const init = document.getElementById('profAvatarInitials');
+      if (uri && img) {
+        img.src = uri;
+        img.style.display = 'block';
+        if (init) init.style.display = 'none';
+      }
+    });
+  }
   openM('profM');
 }
 
@@ -6045,10 +6267,16 @@ function openStudentFeeDetailsModal(sid, targetSession = null) {
     <!-- Student Header -->
     <div style="background:var(--bg);border-radius:8px;padding:12px 14px;margin-bottom:12px;border:1px solid var(--bdr)">
       <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
-        <div>
-          <div style="font-size:16px;font-weight:700">${s.name}</div>
-          <div style="font-size:12px;color:var(--txt2);margin-top:2px">
-            Adm No: <strong>${s.admno}</strong>${s.srNo ? ` | SR No: <strong>${s.srNo}</strong>` : ''} | Class ${clL(effectiveClass)} (Sec ${currentEnr.section || s.section || 'A'}) | Father: ${s.father || '–'} | Phone: ${s.phone || '–'}
+        <div style="display:flex;align-items:center;gap:12px">
+          <div id="feeModalAvatarWrap" style="width:46px;height:46px;border-radius:50%;border:1.5px solid var(--bdr);background:var(--card);overflow:hidden;display:flex;align-items:center;justify-content:center;flex-shrink:0">
+            <span id="feeModalAvatarInitials" style="font-size:14px;font-weight:700;color:var(--txt2)">${(s.name || '?').split(' ').map(w => w[0]).join('').substring(0, 2).toUpperCase()}</span>
+            <img id="feeModalAvatarImg" src="" alt="${s.name}" style="display:none;width:100%;height:100%;object-fit:cover">
+          </div>
+          <div>
+            <div style="font-size:16px;font-weight:700">${s.name}</div>
+            <div style="font-size:12px;color:var(--txt2);margin-top:2px">
+              Adm No: <strong>${s.admno}</strong>${s.srNo ? ` | SR No: <strong>${s.srNo}</strong>` : ''} | Class ${clL(effectiveClass)} (Sec ${currentEnr.section || s.section || 'A'}) | Father: ${s.father || '–'} | Phone: ${s.phone || '–'}
+            </div>
           </div>
         </div>
         ${enrollmentControlHtml}
@@ -6099,6 +6327,18 @@ function openStudentFeeDetailsModal(sid, targetSession = null) {
 
     ${arrearsHtml}
   `;
+
+  if (s.photo) {
+    resolveStudentPhotoUrl(s.photo).then(uri => {
+      const img = document.getElementById('feeModalAvatarImg');
+      const init = document.getElementById('feeModalAvatarInitials');
+      if (uri && img) {
+        img.src = uri;
+        img.style.display = 'block';
+        if (init) init.style.display = 'none';
+      }
+    });
+  }
 
   openM('feeDetailsM');
 }
@@ -6939,9 +7179,15 @@ function openPaymentHistoryModal(sid) {
   bodyEl.innerHTML = `
     <!-- Student Header -->
     <div style="background:var(--bg,#f8fafc);border-radius:8px;padding:10px 14px;margin-bottom:12px;border:1px solid var(--bdr,#e2e8f0);display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;flex-shrink:0">
-      <div>
-        <strong style="font-size:13.5px;color:var(--txt)">${escapeHtml(s.name)}</strong>
-        <span style="font-size:12px;color:var(--txt2);margin-left:8px">Adm No: <strong style="color:var(--txt)">${escapeHtml(s.admno)}</strong> | Class: <strong>${clL(s.cls)}</strong> (Sec ${escapeHtml(s.section || 'A')}) | Father: <strong>${escapeHtml(s.father || '–')}</strong></span>
+      <div style="display:flex;align-items:center;gap:10px">
+        <div id="histModalAvatarWrap" style="width:38px;height:38px;border-radius:50%;border:1px solid var(--bdr);background:var(--card);overflow:hidden;display:flex;align-items:center;justify-content:center;flex-shrink:0">
+          <span id="histModalAvatarInitials" style="font-size:12px;font-weight:700;color:var(--txt2)">${(s.name || '?').split(' ').map(w => w[0]).join('').substring(0, 2).toUpperCase()}</span>
+          <img id="histModalAvatarImg" src="" alt="${s.name}" style="display:none;width:100%;height:100%;object-fit:cover">
+        </div>
+        <div>
+          <strong style="font-size:13.5px;color:var(--txt)">${escapeHtml(s.name)}</strong>
+          <span style="font-size:12px;color:var(--txt2);margin-left:8px">Adm No: <strong style="color:var(--txt)">${escapeHtml(s.admno)}</strong> | Class: <strong>${clL(s.cls)}</strong> (Sec ${escapeHtml(s.section || 'A')}) | Father: <strong>${escapeHtml(s.father || '–')}</strong></span>
+        </div>
       </div>
       <div style="display:flex;gap:8px;align-items:center">
         <span class="chip cb2" style="font-size:11px;padding:3px 8px">Total Payments: <strong>${histRows.length}</strong></span>
@@ -6996,6 +7242,18 @@ function openPaymentHistoryModal(sid) {
       </table>
     </div>
   `;
+
+  if (s.photo) {
+    resolveStudentPhotoUrl(s.photo).then(uri => {
+      const img = document.getElementById('histModalAvatarImg');
+      const init = document.getElementById('histModalAvatarInitials');
+      if (uri && img) {
+        img.src = uri;
+        img.style.display = 'block';
+        if (init) init.style.display = 'none';
+      }
+    });
+  }
 
   openM('paymentHistoryM');
 }

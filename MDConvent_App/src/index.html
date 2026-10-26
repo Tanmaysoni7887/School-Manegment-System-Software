@@ -264,6 +264,297 @@ input:checked+.slider:before{transform:translateX(18px)}
 .tr-rcpt-sig-area{margin-top:20px;display:flex;justify-content:flex-end;text-align:center}
 .tr-rcpt-sig-line{border-top:1px solid #0f172a;width:140px;padding-top:4px;font-size:10.5px;font-weight:600}
 
+/* ============================================================ */
+/* EXACT CLEAN MINIMAL ADD / EDIT STUDENT STYLES                */
+/* ============================================================ */
+#page-addstudent {
+  width: 100%;
+  max-width: 100%;
+  display: none;
+  box-sizing: border-box;
+}
+#page-addstudent.active {
+  display: block;
+}
+.stu-container {
+  width: 100%;
+  max-width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  box-sizing: border-box;
+}
+
+/* Page Header */
+.stu-page-header {
+  margin-bottom: 2px;
+}
+.stu-header-title {
+  font-size: 20px;
+  font-weight: 800;
+  color: #0f172a;
+  margin: 0;
+  line-height: 1.2;
+}
+.stu-header-sub {
+  font-size: 12px;
+  color: #64748b;
+  margin: 2px 0 0 0;
+}
+
+/* Shared Card Style */
+.stu-card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 10px 16px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+  box-sizing: border-box;
+}
+
+/* Photo Card */
+.stu-photo-card {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  padding: 10px 16px;
+}
+.stu-avatar-wrapper {
+  width: 68px;
+  height: 68px;
+  border-radius: 50%;
+  background: #e2e8f0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  cursor: pointer;
+  overflow: hidden;
+  user-select: none;
+  transition: opacity 0.15s ease;
+}
+.stu-avatar-wrapper:hover {
+  opacity: 0.9;
+}
+.stu-avatar-img {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  object-fit: cover;
+  display: none;
+}
+.stu-avatar-placeholder {
+  font-size: 34px;
+  color: #94a3b8;
+  line-height: 1;
+}
+.stu-photo-details {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.stu-photo-title {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: #0f172a;
+}
+.stu-photo-optional {
+  font-size: 12.5px;
+  font-weight: 400;
+  color: #64748b;
+  margin-left: 3px;
+}
+.stu-photo-btns {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 2px;
+}
+.stu-btn-choose {
+  background: #dc2626;
+  color: #ffffff;
+  border: none;
+  border-radius: 6px;
+  padding: 5px 14px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: background 0.15s ease;
+}
+.stu-btn-choose:hover {
+  background: #b91c1c;
+}
+.stu-btn-remove {
+  background: #ffffff;
+  color: #dc2626;
+  border: 1px solid #dc2626;
+  border-radius: 6px;
+  padding: 4px 10px;
+  font-size: 11.5px;
+  font-weight: 600;
+  cursor: pointer;
+  display: none;
+  transition: all 0.15s ease;
+}
+.stu-btn-remove:hover {
+  background: #fef2f2;
+}
+.stu-photo-specs-text {
+  font-size: 11px;
+  color: #64748b;
+  line-height: 1.35;
+  margin-top: 2px;
+}
+
+/* Card Title Row */
+.stu-card-title-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.stu-badge {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  flex-shrink: 0;
+  line-height: 1;
+}
+.stu-badge-red {
+  background: #fee2e2;
+  color: #ef4444;
+}
+.stu-badge-green {
+  background: #dcfce7;
+  color: #22c55e;
+}
+.stu-badge-blue {
+  background: #dbeafe;
+  color: #3b82f6;
+}
+.stu-card-title-text {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+/* Grids */
+.stu-grid-3 {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 7px 14px;
+  width: 100%;
+  box-sizing: border-box;
+}
+.stu-grid-4 {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 7px 14px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+/* Inputs & Labels */
+.stu-fg {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.stu-label {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: #1e293b;
+  margin-bottom: 3px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.stu-req {
+  color: #ef4444;
+  font-weight: 700;
+  margin-left: 2px;
+}
+.stu-fg input,
+.stu-fg select {
+  height: 33px;
+  padding: 5px 10px;
+  font-size: 12.5px;
+  color: #0f172a;
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  width: 100%;
+  box-sizing: border-box;
+  font-family: inherit;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.stu-fg input:focus,
+.stu-fg select:focus {
+  outline: none;
+  border-color: #dc2626;
+  box-shadow: 0 0 0 2px rgba(220, 38, 38, 0.12);
+}
+.stu-fg input[readonly] {
+  background: #f8fafc;
+  color: #0f172a;
+  border-color: #e2e8f0;
+  cursor: default;
+  font-weight: 700;
+}
+
+/* Bottom Bar */
+.stu-bottom-bar {
+  display: flex;
+  justify-content: flex-end;
+  padding: 2px 0 8px 0;
+  margin-top: 2px;
+}
+.stu-save-btn {
+  background: #dc2626;
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 700;
+  padding: 8px 24px;
+  border-radius: 6px;
+  border: none;
+  cursor: pointer;
+  box-shadow: 0 2px 6px rgba(220, 38, 38, 0.22);
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  transition: all 0.15s ease;
+}
+.stu-save-btn:hover {
+  background: #b91c1c;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 10px rgba(220, 38, 38, 0.32);
+}
+
+/* Media Queries for Small Viewports */
+@media (max-width: 1080px) {
+  .stu-grid-4 {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+@media (max-width: 768px) {
+  .stu-grid-3 {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+@media (max-width: 600px) {
+  .stu-grid-3,
+  .stu-grid-4 {
+    grid-template-columns: 1fr;
+  }
+}
+
 @media print{
   .sidebar,.topbar,.mo,.tw2{display:none!important}
   .main{margin:0;padding:0}
@@ -477,103 +768,173 @@ input:checked+.slider:before{transform:translateX(18px)}
 
     <!-- 3. ADD / EDIT STUDENT -->
     <div class="page" id="page-addstudent">
-      <div class="card">
-        <div class="ch">
-          <h3 id="sft">Add New Student</h3>
-          <button class="btn bo bsm" onclick="resetForm()">Clear Form</button>
+      <div class="stu-container">
+
+        <!-- Page Header -->
+        <div class="stu-page-header">
+          <h2 id="sft" class="stu-header-title">Add New Student</h2>
+          <p class="stu-header-sub">Enter student details to add a new record in the school system</p>
         </div>
-        <div class="cb" style="padding:22px 24px">
-          <div style="display:flex;flex-direction:column;gap:22px;max-width:1100px">
-            
-            <!-- Section 1: Personal Information -->
+
+        <!-- Student Photo Card -->
+        <div class="stu-card card stu-photo-card student-photo-bar">
+          <div class="stu-avatar-wrapper" onclick="chooseStudentPhoto()" title="Click to choose photo">
+            <img id="s_photo_prev" class="stu-avatar-img" src="" alt="Student Photo">
+            <span id="s_photo_placeholder" class="stu-avatar-placeholder">👤</span>
+          </div>
+          <div class="stu-photo-details">
             <div>
-              <div style="font-size:11px;font-weight:700;color:var(--txt2);text-transform:uppercase;letter-spacing:0.8px;margin-bottom:12px;padding-bottom:6px;border-bottom:1px solid var(--bdr);display:flex;align-items:center;gap:6px">
-                Personal Information
-              </div>
-              <div class="g3" style="row-gap:14px;column-gap:16px">
-                <div class="fg"><label>Student Name <span style="color:var(--red)">*</span></label><input id="s_n" placeholder="Full student name" style="padding:8px 12px;height:38px"></div>
-                <div class="fg"><label>Father's Name <span style="color:var(--red)">*</span></label><input id="s_f" placeholder="Father's full name" style="padding:8px 12px;height:38px"></div>
-                <div class="fg"><label>Mother's Name <span style="color:var(--red)">*</span></label><input id="s_m" placeholder="Mother's full name" style="padding:8px 12px;height:38px"></div>
-                <div class="fg"><label>Date of Birth <span style="color:var(--red)">*</span></label><input id="s_dob" type="date" style="padding:8px 12px;height:38px"></div>
-                <div class="fg"><label>Gender <span style="color:var(--red)">*</span></label><select id="s_g" style="padding:8px 12px;height:38px"><option value="Male">Male</option><option value="Female">Female</option><option value="Other">Other</option></select></div>
-                <div class="fg"><label>Blood Group</label><select id="s_b" style="padding:8px 12px;height:38px"><option value="A+">A+</option><option value="A-">A-</option><option value="B+">B+</option><option value="B-">B-</option><option value="O+">O+</option><option value="O-">O-</option><option value="AB+">AB+</option><option value="AB-">AB-</option></select></div>
-              </div>
+              <span class="stu-photo-title">Student Photo</span>
+              <span class="stu-photo-optional">(Optional)</span>
             </div>
-
-            <!-- Section 2: Contact Details -->
-            <div>
-              <div style="font-size:11px;font-weight:700;color:var(--txt2);text-transform:uppercase;letter-spacing:0.8px;margin-bottom:12px;padding-bottom:6px;border-bottom:1px solid var(--bdr);display:flex;align-items:center;gap:6px">
-                Contact Details
-              </div>
-              <div class="g3" style="row-gap:14px;column-gap:16px">
-                <div class="fg"><label>Phone Number <span style="color:var(--red)">*</span></label><input id="s_ph" placeholder="10-digit mobile number" style="padding:8px 12px;height:38px"></div>
-                <div class="fg"><label>Email Address</label><input id="s_em" type="email" placeholder="student@example.com (optional)" style="padding:8px 12px;height:38px"></div>
-                <div class="fg"><label>Residential Address <span style="color:var(--red)">*</span></label><input id="s_ad" placeholder="Full postal residential address" style="padding:8px 12px;height:38px"></div>
-              </div>
+            <div class="stu-photo-btns">
+              <button type="button" class="stu-btn-choose" onclick="chooseStudentPhoto()">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+                Choose Photo
+              </button>
+              <button type="button" class="stu-btn-remove" id="btnRemoveStudentPhoto" onclick="removeStudentPhoto()">
+                ✕ Remove
+              </button>
             </div>
-
-            <!-- Section 3: Academic & Admission Details -->
-            <div>
-              <div style="font-size:11px;font-weight:700;color:var(--txt2);text-transform:uppercase;letter-spacing:0.8px;margin-bottom:12px;padding-bottom:6px;border-bottom:1px solid var(--bdr);display:flex;align-items:center;gap:6px">
-                Academic & Admission Details
-              </div>
-              
-              <!-- Automatic & Registration Identifiers -->
-              <div class="g4" style="margin-bottom:14px;row-gap:14px;column-gap:16px">
-                <div class="fg">
-                  <label>Admission Number (Automatic)</label>
-                  <input id="s_an" readonly style="background:var(--bg);color:var(--txt);cursor:not-allowed;font-weight:700;padding:8px 12px;height:38px" placeholder="Auto-generated on save">
-                </div>
-                <div class="fg">
-                  <label>Student SR No. <span style="font-size:11px;font-weight:normal;color:var(--txt2)">(Optional)</span></label>
-                  <input id="s_srn" placeholder="Optional e.g. SR-101" style="padding:8px 12px;height:38px">
-                </div>
-                <div class="fg">
-                  <label>Admission Date (Automatic)</label>
-                  <input id="s_admdt" type="date" readonly style="background:var(--bg);color:var(--txt);cursor:not-allowed;font-weight:600;padding:8px 12px;height:38px">
-                </div>
-                <div class="fg">
-                  <label>Academic Session (Automatic)</label>
-                  <input id="s_sess" readonly style="background:var(--bg);color:var(--txt);cursor:not-allowed;font-weight:700;padding:8px 12px;height:38px" placeholder="Active session">
-                </div>
-              </div>
-
-              <!-- Class Placement & Status -->
-              <div class="g4" style="row-gap:14px;column-gap:16px">
-                <div class="fg">
-                  <label>Class <span style="color:var(--red)">*</span></label>
-                  <select id="s_cl" onchange="onStudentFormClassChange()" style="padding:8px 12px;height:38px"><option value="">Select Class</option></select>
-                </div>
-                <div class="fg">
-                  <label>Section <span style="color:var(--red)">*</span></label>
-                  <select id="s_sec" style="padding:8px 12px;height:38px"><option value="A">Section A</option><option value="B">Section B</option><option value="C">Section C</option><option value="D">Section D</option></select>
-                </div>
-                <div class="fg">
-                  <label>Roll Number</label>
-                  <input id="s_rn" placeholder="Optional roll no" style="padding:8px 12px;height:38px">
-                </div>
-                <div class="fg">
-                  <label>Student Status</label>
-                  <select id="s_stat" style="padding:8px 12px;height:38px">
-                    <option value="Active">Active</option>
-                    <option value="Inactive">Inactive</option>
-                    <option value="Transferred">Transferred</option>
-                    <option value="Left School">Left School</option>
-                    <option value="Alumni">Alumni</option>
-                  </select>
-                </div>
-              </div>
+            <div class="stu-photo-specs-text">
+              <div>Max 5 MB • JPG, JPEG, PNG, WebP</div>
+              <div>You can save the student without a photo.</div>
             </div>
+            <span id="s_photo_status" style="display:none;"></span>
+          </div>
+        </div>
 
-            <input type="hidden" id="s_eid">
-            
-            <!-- Actions -->
-            <div style="display:flex;gap:12px;padding-top:16px;border-top:1px solid var(--bdr);align-items:center">
-              <button class="btn bp" style="padding:9px 22px;font-size:13px;font-weight:600" onclick="saveStudent()">💾 Save Student</button>
-              <button class="btn bo" style="padding:9px 18px;font-size:13px" onclick="showPage('students',null)">Cancel</button>
+        <!-- Personal Information Card -->
+        <div class="stu-card card">
+          <div class="stu-card-title-row">
+            <span class="stu-badge stu-badge-red">👤</span>
+            <span class="stu-card-title-text">Personal Information</span>
+          </div>
+          <div class="stu-grid-3">
+            <div class="stu-fg">
+              <label class="stu-label">Student Name <span class="stu-req">*</span></label>
+              <input id="s_n" placeholder="Full student name">
+            </div>
+            <div class="stu-fg">
+              <label class="stu-label">Father's Name <span class="stu-req">*</span></label>
+              <input id="s_f" placeholder="Father's full name">
+            </div>
+            <div class="stu-fg">
+              <label class="stu-label">Mother's Name <span class="stu-req">*</span></label>
+              <input id="s_m" placeholder="Mother's full name">
+            </div>
+            <div class="stu-fg">
+              <label class="stu-label">Date of Birth <span class="stu-req">*</span></label>
+              <input id="s_dob" type="date">
+            </div>
+            <div class="stu-fg">
+              <label class="stu-label">Gender <span class="stu-req">*</span></label>
+              <select id="s_g">
+                <option value="Male">Male</option>
+                <option value="Female">Female</option>
+                <option value="Other">Other</option>
+              </select>
+            </div>
+            <div class="stu-fg">
+              <label class="stu-label">Blood Group</label>
+              <select id="s_b">
+                <option value="A+">A+</option>
+                <option value="A-">A-</option>
+                <option value="B+">B+</option>
+                <option value="B-">B-</option>
+                <option value="O+">O+</option>
+                <option value="O-">O-</option>
+                <option value="AB+">AB+</option>
+                <option value="AB-">AB-</option>
+              </select>
             </div>
           </div>
         </div>
+
+        <!-- Contact Details Card -->
+        <div class="stu-card card">
+          <div class="stu-card-title-row">
+            <span class="stu-badge stu-badge-green">📞</span>
+            <span class="stu-card-title-text">Contact Details</span>
+          </div>
+          <div class="stu-grid-3">
+            <div class="stu-fg">
+              <label class="stu-label">Phone Number <span class="stu-req">*</span></label>
+              <input id="s_ph" placeholder="10-digit mobile number">
+            </div>
+            <div class="stu-fg">
+              <label class="stu-label">Email Address</label>
+              <input id="s_em" type="email" placeholder="student@example.com (optional)">
+            </div>
+            <div class="stu-fg">
+              <label class="stu-label">Residential Address <span class="stu-req">*</span></label>
+              <input id="s_ad" placeholder="Full postal residential address">
+            </div>
+          </div>
+        </div>
+
+        <!-- Academic & Admission Details Card -->
+        <div class="stu-card card">
+          <div class="stu-card-title-row">
+            <span class="stu-badge stu-badge-blue">🎓</span>
+            <span class="stu-card-title-text">Academic & Admission Details</span>
+          </div>
+          <div class="stu-grid-4">
+            <div class="stu-fg">
+              <label class="stu-label">Admission No. (Auto)</label>
+              <input id="s_an" readonly placeholder="Auto-generated on save">
+            </div>
+            <div class="stu-fg">
+              <label class="stu-label">Student SR No. <span style="font-size:10.5px;font-weight:normal;color:#64748b">(Optional)</span></label>
+              <input id="s_srn" placeholder="Optional e.g. SR-101">
+            </div>
+            <div class="stu-fg">
+              <label class="stu-label">Admission Date (Auto)</label>
+              <input id="s_admdt" type="date" readonly>
+            </div>
+            <div class="stu-fg">
+              <label class="stu-label">Academic Session (Auto)</label>
+              <input id="s_sess" readonly placeholder="Active session">
+            </div>
+            <div class="stu-fg">
+              <label class="stu-label">Class <span class="stu-req">*</span></label>
+              <select id="s_cl" onchange="onStudentFormClassChange()"><option value="">Select Class</option></select>
+            </div>
+            <div class="stu-fg">
+              <label class="stu-label">Section <span class="stu-req">*</span></label>
+              <select id="s_sec">
+                <option value="A">Section A</option>
+                <option value="B">Section B</option>
+                <option value="C">Section C</option>
+                <option value="D">Section D</option>
+              </select>
+            </div>
+            <div class="stu-fg">
+              <label class="stu-label">Roll Number</label>
+              <input id="s_rn" placeholder="Optional roll no">
+            </div>
+            <div class="stu-fg">
+              <label class="stu-label">Student Status</label>
+              <select id="s_stat">
+                <option value="Active">Active</option>
+                <option value="Inactive">Inactive</option>
+                <option value="Transferred">Transferred</option>
+                <option value="Left School">Left School</option>
+                <option value="Alumni">Alumni</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <input type="hidden" id="s_eid">
+
+        <!-- Bottom Save Button -->
+        <div class="stu-bottom-bar">
+          <button type="button" class="stu-save-btn" onclick="saveStudent()">
+            💾 Save Student
+          </button>
+        </div>
+
       </div>
     </div>
 

@@ -8,7 +8,7 @@ RELEASE METADATA
 Application Name:      MD Convent SMS
 Release Version:       2.0.0 (Production Release)
 Target Platform:       Windows 10 / Windows 11 (64-bit)
-Release Date:          October 24, 2026
+Release Date:          October 26, 2026
 Packaging System:      Inno Setup 6.3.1 (LZMA2/Ultra64 Compression) + Electron v28.3.3
 
 
@@ -17,8 +17,8 @@ PACKAGE FILE INVENTORY & SHA-256 CHECKSUMS
 
 1. [STANDALONE WINDOWS INSTALLER]
    Relative Path:  Installer/MD_Convent_SMS_Setup_v2.0.exe
-   File Size:      76,930,905 bytes (73.36 MB)
-   SHA-256 Hash:   EED014BBE781B13E8F3C1A185B34CE7AEA0D5CAF90400FA92FBAD8525D26ADE3
+   File Size:      605,385,673 bytes (577.34 MB)
+   SHA-256 Hash:   54CB3C24243EAA2E7BE5AA6E3EB40309DCD63B083E09E49A92B76921E9ADE846
    Description:    Official Windows x64 setup wizard with Desktop shortcut,
                    Start Menu integration, and clean uninstallation support.
 
@@ -47,7 +47,7 @@ and run:
   Get-FileHash -Path "Installer\MD_Convent_SMS_Setup_v2.0.exe" -Algorithm SHA256
 
 Compare the output hash to the official release hash:
-  EED014BBE781B13E8F3C1A185B34CE7AEA0D5CAF90400FA92FBAD8525D26ADE3
+  54CB3C24243EAA2E7BE5AA6E3EB40309DCD63B083E09E49A92B76921E9ADE846
 
 
 PRIVACY & SENSITIVE DATA DECLARATION

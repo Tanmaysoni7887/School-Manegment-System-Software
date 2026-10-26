@@ -26,6 +26,7 @@ When the application opens for the first time on a new computer:
   It automatically creates:
     Documents\MDConvent_SMS\
     Documents\MDConvent_SMS\backups\
+    Documents\MDConvent_SMS\Student_Photos\
 
 * IMPORTANT NOTE ON ONEDRIVE VS STANDARD DOCUMENTS:
   - If your PC has Microsoft OneDrive active with folder backup enabled, your database
@@ -79,7 +80,8 @@ STEP 3: REGISTERING STUDENTS
 -----------------------------
 1. Click "Add Student" in the sidebar menu.
 2. Fill out the student details:
-   - Admission No: Enter a unique identifier (e.g. 101, ADM-2026-001).
+   - Student Photo (Optional): Click "Choose Photo" to upload a photograph (.jpg, .png, .webp, max 5 MB). Stored safely in Student_Photos\.
+    - Admission No: Enter a unique identifier (e.g. 101, ADM-2026-001).
                    Duplicate admission numbers are automatically blocked.
    - Full Name: Student's official name.
    - Class & Section: Select class and section (e.g. Class 1, Section A).
