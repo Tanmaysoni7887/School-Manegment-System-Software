@@ -1179,7 +1179,53 @@ function ensureDefaultState() {
   if (!DB.transport.assignments || typeof DB.transport.assignments !== 'object') DB.transport.assignments = {};
   if (!Array.isArray(DB.transport.payments)) DB.transport.payments = [];
   if (typeof DB.transport.nextReceiptSeq !== 'number') DB.transport.nextReceiptSeq = 1;
+  sanitizeTransportDatabase(DB);
   determineActiveAcademicSession();
+}
+
+// Validate whether a transport payment record is a genuine, valid payment
+function isValidTransportPayment(p) {
+  if (!p || typeof p !== 'object' || p.reversed) return false;
+  // Must have a valid non-empty receipt number
+  if (!p.receiptNo || typeof p.receiptNo !== 'string' || !p.receiptNo.trim()) return false;
+  // Disallow auto-generated fake TR-REC-* receipts that lack allocations and amountReceived
+  if (/^TR-REC-\d+$/i.test(p.receiptNo) && (p.amountReceived === undefined || !Array.isArray(p.allocations))) {
+    return false;
+  }
+  // Must have a valid positive numeric amount received
+  const amt = (p.amountReceived !== undefined) ? Number(p.amountReceived) : Number(p.amount);
+  if (isNaN(amt) || !isFinite(amt) || amt <= 0) return false;
+  // Must have a valid student reference
+  if (!p.studentId && !p.admNo) return false;
+  return true;
+}
+
+// Safely remove any verified fake / invalid transport receipts from DB, while strictly preserving all genuine payments
+function sanitizeTransportDatabase(db) {
+  if (!db || !db.transport || !Array.isArray(db.transport.payments)) return false;
+  const initialLen = db.transport.payments.length;
+  if (initialLen === 0) return false;
+
+  const cleaned = db.transport.payments.filter(p => isValidTransportPayment(p));
+  if (cleaned.length !== initialLen) {
+    const removedCount = initialLen - cleaned.length;
+    db.transport.payments = cleaned;
+    console.info(`[Transport Audit] Safely cleaned ${removedCount} invalid/fake transport receipt(s). Preserved ${cleaned.length} genuine record(s).`);
+    return true;
+  }
+  return false;
+}
+
+// Safe numeric helper preventing NaN/undefined propagation in financial calculations
+function safeNum(val, fallback = 0) {
+  const n = Number(val);
+  return (isNaN(n) || !isFinite(n)) ? fallback : n;
+}
+
+// Safe currency formatter preventing ₹NaN / ₹undefined in user interface
+function safeCurrency(val) {
+  const n = safeNum(val, 0);
+  return '₹ ' + n.toLocaleString('en-IN');
 }
 
 let isSavingInProgress = false;
@@ -11161,14 +11207,24 @@ function getStudentMonthTransportAccounting(studentId, monthStrOrKey) {
 
   const payments = (DB.transport && Array.isArray(DB.transport.payments)) ? DB.transport.payments : [];
   payments.forEach(p => {
-    if (p.studentId === studentId && !p.reversed && Array.isArray(p.allocations)) {
-      p.allocations.forEach(al => {
-        const alKey = displayToMonthKey(al.month);
-        if (al.month === monthStrOrKey || al.month === targetDisplay || alKey === targetKey) {
-          paid += (Number(al.paidAllocated) || 0);
-          discount += (Number(al.discountAllocated) || 0);
+    if (p.studentId === studentId && !p.reversed && isValidTransportPayment(p)) {
+      if (Array.isArray(p.allocations)) {
+        p.allocations.forEach(al => {
+          const alKey = displayToMonthKey(al.month);
+          if (al.month === monthStrOrKey || al.month === targetDisplay || alKey === targetKey) {
+            const pAlloc = safeNum(al.paidAllocated, 0);
+            const dAlloc = safeNum(al.discountAllocated, 0);
+            if (pAlloc > 0) paid += pAlloc;
+            if (dAlloc > 0) discount += dAlloc;
+          }
+        });
+      } else if (p.month) {
+        const pKey = displayToMonthKey(p.month + (p.year ? ' ' + p.year : ''));
+        if (pKey === targetKey) {
+          const amt = safeNum(p.amountReceived !== undefined ? p.amountReceived : p.amount, 0);
+          if (amt > 0) paid += amt;
         }
-      });
+      }
     }
   });
   return { paid, discount };
@@ -11193,7 +11249,7 @@ function getStudentPreviousSessionTransportDues(studentId, activeSession) {
       const yr = Math.floor(curKey / 100);
       const mo = curKey % 100;
       const moStr = `${SYS_MONTHS[mo - 1]} ${yr}`;
-      const fee = Number(assign.monthlyFee) || 0;
+      const fee = safeNum(assign.monthlyFee, 0);
       const { paid, discount } = getStudentMonthTransportAccounting(studentId, moStr);
       const bal = Math.max(0, fee - discount - paid);
       prevDues += bal;
@@ -11405,10 +11461,10 @@ function buildTransportLedgerRows() {
     const coversMonth = isMonthInAssignmentPeriod(transportState.activeMonth, assign.effectiveFrom, assign.stoppedAt);
     if (!coversMonth && !assign.active) return;
 
-    const monthlyFee = Number(assign.monthlyFee) || 0;
+    const monthlyFee = safeNum(assign.monthlyFee, 0);
     const { paid, discount } = getStudentMonthTransportAccounting(st.id, transportState.activeMonth);
     const due = Math.max(0, monthlyFee - discount - paid);
-    const prevDues = getStudentPreviousSessionTransportDues(st.id, transportState.activeSession);
+    const prevDues = safeNum(getStudentPreviousSessionTransportDues(st.id, transportState.activeSession), 0);
 
     let status = 'Due';
     if (!coversMonth) {
@@ -11517,10 +11573,10 @@ function renderTransportLedger() {
         <td style="color:#475569;font-weight:600">${escapeHtml(row.admNo)}</td>
         <td style="color:#475569">${escapeHtml(row.class)}</td>
         <td style="color:#1e293b">${escapeHtml(row.pickup || '-')}</td>
-        <td class="text-right" style="font-weight:600">₹ ${Number(row.monthlyFee).toLocaleString('en-IN')}</td>
-        <td class="text-right" style="font-weight:600;color:#16a34a">₹ ${Number(row.paid).toLocaleString('en-IN')}</td>
-        <td class="text-right" style="font-weight:600;color:${row.prevDues > 0 ? '#c0392b' : '#64748b'}">₹ ${Number(row.prevDues).toLocaleString('en-IN')}</td>
-        <td class="text-right" style="font-weight:700;color:${row.due > 0 ? '#c0392b' : '#1e293b'}">₹ ${Number(row.due).toLocaleString('en-IN')}</td>
+        <td class="text-right" style="font-weight:600">${safeCurrency(row.monthlyFee)}</td>
+        <td class="text-right" style="font-weight:600;color:#16a34a">${safeCurrency(row.paid)}</td>
+        <td class="text-right" style="font-weight:600;color:${row.prevDues > 0 ? '#c0392b' : '#64748b'}">${safeCurrency(row.prevDues)}</td>
+        <td class="text-right" style="font-weight:700;color:${row.due > 0 ? '#c0392b' : '#1e293b'}">${safeCurrency(row.due)}</td>
         <td class="text-center"><span class="tr-badge ${badgeClass}">${row.status}</span></td>
         <td class="text-center">
           <div class="tr-actions-cell" style="justify-content:center">
@@ -11548,14 +11604,14 @@ function renderTransportSummaryCards(filteredList) {
   const clsLabel = transportState.activeClass === 'all' ? 'All Classes' : (transportState.activeClass === 'NC' ? 'Nursery' : 'Class ' + transportState.activeClass);
   const subText = `(${moShort} • ${clsLabel})`;
 
-  const totalCollected = filteredList.reduce((acc, r) => acc + (Number(r.paid) || 0), 0);
-  const totalDue = filteredList.reduce((acc, r) => acc + (Number(r.due) || 0), 0);
+  const totalCollected = filteredList.reduce((acc, r) => acc + safeNum(r.paid, 0), 0);
+  const totalDue = filteredList.reduce((acc, r) => acc + safeNum(r.due, 0), 0);
   const activeCount = filteredList.length;
   const activeStops = (DB.transport && Array.isArray(DB.transport.stops)) ? DB.transport.stops.filter(s => s.active !== false).length : 0;
 
-  if (colEl) colEl.textContent = `₹ ${totalCollected.toLocaleString('en-IN')}`;
+  if (colEl) colEl.textContent = safeCurrency(totalCollected);
   if (colSubEl) colSubEl.textContent = subText;
-  if (dueEl) dueEl.textContent = `₹ ${totalDue.toLocaleString('en-IN')}`;
+  if (dueEl) dueEl.textContent = safeCurrency(totalDue);
   if (dueSubEl) dueSubEl.textContent = subText;
   if (stEl) stEl.textContent = String(activeCount);
   if (stopsEl) stopsEl.textContent = String(activeStops);
@@ -12709,12 +12765,14 @@ function saveTransportPayment() {
   const totalDueAcrossChecked = checkedBoxes.reduce((acc, cb) => acc + (parseFloat(cb.getAttribute('data-balance')) || 0), 0);
   const discAmtInput = document.getElementById('tr_col_discount_amount');
   const discount = Math.min(totalDueAcrossChecked, Math.max(0, parseFloat(discAmtInput?.value) || 0));
-  const received = parseFloat(document.getElementById('tr_col_amount_input')?.value) || 0;
+  const receivedRaw = document.getElementById('tr_col_amount_input')?.value;
+  const received = parseFloat(receivedRaw);
   const reason = (document.getElementById('tr_col_discount_reason')?.value || '').trim();
   const mode = document.getElementById('tr_col_payment_mode')?.value || 'Cash';
 
-  if (received < 0) {
-    showToast('Amount Received cannot be negative.', 'error');
+  // Strict validation: payment must be a valid positive amount > 0
+  if (isNaN(received) || received <= 0) {
+    showToast('Payment amount must be greater than ₹0 to record a transport payment.', 'error');
     return;
   }
 
@@ -12806,7 +12864,7 @@ function saveTransportPayment() {
   populateTransportReceiptModal(paymentRecord);
   openM('modalTransportReceipt');
   renderTransportLedger();
-  showToast(`Transport fee payment of ₹ ${received} recorded successfully!`, 'success');
+  showToast(`Transport fee payment of ${safeCurrency(received)} recorded successfully!`, 'success');
 }
 
 // ============================================================
@@ -12892,6 +12950,7 @@ function formatCompactTransportMonthRange(months) {
 }
 
 function populateTransportReceiptModal(rcpt) {
+  if (!rcpt) return;
   const schoolName = (DB && DB.settings && DB.settings.schoolName) || 'MD CONVENT PUBLIC SCHOOL';
   const scNameEl = document.getElementById('tr_rcpt_school_name');
   if (scNameEl) scNameEl.textContent = schoolName;
@@ -12913,27 +12972,34 @@ function populateTransportReceiptModal(rcpt) {
   const pickEl = document.getElementById('tr_rcpt_pickup');
   const dropEl = document.getElementById('tr_rcpt_drop');
 
-  if (noEl) noEl.textContent = rcpt.receiptNo;
-  if (dtEl) dtEl.textContent = rcpt.date;
-  if (stNameEl) stNameEl.textContent = rcpt.studentName;
-  if (stAdmEl) stAdmEl.textContent = rcpt.admNo;
-  if (stClsEl) stClsEl.textContent = rcpt.class;
+  if (noEl) noEl.textContent = rcpt.receiptNo || '–';
+  if (dtEl) dtEl.textContent = rcpt.date || '–';
+  if (stNameEl) stNameEl.textContent = rcpt.studentName || '–';
+  if (stAdmEl) stAdmEl.textContent = rcpt.admNo || '–';
+  if (stClsEl) stClsEl.textContent = rcpt.class || '–';
   if (pickEl) pickEl.textContent = rcpt.pickup || '-';
   if (dropEl) dropEl.textContent = rcpt.drop || '-';
 
-  const moText = formatCompactTransportMonthRange(rcpt.months);
+  const months = rcpt.months || (Array.isArray(rcpt.allocations) ? rcpt.allocations.map(a => a.month) : (rcpt.month ? [rcpt.month + (rcpt.year ? ' ' + rcpt.year : '')] : []));
+  const moText = formatCompactTransportMonthRange(months);
+
+  const totalFee = safeNum(rcpt.totalFee, safeNum(rcpt.amount, 0));
+  const discount = safeNum(rcpt.discount, 0);
+  const received = safeNum(rcpt.amountReceived !== undefined ? rcpt.amountReceived : rcpt.amount, 0);
+  const balance = safeNum(rcpt.remainingBalance, Math.max(0, totalFee - discount - received));
+
   const mEl = document.getElementById('tr_rcpt_month');
   if (mEl) mEl.textContent = moText;
   const feeEl = document.getElementById('tr_rcpt_fee');
-  if (feeEl) feeEl.textContent = Number(rcpt.totalFee).toFixed(2);
+  if (feeEl) feeEl.textContent = totalFee.toFixed(2);
   const discEl = document.getElementById('tr_rcpt_disc');
-  if (discEl) discEl.textContent = Number(rcpt.discount).toFixed(2);
+  if (discEl) discEl.textContent = discount.toFixed(2);
   const recEl = document.getElementById('tr_rcpt_received');
-  if (recEl) recEl.textContent = Number(rcpt.amountReceived).toFixed(2);
+  if (recEl) recEl.textContent = received.toFixed(2);
   const balEl = document.getElementById('tr_rcpt_bal');
-  if (balEl) balEl.textContent = Number(rcpt.remainingBalance).toFixed(2);
+  if (balEl) balEl.textContent = balance.toFixed(2);
 
-  const discLabel = (rcpt.discount > 0 && rcpt.discountReason)
+  const discLabel = (discount > 0 && rcpt.discountReason)
     ? `Discount <span style="font-size:10.5px;color:#64748b;font-weight:normal">(${escapeHtml(rcpt.discountReason)})</span>`
     : 'Discount';
 
@@ -12941,15 +13007,15 @@ function populateTransportReceiptModal(rcpt) {
   if (tbody) {
     tbody.innerHTML = `
       <tr><td>Fee Month</td><td class="text-right" id="tr_rcpt_month">${escapeHtml(moText)}</td></tr>
-      <tr><td>Transport Fee</td><td class="text-right" id="tr_rcpt_fee">${Number(rcpt.totalFee).toFixed(2)}</td></tr>
-      <tr><td>${discLabel}</td><td class="text-right" id="tr_rcpt_disc">${Number(rcpt.discount).toFixed(2)}</td></tr>
-      <tr style="font-weight:700"><td>Amount Received</td><td class="text-right" id="tr_rcpt_received">${Number(rcpt.amountReceived).toFixed(2)}</td></tr>
-      <tr style="font-weight:700;color:${rcpt.remainingBalance > 0 ? '#c0392b' : '#0f172a'}"><td>Remaining Balance</td><td class="text-right" id="tr_rcpt_bal">${Number(rcpt.remainingBalance).toFixed(2)}</td></tr>
+      <tr><td>Transport Fee</td><td class="text-right" id="tr_rcpt_fee">${totalFee.toFixed(2)}</td></tr>
+      <tr><td>${discLabel}</td><td class="text-right" id="tr_rcpt_disc">${discount.toFixed(2)}</td></tr>
+      <tr style="font-weight:700"><td>Amount Received</td><td class="text-right" id="tr_rcpt_received">${received.toFixed(2)}</td></tr>
+      <tr style="font-weight:700;color:${balance > 0 ? '#c0392b' : '#0f172a'}"><td>Remaining Balance</td><td class="text-right" id="tr_rcpt_bal">${balance.toFixed(2)}</td></tr>
     `;
   }
 
   const modeEl = document.getElementById('tr_rcpt_mode');
-  if (modeEl) modeEl.textContent = rcpt.paymentMode;
+  if (modeEl) modeEl.textContent = rcpt.paymentMode || 'Cash';
 }
 
 function printTransportReceipt() {
@@ -13101,9 +13167,10 @@ function openStudentTransportDetailsModal(studentId) {
           <td style="color:#1e293b">${escapeHtml(pickupStr)}</td>
           <td style="color:#1e293b">${escapeHtml(dropStr)}</td>
           <td class="text-right" style="font-weight:600">₹ ${fee.toLocaleString('en-IN')}</td>
-          <td class="text-right" style="color:#16a34a;font-weight:600">₹ ${paid.toLocaleString('en-IN')}</td>
-          <td class="text-right" style="color:#d97706">${discount > 0 ? '₹ ' + discount.toLocaleString('en-IN') : '-'}</td>
-          <td class="text-right" style="font-weight:700;color:${balance > 0 ? '#c0392b' : '#0f172a'}">₹ ${balance.toLocaleString('en-IN')}</td>
+          <td class="text-right" style="font-weight:600">${safeCurrency(fee)}</td>
+          <td class="text-right" style="color:#16a34a;font-weight:600">${safeCurrency(paid)}</td>
+          <td class="text-right" style="color:#d97706">${discount > 0 ? safeCurrency(discount) : '-'}</td>
+          <td class="text-right" style="font-weight:700;color:${balance > 0 ? '#c0392b' : '#0f172a'}">${safeCurrency(balance)}</td>
           <td class="text-center">${monthBadge}</td>
         </tr>
       `;
@@ -13113,25 +13180,29 @@ function openStudentTransportDetailsModal(studentId) {
   // 2. Payment Receipts Section
   const tbody = document.getElementById('tr_details_history_tbody');
   const countEl = document.getElementById('tr_details_payments_count');
-  const payments = (DB.transport && Array.isArray(DB.transport.payments)) ? DB.transport.payments.filter(p => p.studentId === studentId && !p.reversed) : [];
+  const allPayments = (DB.transport && Array.isArray(DB.transport.payments)) ? DB.transport.payments : [];
+  const payments = allPayments.filter(p => p.studentId === studentId && isValidTransportPayment(p));
 
   if (countEl) countEl.textContent = String(payments.length);
 
   if (tbody) {
     if (payments.length === 0) {
-      tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;padding:20px;color:#64748b;font-size:11.5px">No payments recorded for this student yet.</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;padding:24px 16px;color:#64748b;font-size:12px;font-weight:500">No transport payments recorded yet.</td></tr>`;
     } else {
       tbody.innerHTML = payments.slice().reverse().map(p => {
-        const moStr = formatCompactTransportMonthRange(p.months);
+        const months = p.months || (Array.isArray(p.allocations) ? p.allocations.map(a => a.month) : (p.month ? [p.month + (p.year ? ' ' + p.year : '')] : []));
+        const moStr = formatCompactTransportMonthRange(months);
+        const amt = safeNum(p.amountReceived !== undefined ? p.amountReceived : p.amount, 0);
+        const disc = safeNum(p.discount, 0);
         return `<tr>
-          <td style="font-weight:700;color:#0f172a">${escapeHtml(p.receiptNo)}</td>
-          <td style="color:#475569">${escapeHtml(p.date)}</td>
+          <td style="font-weight:700;color:#0f172a">${escapeHtml(p.receiptNo || '–')}</td>
+          <td style="color:#475569">${escapeHtml(p.date || '–')}</td>
           <td style="color:#1e293b">${escapeHtml(moStr)}</td>
-          <td class="text-right" style="font-weight:700;color:#16a34a">₹ ${Number(p.amountReceived).toLocaleString('en-IN')}</td>
-          <td class="text-right">${Number(p.discount || 0) > 0 ? '₹ ' + Number(p.discount).toLocaleString('en-IN') : '-'}</td>
+          <td class="text-right" style="font-weight:700;color:#16a34a">${safeCurrency(amt)}</td>
+          <td class="text-right">${disc > 0 ? safeCurrency(disc) : '-'}</td>
           <td style="color:#475569">${escapeHtml(p.paymentMode || 'Cash')}</td>
           <td class="text-center">
-            <button class="btn bo bsm" onclick="viewTransportReceiptByNo('${p.receiptNo}')" style="padding:2px 8px;font-size:11px">View</button>
+            <button class="btn bo bsm" onclick="viewTransportReceiptByNo('${escapeHtml(p.receiptNo)}')" style="padding:2px 8px;font-size:11px">View</button>
           </td>
         </tr>`;
       }).join('');
@@ -13173,7 +13244,7 @@ function onDetailsRemoveClick() {
 
 function viewTransportReceiptByNo(receiptNo) {
   const payments = (DB.transport && Array.isArray(DB.transport.payments)) ? DB.transport.payments : [];
-  const rcpt = payments.find(p => p.receiptNo === receiptNo);
+  const rcpt = payments.find(p => p.receiptNo === receiptNo && isValidTransportPayment(p));
   if (!rcpt) return;
 
   closeM('modalStudentTransportDetails');

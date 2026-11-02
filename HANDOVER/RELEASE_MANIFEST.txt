@@ -17,8 +17,8 @@ PACKAGE FILE INVENTORY & SHA-256 CHECKSUMS
 
 1. [STANDALONE WINDOWS INSTALLER]
    Relative Path:  Installer/MD_Convent_SMS_Setup_v2.0.exe
-   File Size:      680,764,812 bytes (649.23 MB)
-   SHA-256 Hash:   20D5FA09FE12AEFDE54B7990C74ECE44EAF5975BC37CF1C6F7DAC16676C88092
+   File Size:      756,153,168 bytes (721.12 MB)
+   SHA-256 Hash:   0FBEBB0047CA8CF7E185670ADD84CDD3F7F33487C4F7A44D3D0DF8BA2EFD5DDA
    Description:    Official Windows x64 setup wizard with Desktop shortcut,
                    Start Menu integration, and clean uninstallation support.
 
@@ -47,7 +47,7 @@ and run:
   Get-FileHash -Path "Installer\MD_Convent_SMS_Setup_v2.0.exe" -Algorithm SHA256
 
 Compare the output hash to the official release hash:
-  20D5FA09FE12AEFDE54B7990C74ECE44EAF5975BC37CF1C6F7DAC16676C88092
+  0FBEBB0047CA8CF7E185670ADD84CDD3F7F33487C4F7A44D3D0DF8BA2EFD5DDA
 
 
 PRIVACY & SENSITIVE DATA DECLARATION
