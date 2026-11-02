@@ -28,7 +28,7 @@ body{font-family:'Segoe UI',Tahoma,sans-serif;background:var(--bg);color:var(--t
 .sb{display:flex;align-items:center;gap:6px;background:var(--bg);border:1px solid var(--bdr);border-radius:20px;padding:5px 12px}
 .sb input{border:none;background:none;outline:none;font-size:13px;width:180px;color:var(--txt)}
 .bdg{background:var(--rl);color:var(--red);padding:3px 10px;border-radius:20px;font-size:11px;font-weight:600}
-.ca{flex:1;overflow-y:auto;overflow-x:hidden;padding:18px 24px;min-width:0}
+.ca{flex:1;overflow-y:auto;overflow-x:hidden;padding:16px 22px;min-width:0;display:flex;flex-direction:column}
 .ca::-webkit-scrollbar{width:5px}.ca::-webkit-scrollbar-thumb{background:#ccc;border-radius:3px}
 .page{display:none;width:100%;max-width:100%;overflow-x:hidden}.page.active{display:block}
 #page-dashboard{width:100%;max-width:100%}
@@ -265,7 +265,165 @@ input:checked+.slider:before{transform:translateX(18px)}
 .tr-rcpt-sig-line{border-top:1px solid #0f172a;width:140px;padding-top:4px;font-size:10.5px;font-weight:600}
 
 /* ============================================================ */
-/* EXACT CLEAN MINIMAL ADD / EDIT STUDENT STYLES                */
+/* ALL STUDENTS TABLE STYLES - PIXEL-ALIGNED ROWS & COLUMNS     */
+/* ============================================================ */
+.st-table-wrap {
+  width: 100%;
+  overflow-x: auto;
+  box-sizing: border-box;
+}
+.st-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12.5px;
+  table-layout: auto;
+  box-sizing: border-box;
+}
+.st-table th,
+.st-table td {
+  white-space: nowrap;
+  vertical-align: middle;
+  box-sizing: border-box;
+}
+.st-table thead tr {
+  background: var(--bg);
+  height: 42px;
+  box-sizing: border-box;
+}
+.st-table th {
+  background: var(--bg);
+  padding: 8px 12px;
+  font-weight: 700;
+  font-size: 11.5px;
+  color: var(--txt2);
+  border-bottom: 2px solid var(--bdr);
+  white-space: nowrap;
+  vertical-align: middle;
+  box-sizing: border-box;
+  user-select: none;
+}
+.st-table tbody tr {
+  height: 46px;
+  box-sizing: border-box;
+  transition: background 0.1s ease;
+}
+.st-table tbody tr:hover td {
+  background: #fafbfc;
+}
+.st-table tbody tr.st-row-left td {
+  opacity: 0.85;
+}
+.st-table tbody td {
+  padding: 6px 12px;
+  border-bottom: 1px solid var(--bdr);
+  vertical-align: middle;
+  box-sizing: border-box;
+  color: var(--txt);
+  height: 46px;
+  line-height: 1.3;
+}
+.st-table tbody tr:last-child td {
+  border-bottom: 1px solid var(--bdr);
+}
+.st-table .chip {
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1.2;
+  height: 20px;
+  box-sizing: border-box;
+  vertical-align: middle;
+}
+.st-avatar-wrap {
+  display: inline-flex;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  overflow: hidden;
+  border: 1px solid var(--bdr);
+  background: var(--bg);
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  box-sizing: border-box;
+}
+.st-avatar-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: none;
+}
+.st-avatar-fallback {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--txt2);
+  line-height: 1;
+}
+.st-name-cell {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  box-sizing: border-box;
+}
+.st-name-text {
+  font-weight: 700;
+  color: var(--txt);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 200px;
+  display: inline-block;
+  line-height: 1.25;
+}
+.st-text-cell {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 150px;
+  line-height: 1.25;
+}
+.st-phone-link {
+  color: var(--blu);
+  text-decoration: none;
+  white-space: nowrap;
+}
+.st-phone-link:hover {
+  text-decoration: underline;
+}
+.st-actions-cell {
+  text-align: center;
+  vertical-align: middle;
+  box-sizing: border-box;
+  white-space: nowrap;
+  padding: 6px 8px;
+  width: 110px;
+}
+.st-actions-wrap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  width: 100%;
+  box-sizing: border-box;
+}
+.st-action-btn {
+  padding: 3px 6px;
+  min-width: 26px;
+  height: 26px;
+  font-size: 12px;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  flex-shrink: 0;
+  border-radius: 5px;
+}
+
+/* ============================================================ */
+/* PIXEL-PERFECT REDESIGNED ADD / EDIT STUDENT STYLES           */
 /* ============================================================ */
 #page-addstudent {
   width: 100%;
@@ -274,283 +432,884 @@ input:checked+.slider:before{transform:translateX(18px)}
   box-sizing: border-box;
 }
 #page-addstudent.active {
-  display: block;
-}
-.stu-container {
-  width: 100%;
-  max-width: 100%;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  flex: 1;
+  min-height: calc(100vh - 49px - 32px);
+}
+
+.stu-main-panel {
+  background: #ffffff;
+  border-radius: 16px;
+  padding: 16px 22px 14px 22px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.05);
+  border: 1px solid #dce5ef;
+  width: 100%;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
   box-sizing: border-box;
 }
 
-/* Page Header */
 .stu-page-header {
-  margin-bottom: 2px;
+  margin-bottom: 10px;
+  flex-shrink: 0;
 }
 .stu-header-title {
-  font-size: 20px;
+  font-size: 23px;
   font-weight: 800;
-  color: #0f172a;
+  color: #0b1a30;
   margin: 0;
   line-height: 1.2;
-}
-.stu-header-sub {
-  font-size: 12px;
-  color: #64748b;
-  margin: 2px 0 0 0;
+  letter-spacing: -0.3px;
 }
 
-/* Shared Card Style */
-.stu-card {
-  background: #ffffff;
-  border: 1px solid #e2e8f0;
-  border-radius: 10px;
-  padding: 10px 16px;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
-  box-sizing: border-box;
+/* Upper Section */
+.stu-upper-row {
+  display: grid;
+  grid-template-columns: 240px 1fr;
+  gap: 14px;
+  align-items: stretch;
+  flex-shrink: 0;
 }
 
 /* Photo Card */
 .stu-photo-card {
+  background: #ffffff;
+  border: 1px solid #dbeafe;
+  border-radius: 14px;
+  padding: 12px 16px;
   display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: 20px;
-  padding: 10px 16px;
+  justify-content: center;
+  box-sizing: border-box;
+  min-width: 0;
+  overflow: hidden;
 }
 .stu-avatar-wrapper {
-  width: 68px;
-  height: 68px;
-  border-radius: 50%;
-  background: #e2e8f0;
+  width: 165px;
+  height: 185px;
+  border: 1.5px solid #60a5fa;
+  border-radius: 12px;
+  background: #f8fafc;
   display: flex;
   align-items: center;
   justify-content: center;
-  flex-shrink: 0;
-  cursor: pointer;
   overflow: hidden;
+  cursor: pointer;
   user-select: none;
-  transition: opacity 0.15s ease;
+  transition: border-color 0.15s ease;
+  box-sizing: border-box;
+  flex-shrink: 0;
 }
 .stu-avatar-wrapper:hover {
-  opacity: 0.9;
+  border-color: #2563eb;
 }
 .stu-avatar-img {
   width: 100%;
   height: 100%;
-  border-radius: 50%;
   object-fit: cover;
+  border-radius: 10px;
   display: none;
 }
 .stu-avatar-placeholder {
-  font-size: 34px;
-  color: #94a3b8;
-  line-height: 1;
-}
-.stu-photo-details {
   display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-.stu-photo-title {
-  font-size: 13.5px;
-  font-weight: 700;
-  color: #0f172a;
-}
-.stu-photo-optional {
-  font-size: 12.5px;
-  font-weight: 400;
-  color: #64748b;
-  margin-left: 3px;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
 }
 .stu-photo-btns {
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 8px;
-  margin-top: 2px;
+  margin-top: 10px;
+  width: 100%;
+  max-width: 208px;
+  box-sizing: border-box;
 }
 .stu-btn-choose {
-  background: #dc2626;
+  background: #f43f5e;
   color: #ffffff;
   border: none;
-  border-radius: 6px;
-  padding: 5px 14px;
-  font-size: 12px;
-  font-weight: 600;
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  transition: background 0.15s ease;
-}
-.stu-btn-choose:hover {
-  background: #b91c1c;
-}
-.stu-btn-remove {
-  background: #ffffff;
-  color: #dc2626;
-  border: 1px solid #dc2626;
-  border-radius: 6px;
-  padding: 4px 10px;
+  border-radius: 7px;
+  padding: 5px 12px;
   font-size: 11.5px;
   font-weight: 600;
+  height: 31px;
   cursor: pointer;
-  display: none;
-  transition: all 0.15s ease;
-}
-.stu-btn-remove:hover {
-  background: #fef2f2;
-}
-.stu-photo-specs-text {
-  font-size: 11px;
-  color: #64748b;
-  line-height: 1.35;
-  margin-top: 2px;
-}
-
-/* Card Title Row */
-.stu-card-title-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 8px;
-}
-.stu-badge {
-  width: 22px;
-  height: 22px;
-  border-radius: 50%;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  font-size: 12px;
+  gap: 5px;
+  transition: background 0.15s ease;
+  white-space: nowrap;
+  box-sizing: border-box;
+  flex: 1;
+  max-width: 125px;
+}
+.stu-btn-choose:hover {
+  background: #e11d48;
+}
+.stu-btn-remove {
+  background: #e0f2fe;
+  color: #0284c7;
+  border: 1px solid #bae6fd;
+  border-radius: 7px;
+  padding: 5px 10px;
+  font-size: 11.5px;
+  font-weight: 600;
+  height: 31px;
+  cursor: pointer;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+  box-sizing: border-box;
+  flex: 1;
+  max-width: 90px;
+}
+.stu-btn-remove:hover {
+  background: #bae6fd;
+  color: #0369a1;
+}
+
+/* Card Headers & Badges */
+.stu-card-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 6px;
   flex-shrink: 0;
-  line-height: 1;
 }
-.stu-badge-red {
-  background: #fee2e2;
-  color: #ef4444;
-}
-.stu-badge-green {
-  background: #dcfce7;
-  color: #22c55e;
+.stu-card-icon-badge {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #ffffff;
+  flex-shrink: 0;
 }
 .stu-badge-blue {
-  background: #dbeafe;
-  color: #3b82f6;
+  background: #007aff;
 }
-.stu-card-title-text {
-  font-size: 13.5px;
+.stu-badge-green {
+  background: #10b981;
+}
+.stu-badge-pink {
+  background: #f43f5e;
+}
+.stu-badge-yellow {
+  background: #f59e0b;
+}
+.stu-card-title {
+  font-size: 14.5px;
   font-weight: 700;
-  color: #0f172a;
+  color: #0b1a30;
+  margin: 0;
 }
 
-/* Grids */
-.stu-grid-3 {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 7px 14px;
-  width: 100%;
-  box-sizing: border-box;
-}
-.stu-grid-4 {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 7px 14px;
-  width: 100%;
-  box-sizing: border-box;
-}
-
-/* Inputs & Labels */
-.stu-fg {
+/* Basic Information Card */
+.stu-basic-card {
+  background: #eef6ff;
+  border: 1px solid #cfe2fe;
+  border-radius: 14px;
+  padding: 14px 20px;
   display: flex;
   flex-direction: column;
-  min-width: 0;
+  justify-content: space-between;
+  box-sizing: border-box;
 }
-.stu-label {
+.stu-basic-row1 {
+  display: flex;
+  align-items: center;
+  gap: 22px;
+  margin-top: 2px;
+}
+.stu-inline-fg {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+.stu-inline-fg label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #1e293b;
+  white-space: nowrap;
+}
+.stu-inline-fg input {
+  height: 34px;
+  background: #ffffff;
+  border: 1px solid #bfdbfe;
+  border-radius: 7px;
+  padding: 4px 10px;
+  font-size: 12.5px;
+  color: #0f172a;
+  outline: none;
+  box-sizing: border-box;
+}
+.stu-inline-fg input#s_an {
+  width: 135px;
+  font-weight: 700;
+}
+.stu-inline-fg input#s_admdt {
+  width: 155px;
+}
+
+.stu-basic-row2 {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 8px;
+}
+.stu-basic-row2 label {
+  width: 95px;
+  flex-shrink: 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: #1e293b;
+  white-space: nowrap;
+}
+.stu-basic-row2 input {
+  flex: 1;
+  height: 34px;
+  background: #ffffff;
+  border: 1px solid #bfdbfe;
+  border-radius: 7px;
+  padding: 4px 12px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #0f172a;
+  outline: none;
+  box-sizing: border-box;
+}
+
+.stu-basic-row3 {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+  margin-top: 8px;
+}
+.stu-col-fg {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.stu-col-fg label {
   font-size: 11.5px;
   font-weight: 600;
   color: #1e293b;
-  margin-bottom: 3px;
   white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+}
+.stu-col-fg select,
+.stu-col-fg input {
+  height: 34px;
+  background: #ffffff;
+  border: 1px solid #bfdbfe;
+  border-radius: 7px;
+  padding: 4px 8px;
+  font-size: 12.5px;
+  color: #0f172a;
+  outline: none;
+  box-sizing: border-box;
+  width: 100%;
+}
+
+/* Three Information Cards Row */
+.stu-three-cards-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 14px;
+  margin-top: 14px;
+  flex: 1;
+  min-height: 275px;
+  align-items: stretch;
+}
+
+.stu-personal-card {
+  background: #eaf8f0;
+  border: 1px solid #bbf0d2;
+  border-radius: 14px;
+  padding: 14px 18px;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+}
+.stu-address-card {
+  background: #fef0f4;
+  border: 1px solid #f9ccd9;
+  border-radius: 14px;
+  padding: 14px 18px;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+}
+.stu-other-card {
+  background: #fef9e8;
+  border: 1px solid #fae8b4;
+  border-radius: 14px;
+  padding: 14px 18px;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+}
+
+.stu-form-list {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  gap: 10px;
+  margin-top: 10px;
+  box-sizing: border-box;
+}
+.stu-form-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.stu-personal-card .stu-form-row label {
+  width: 92px;
+  flex-shrink: 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: #1e293b;
+}
+.stu-personal-card input,
+.stu-personal-card select {
+  flex: 1;
+  height: 34px;
+  background: #ffffff;
+  border: 1px solid #bbf0d2;
+  border-radius: 7px;
+  padding: 4px 9px;
+  font-size: 12.5px;
+  color: #0f172a;
+  outline: none;
+  box-sizing: border-box;
+}
+
+.stu-address-card .stu-form-row label {
+  width: 76px;
+  flex-shrink: 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: #1e293b;
+}
+.stu-address-card input,
+.stu-address-card select,
+.stu-address-card textarea {
+  flex: 1;
+  background: #ffffff;
+  border: 1px solid #f9ccd9;
+  border-radius: 7px;
+  padding: 5px 9px;
+  font-size: 12.5px;
+  color: #0f172a;
+  outline: none;
+  box-sizing: border-box;
+}
+.stu-address-card input,
+.stu-address-card select {
+  height: 34px;
+}
+.stu-row-address {
+  align-items: flex-start;
+}
+.stu-row-address textarea {
+  height: 74px;
+  resize: none;
+  font-family: inherit;
+}
+
+.stu-other-card .stu-form-row label {
+  width: 85px;
+  flex-shrink: 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: #1e293b;
+}
+.stu-other-card input,
+.stu-other-card select {
+  flex: 1;
+  height: 34px;
+  background: #ffffff;
+  border: 1px solid #fae8b4;
+  border-radius: 7px;
+  padding: 4px 9px;
+  font-size: 12.5px;
+  color: #0f172a;
+  outline: none;
+  box-sizing: border-box;
+}
+
+.stu-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #1e293b;
 }
 .stu-req {
   color: #ef4444;
   font-weight: 700;
   margin-left: 2px;
 }
-.stu-fg input,
-.stu-fg select {
-  height: 33px;
-  padding: 5px 10px;
-  font-size: 12.5px;
-  color: #0f172a;
-  background: #ffffff;
-  border: 1px solid #cbd5e1;
-  border-radius: 6px;
-  width: 100%;
-  box-sizing: border-box;
-  font-family: inherit;
-  transition: border-color 0.15s, box-shadow 0.15s;
-}
-.stu-fg input:focus,
-.stu-fg select:focus {
-  outline: none;
-  border-color: #dc2626;
-  box-shadow: 0 0 0 2px rgba(220, 38, 38, 0.12);
-}
-.stu-fg input[readonly] {
-  background: #f8fafc;
-  color: #0f172a;
-  border-color: #e2e8f0;
-  cursor: default;
-  font-weight: 700;
-}
 
-/* Bottom Bar */
+/* Save Button */
 .stu-bottom-bar {
   display: flex;
   justify-content: flex-end;
-  padding: 2px 0 8px 0;
-  margin-top: 2px;
+  margin-top: 14px;
+  padding: 0;
+  flex-shrink: 0;
 }
 .stu-save-btn {
-  background: #dc2626;
+  background: #007aff;
   color: #ffffff;
-  font-size: 13px;
+  font-size: 13.5px;
   font-weight: 700;
-  padding: 8px 24px;
-  border-radius: 6px;
+  padding: 9px 24px;
+  border-radius: 8px;
   border: none;
   cursor: pointer;
-  box-shadow: 0 2px 6px rgba(220, 38, 38, 0.22);
   display: inline-flex;
   align-items: center;
   gap: 7px;
+  box-shadow: 0 2px 8px rgba(0, 122, 255, 0.28);
   transition: all 0.15s ease;
 }
 .stu-save-btn:hover {
-  background: #b91c1c;
+  background: #0066d6;
   transform: translateY(-1px);
-  box-shadow: 0 4px 10px rgba(220, 38, 38, 0.32);
+  box-shadow: 0 4px 12px rgba(0, 122, 255, 0.38);
 }
 
-/* Media Queries for Small Viewports */
-@media (max-width: 1080px) {
-  .stu-grid-4 {
-    grid-template-columns: repeat(2, 1fr);
+/* Small Viewport Graceful Fallback */
+@media (max-width: 900px) {
+  .stu-upper-row {
+    grid-template-columns: 1fr;
+  }
+  .stu-three-cards-row {
+    grid-template-columns: 1fr;
   }
 }
-@media (max-width: 768px) {
-  .stu-grid-3 {
-    grid-template-columns: repeat(2, 1fr);
-  }
+
+/* ============================================================ */
+/* EXACT STUDENT PROFILE POPUP REDESIGN (MATCHING REFERENCE)    */
+/* ============================================================ */
+#profM {
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  background: rgba(15, 23, 42, 0.45);
 }
-@media (max-width: 600px) {
-  .stu-grid-3,
-  .stu-grid-4 {
+.prof-modal-dialog {
+  max-width: 950px;
+  width: 92vw;
+  background: #ffffff;
+  border-radius: 18px;
+  overflow: hidden;
+  box-shadow: 0 25px 60px -15px rgba(0, 0, 0, 0.35), 0 0 1px rgba(0, 0, 0, 0.1);
+  border: 1px solid rgba(226, 232, 240, 0.8);
+  display: flex;
+  flex-direction: column;
+  max-height: 94vh;
+}
+.prof-modal-header {
+  padding: 12px 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: #ffffff;
+  border-bottom: 1px solid #f1f5f9;
+  flex-shrink: 0;
+}
+.prof-modal-title-wrap {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.prof-title-icon-badge {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: #0284c7;
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 6px rgba(2, 132, 199, 0.3);
+}
+.prof-modal-title {
+  font-size: 18px;
+  font-weight: 800;
+  color: #0f172a;
+  letter-spacing: -0.01em;
+  margin: 0;
+}
+.prof-modal-close-btn {
+  background: transparent;
+  border: none;
+  font-size: 19px;
+  font-weight: 600;
+  color: #64748b;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+  line-height: 1;
+}
+.prof-modal-close-btn:hover {
+  background: #f1f5f9;
+  color: #0f172a;
+}
+.prof-modal-body {
+  padding: 14px 20px 14px 20px;
+  overflow-y: auto;
+  background: #ffffff;
+}
+.prof-modal-body::-webkit-scrollbar {
+  width: 5px;
+}
+.prof-modal-body::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 4px;
+}
+
+/* Header Section: Left Photo & Right Identity Banner */
+.prof-header-section {
+  display: flex;
+  gap: 14px;
+  margin-bottom: 10px;
+  align-items: stretch;
+}
+.prof-photo-box {
+  width: 125px;
+  height: 145px;
+  flex-shrink: 0;
+  border-radius: 13px;
+  overflow: hidden;
+  border: 2px solid #60a5fa;
+  background: #f8fafc;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+}
+.prof-photo-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.prof-photo-placeholder {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: #f1f5f9;
+  color: #94a3b8;
+}
+.prof-identity-banner {
+  flex: 1;
+  min-width: 0;
+  background: linear-gradient(135deg, #a8201a 0%, #c0392b 100%);
+  border-radius: 13px;
+  padding: 12px 20px;
+  color: #ffffff;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 7px;
+  box-shadow: 0 4px 14px rgba(168, 32, 26, 0.22);
+}
+.prof-identity-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+.prof-identity-name-wrap {
+  flex: 1;
+  min-width: 0;
+}
+.prof-identity-name {
+  font-size: 24px;
+  font-weight: 800;
+  color: #ffffff;
+  line-height: 1.15;
+  margin: 0;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.prof-identity-class {
+  font-size: 14.5px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.95);
+  margin-top: 2px;
+}
+.prof-status-pill-top {
+  background: #ffffff;
+  color: #16a34a;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 4px 13px;
+  border-radius: 20px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+  flex-shrink: 0;
+}
+.prof-identity-meta-row1 {
+  font-size: 13.5px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.92);
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  line-height: 1.3;
+}
+.prof-identity-meta-row1 strong {
+  font-weight: 700;
+  color: #ffffff;
+  font-size: 14px;
+}
+.prof-identity-meta-row2 {
+  font-size: 13.5px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.92);
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  line-height: 1.3;
+}
+.prof-identity-meta-row2 strong {
+  font-weight: 700;
+  color: #ffffff;
+  font-size: 14px;
+}
+.prof-meta-sep {
+  opacity: 0.5;
+  font-weight: 300;
+  margin: 0 2px;
+}
+
+/* 2-Column Information Cards Grid */
+.prof-cards-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+.prof-card {
+  border-radius: 11px;
+  padding: 8px 13px;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+/* Card Themes */
+.prof-card-green {
+  background: #f0fbf6;
+  border: 1px solid #bbf7d0;
+}
+.prof-card-blue {
+  background: #f0f7ff;
+  border: 1px solid #bfdbfe;
+}
+.prof-card-pink {
+  background: #fff1f2;
+  border: 1px solid #fecdd3;
+}
+.prof-card-yellow {
+  background: #fffbeb;
+  border: 1px solid #fef3c7;
+}
+.prof-card-purple {
+  background: #f5f3ff;
+  border: 1px solid #ddd6fe;
+}
+
+/* Card Header */
+.prof-card-head {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-bottom: 4px;
+}
+.prof-card-icon-badge {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #ffffff;
+  flex-shrink: 0;
+}
+.prof-card-title {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+/* Card Rows */
+.prof-row {
+  display: flex;
+  align-items: center;
+  font-size: 11.5px;
+  padding: 3px 0;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.04);
+}
+.prof-row:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+.prof-row-lbl {
+  width: 120px;
+  flex-shrink: 0;
+  color: #475569;
+  font-weight: 500;
+}
+.prof-row-colon {
+  width: 14px;
+  flex-shrink: 0;
+  color: #64748b;
+  font-weight: 600;
+}
+.prof-row-val {
+  flex: 1;
+  min-width: 0;
+  color: #0f172a;
+  font-weight: 700;
+  word-break: break-word;
+}
+
+/* Card 5 Status Badge inside row */
+.prof-status-pill-card {
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 9px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* Fee Summary 3 Metric Boxes */
+.prof-fee-boxes-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 7px;
+  margin-top: 3px;
+}
+.prof-fee-box {
+  border-radius: 7px;
+  padding: 5px 3px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+.prof-fee-box.billed {
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+}
+.prof-fee-box.billed .prof-fee-val {
+  color: #2563eb;
+}
+.prof-fee-box.paid {
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+}
+.prof-fee-box.paid .prof-fee-val {
+  color: #16a34a;
+}
+.prof-fee-box.due {
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+}
+.prof-fee-box.due .prof-fee-val {
+  color: #dc2626;
+}
+.prof-fee-lbl {
+  font-size: 10px;
+  font-weight: 600;
+  color: #475569;
+  margin-bottom: 1px;
+}
+.prof-fee-val {
+  font-size: 14.5px;
+  font-weight: 800;
+}
+
+/* Actions Row at bottom */
+.prof-actions-row {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 10px;
+}
+.prof-btn-edit {
+  background: #ffffff;
+  border: 1.5px solid #cbd5e1;
+  color: #1e293b;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 6px 15px;
+  border-radius: 7px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.15s ease;
+}
+.prof-btn-edit:hover {
+  background: #f8fafc;
+  border-color: #94a3b8;
+}
+.prof-btn-ledger {
+  background: linear-gradient(135deg, #c0392b 0%, #a8201a 100%);
+  border: none;
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 6px 17px;
+  border-radius: 7px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  box-shadow: 0 2px 6px rgba(192, 57, 43, 0.3);
+  transition: all 0.15s ease;
+}
+.prof-btn-ledger:hover {
+  background: linear-gradient(135deg, #a8201a 0%, #922b21 100%);
+  box-shadow: 0 4px 10px rgba(192, 57, 43, 0.4);
+}
+
+@media (max-width: 800px) {
+  .prof-header-section {
+    flex-direction: column;
+    align-items: center;
+  }
+  .prof-cards-grid {
     grid-template-columns: 1fr;
   }
 }
@@ -757,9 +1516,21 @@ input:checked+.slider:before{transform:translateX(18px)}
             <button class="btn bp bsm" onclick="openAddStudent()">+ Add Student</button>
           </div>
         </div>
-        <div class="tw">
-          <table>
-            <thead><tr><th>Adm No</th><th>SR No</th><th>Name</th><th>Class & Sec</th><th>Father</th><th>Phone</th><th>Gender</th><th>Status</th><th>Actions</th></tr></thead>
+        <div class="tw st-table-wrap">
+          <table class="st-table">
+            <thead>
+              <tr>
+                <th style="width:90px;text-align:left">Adm No</th>
+                <th style="width:70px;text-align:center">SR No</th>
+                <th style="min-width:160px;text-align:left">Name</th>
+                <th style="width:115px;text-align:left">Class & Sec</th>
+                <th style="width:130px;text-align:left">Father</th>
+                <th style="width:105px;text-align:left">Phone</th>
+                <th style="width:75px;text-align:left">Gender</th>
+                <th style="width:90px;text-align:center">Status</th>
+                <th style="width:110px;text-align:center">Actions</th>
+              </tr>
+            </thead>
             <tbody id="sTb"></tbody>
           </table>
         </div>
@@ -768,170 +1539,238 @@ input:checked+.slider:before{transform:translateX(18px)}
 
     <!-- 3. ADD / EDIT STUDENT -->
     <div class="page" id="page-addstudent">
-      <div class="stu-container">
+      <div class="stu-main-panel">
 
         <!-- Page Header -->
         <div class="stu-page-header">
           <h2 id="sft" class="stu-header-title">Add New Student</h2>
-          <p class="stu-header-sub">Enter student details to add a new record in the school system</p>
         </div>
 
-        <!-- Student Photo Card -->
-        <div class="stu-card card stu-photo-card student-photo-bar">
-          <div class="stu-avatar-wrapper" onclick="chooseStudentPhoto()" title="Click to choose photo">
-            <img id="s_photo_prev" class="stu-avatar-img" src="" alt="Student Photo">
-            <span id="s_photo_placeholder" class="stu-avatar-placeholder">👤</span>
-          </div>
-          <div class="stu-photo-details">
-            <div>
-              <span class="stu-photo-title">Student Photo</span>
-              <span class="stu-photo-optional">(Optional)</span>
+        <!-- Upper Section: Photo Card + Basic Information Card -->
+        <div class="stu-upper-row">
+
+          <!-- Student Photo Card -->
+          <div class="stu-card card stu-photo-card student-photo-bar">
+            <div class="stu-avatar-wrapper" onclick="chooseStudentPhoto()" title="Click to choose photo">
+              <img id="s_photo_prev" class="stu-avatar-img" src="" alt="Student Photo">
+              <div id="s_photo_placeholder" class="stu-avatar-placeholder">
+                <svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="#93c5fd" stroke-width="1.5">
+                  <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                  <circle cx="12" cy="7" r="4"></circle>
+                </svg>
+              </div>
             </div>
             <div class="stu-photo-btns">
               <button type="button" class="stu-btn-choose" onclick="chooseStudentPhoto()">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M4 4h3l2-2h6l2 2h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2zm8 3a5 5 0 1 0 0 10 5 5 0 0 0 0-10zm0 2a3 3 0 1 1 0 6 3 3 0 0 1 0-6z"/></svg>
                 Choose Photo
               </button>
               <button type="button" class="stu-btn-remove" id="btnRemoveStudentPhoto" onclick="removeStudentPhoto()">
                 ✕ Remove
               </button>
             </div>
-            <div class="stu-photo-specs-text">
-              <div>Max 5 MB • JPG, JPEG, PNG, WebP</div>
-              <div>You can save the student without a photo.</div>
-            </div>
             <span id="s_photo_status" style="display:none;"></span>
           </div>
-        </div>
 
-        <!-- Personal Information Card -->
-        <div class="stu-card card">
-          <div class="stu-card-title-row">
-            <span class="stu-badge stu-badge-red">👤</span>
-            <span class="stu-card-title-text">Personal Information</span>
-          </div>
-          <div class="stu-grid-3">
-            <div class="stu-fg">
+          <!-- Basic Information Card -->
+          <div class="stu-card card stu-basic-card">
+            <div class="stu-card-header">
+              <div class="stu-card-icon-badge stu-badge-blue">
+                <svg width="17" height="17" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>
+                </svg>
+              </div>
+              <h3 class="stu-card-title">Basic Information</h3>
+            </div>
+
+            <!-- Row 1: Admission No. + Date of Admission -->
+            <div class="stu-basic-row1">
+              <div class="stu-inline-fg">
+                <label class="stu-label">Admission No.</label>
+                <input id="s_an" readonly placeholder="MDC-1001">
+              </div>
+              <div class="stu-inline-fg">
+                <label class="stu-label">Date of Admission</label>
+                <input id="s_admdt" type="date">
+              </div>
+            </div>
+
+            <!-- Row 2: Student Name -->
+            <div class="stu-basic-row2">
               <label class="stu-label">Student Name <span class="stu-req">*</span></label>
-              <input id="s_n" placeholder="Full student name">
+              <input id="s_n" placeholder="Student name">
             </div>
-            <div class="stu-fg">
-              <label class="stu-label">Father's Name <span class="stu-req">*</span></label>
-              <input id="s_f" placeholder="Father's full name">
-            </div>
-            <div class="stu-fg">
-              <label class="stu-label">Mother's Name <span class="stu-req">*</span></label>
-              <input id="s_m" placeholder="Mother's full name">
-            </div>
-            <div class="stu-fg">
-              <label class="stu-label">Date of Birth <span class="stu-req">*</span></label>
-              <input id="s_dob" type="date">
-            </div>
-            <div class="stu-fg">
-              <label class="stu-label">Gender <span class="stu-req">*</span></label>
-              <select id="s_g">
-                <option value="Male">Male</option>
-                <option value="Female">Female</option>
-                <option value="Other">Other</option>
-              </select>
-            </div>
-            <div class="stu-fg">
-              <label class="stu-label">Blood Group</label>
-              <select id="s_b">
-                <option value="A+">A+</option>
-                <option value="A-">A-</option>
-                <option value="B+">B+</option>
-                <option value="B-">B-</option>
-                <option value="O+">O+</option>
-                <option value="O-">O-</option>
-                <option value="AB+">AB+</option>
-                <option value="AB-">AB-</option>
-              </select>
+
+            <!-- Row 3: Class, Section, Roll No, SR No -->
+            <div class="stu-basic-row3">
+              <div class="stu-col-fg">
+                <label class="stu-label">Class <span class="stu-req">*</span></label>
+                <select id="s_cl" onchange="onStudentFormClassChange()"><option value="">Select Class</option></select>
+              </div>
+              <div class="stu-col-fg">
+                <label class="stu-label">Section <span class="stu-req">*</span></label>
+                <select id="s_sec">
+                  <option value="A">A</option>
+                  <option value="B">B</option>
+                  <option value="C">C</option>
+                  <option value="D">D</option>
+                </select>
+              </div>
+              <div class="stu-col-fg">
+                <label class="stu-label">Roll No.</label>
+                <input id="s_rn" placeholder="Roll No">
+              </div>
+              <div class="stu-col-fg">
+                <label class="stu-label">SR No. <span class="stu-req">*</span></label>
+                <input id="s_srn" placeholder="SR No">
+              </div>
             </div>
           </div>
         </div>
 
-        <!-- Contact Details Card -->
-        <div class="stu-card card">
-          <div class="stu-card-title-row">
-            <span class="stu-badge stu-badge-green">📞</span>
-            <span class="stu-card-title-text">Contact Details</span>
+        <!-- Lower Section: Three Information Cards -->
+        <div class="stu-three-cards-row">
+
+          <!-- 1. Personal Information Card (Mint Green) -->
+          <div class="stu-card card stu-personal-card">
+            <div class="stu-card-header">
+              <div class="stu-card-icon-badge stu-badge-green">
+                <svg width="17" height="17" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 3s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/>
+                </svg>
+              </div>
+              <h3 class="stu-card-title">Personal Information</h3>
+            </div>
+            <div class="stu-form-list">
+              <div class="stu-form-row">
+                <label class="stu-label">Father's Name</label>
+                <input id="s_f" placeholder="Father's full name">
+              </div>
+              <div class="stu-form-row">
+                <label class="stu-label">Mother's Name</label>
+                <input id="s_m" placeholder="Mother's full name">
+              </div>
+              <div class="stu-form-row">
+                <label class="stu-label">Date of Birth</label>
+                <input id="s_dob" type="date">
+              </div>
+              <div class="stu-form-row">
+                <label class="stu-label">Gender</label>
+                <select id="s_g">
+                  <option value="Male">Male</option>
+                  <option value="Female">Female</option>
+                  <option value="Other">Other</option>
+                </select>
+              </div>
+              <div class="stu-form-row">
+                <label class="stu-label">Contact No.</label>
+                <input id="s_ph" placeholder="10-digit mobile">
+              </div>
+            </div>
           </div>
-          <div class="stu-grid-3">
-            <div class="stu-fg">
-              <label class="stu-label">Phone Number <span class="stu-req">*</span></label>
-              <input id="s_ph" placeholder="10-digit mobile number">
+
+          <!-- 2. Address Information Card (Soft Pink) -->
+          <div class="stu-card card stu-address-card">
+            <div class="stu-card-header">
+              <div class="stu-card-icon-badge stu-badge-pink">
+                <svg width="17" height="17" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/>
+                </svg>
+              </div>
+              <h3 class="stu-card-title">Address Information</h3>
             </div>
-            <div class="stu-fg">
-              <label class="stu-label">Email Address</label>
-              <input id="s_em" type="email" placeholder="student@example.com (optional)">
-            </div>
-            <div class="stu-fg">
-              <label class="stu-label">Residential Address <span class="stu-req">*</span></label>
-              <input id="s_ad" placeholder="Full postal residential address">
+            <div class="stu-form-list">
+              <div class="stu-form-row stu-row-address">
+                <label class="stu-label">Address</label>
+                <textarea id="s_ad" placeholder="Residential address"></textarea>
+              </div>
+              <div class="stu-form-row">
+                <label class="stu-label">Village</label>
+                <input id="s_city" placeholder="Village name">
+              </div>
+              <div class="stu-form-row">
+                <label class="stu-label">State</label>
+                <select id="s_state">
+                  <option value="Uttar Pradesh">Uttar Pradesh</option>
+                  <option value="Delhi">Delhi</option>
+                  <option value="Bihar">Bihar</option>
+                  <option value="Madhya Pradesh">Madhya Pradesh</option>
+                  <option value="Rajasthan">Rajasthan</option>
+                  <option value="Haryana">Haryana</option>
+                  <option value="Uttarakhand">Uttarakhand</option>
+                  <option value="Punjab">Punjab</option>
+                  <option value="Maharashtra">Maharashtra</option>
+                  <option value="Gujarat">Gujarat</option>
+                  <option value="Other">Other</option>
+                </select>
+              </div>
+              <div class="stu-form-row">
+                <label class="stu-label">Pincode</label>
+                <input id="s_pin" placeholder="Pincode">
+              </div>
             </div>
           </div>
+
+          <!-- 3. Other Information Card (Pale Yellow) -->
+          <div class="stu-card card stu-other-card">
+            <div class="stu-card-header">
+              <div class="stu-card-icon-badge stu-badge-yellow">
+                <svg width="17" height="17" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/>
+                </svg>
+              </div>
+              <h3 class="stu-card-title">Other Information</h3>
+            </div>
+            <div class="stu-form-list">
+              <div class="stu-form-row">
+                <label class="stu-label">Category</label>
+                <select id="s_cat">
+                  <option value="General">General</option>
+                  <option value="OBC">OBC</option>
+                  <option value="SC">SC</option>
+                  <option value="ST">ST</option>
+                  <option value="EWS">EWS</option>
+                </select>
+              </div>
+              <div class="stu-form-row">
+                <label class="stu-label">Blood Group</label>
+                <select id="s_b">
+                  <option value="O+">O+</option>
+                  <option value="A+">A+</option>
+                  <option value="B+">B+</option>
+                  <option value="AB+">AB+</option>
+                  <option value="O-">O-</option>
+                  <option value="A-">A-</option>
+                  <option value="B-">B-</option>
+                  <option value="AB-">AB-</option>
+                </select>
+              </div>
+              <div class="stu-form-row">
+                <label class="stu-label">Aadhar No.</label>
+                <input id="s_aadhar" placeholder="12-digit Aadhar">
+              </div>
+              <div class="stu-form-row">
+                <label class="stu-label">PEN No.</label>
+                <input id="s_pen" placeholder="PEN No">
+              </div>
+            </div>
+          </div>
+
         </div>
 
-        <!-- Academic & Admission Details Card -->
-        <div class="stu-card card">
-          <div class="stu-card-title-row">
-            <span class="stu-badge stu-badge-blue">🎓</span>
-            <span class="stu-card-title-text">Academic & Admission Details</span>
-          </div>
-          <div class="stu-grid-4">
-            <div class="stu-fg">
-              <label class="stu-label">Admission No. (Auto)</label>
-              <input id="s_an" readonly placeholder="Auto-generated on save">
-            </div>
-            <div class="stu-fg">
-              <label class="stu-label">Student SR No. <span style="font-size:10.5px;font-weight:normal;color:#64748b">(Optional)</span></label>
-              <input id="s_srn" placeholder="Optional e.g. SR-101">
-            </div>
-            <div class="stu-fg">
-              <label class="stu-label">Admission Date (Auto)</label>
-              <input id="s_admdt" type="date" readonly>
-            </div>
-            <div class="stu-fg">
-              <label class="stu-label">Academic Session (Auto)</label>
-              <input id="s_sess" readonly placeholder="Active session">
-            </div>
-            <div class="stu-fg">
-              <label class="stu-label">Class <span class="stu-req">*</span></label>
-              <select id="s_cl" onchange="onStudentFormClassChange()"><option value="">Select Class</option></select>
-            </div>
-            <div class="stu-fg">
-              <label class="stu-label">Section <span class="stu-req">*</span></label>
-              <select id="s_sec">
-                <option value="A">Section A</option>
-                <option value="B">Section B</option>
-                <option value="C">Section C</option>
-                <option value="D">Section D</option>
-              </select>
-            </div>
-            <div class="stu-fg">
-              <label class="stu-label">Roll Number</label>
-              <input id="s_rn" placeholder="Optional roll no">
-            </div>
-            <div class="stu-fg">
-              <label class="stu-label">Student Status</label>
-              <select id="s_stat">
-                <option value="Active">Active</option>
-                <option value="Inactive">Inactive</option>
-                <option value="Transferred">Transferred</option>
-                <option value="Left School">Left School</option>
-                <option value="Alumni">Alumni</option>
-              </select>
-            </div>
-          </div>
-        </div>
-
+        <!-- Hidden Compatibility Fields -->
         <input type="hidden" id="s_eid">
+        <input type="hidden" id="s_sess">
+        <input type="hidden" id="s_stat" value="Active">
+        <input type="hidden" id="s_em">
 
-        <!-- Bottom Save Button -->
+        <!-- Bottom Save Button Bar -->
         <div class="stu-bottom-bar">
-          <button type="button" class="stu-save-btn" onclick="saveStudent()">
-            💾 Save Student
+          <button type="button" class="stu-save-btn" id="btnSaveStudent" onclick="saveStudent()">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M17 3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V7l-4-4zm-5 16c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3zm3-10H5V5h10v4z"/>
+            </svg>
+            Save Student
           </button>
         </div>
 
@@ -1831,10 +2670,22 @@ input:checked+.slider:before{transform:translateX(18px)}
 </div></div>
 
 <!-- Student Profile Modal -->
-<div class="mo" id="profM"><div class="md" style="max-width:580px">
-  <div class="mh"><h3>Student Profile</h3><button class="cx" onclick="closeM('profM')">✕</button></div>
-  <div class="mb" id="profB"></div>
-</div></div>
+<div class="mo" id="profM">
+  <div class="md prof-modal-dialog">
+    <div class="prof-modal-header">
+      <div class="prof-modal-title-wrap">
+        <div class="prof-title-icon-badge">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>
+          </svg>
+        </div>
+        <h3 class="prof-modal-title">Student Profile</h3>
+      </div>
+      <button class="prof-modal-close-btn" onclick="closeM('profM')" title="Close">✕</button>
+    </div>
+    <div class="prof-modal-body" id="profB"></div>
+  </div>
+</div>
 
 <!-- Collected Fee Detail Modal -->
 <div class="mo" id="collectedM"><div class="md" style="max-width:1080px;width:95vw;height:78vh;max-height:82vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 16px 40px rgba(0,0,0,0.25);border-radius:12px">

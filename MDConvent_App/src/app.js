@@ -1441,9 +1441,13 @@ function showPage(id, btn) {
   }
 
   document.querySelectorAll('.nb').forEach(b => b.classList.remove('active'));
-  if (btn) btn.classList.add('active');
-  else {
-    const matchBtn = Array.from(document.querySelectorAll('.nb')).find(b => b.getAttribute('onclick') && b.getAttribute('onclick').includes("'" + id + "'"));
+  if (btn) {
+    btn.classList.add('active');
+  } else {
+    const matchBtn = Array.from(document.querySelectorAll('.nb')).find(b => {
+      const oc = b.getAttribute('onclick') || '';
+      return oc.includes("'" + id + "'") || (id === 'addstudent' && oc.includes('openAddStudent'));
+    });
     if (matchBtn) matchBtn.classList.add('active');
   }
 
@@ -2512,25 +2516,33 @@ function renderSt() {
   }
 
   tb.innerHTML = list.map(s => {
-    const stClass = s.status === 'Active' ? 'cg' : s.status === 'Inactive' ? 'cy' : 'cgr';
-    const srChip = s.srNo ? `<span class="chip" style="background:var(--card);border:1px solid var(--bdr);font-size:11px">${s.srNo}</span>` : '<span style="color:var(--txt2);font-size:11px">–</span>';
+    const isLeft = s.status === 'Left School' || s.status === 'School Left';
+    const stClass = s.status === 'Active' ? 'cg' : s.status === 'Inactive' ? 'cy' : isLeft ? 'cgr' : 'cb2';
+    const srChip = s.srNo ? `<span class="chip" style="background:var(--card);border:1px solid var(--bdr);font-size:11px">${escapeHtml(s.srNo)}</span>` : '<span style="color:var(--txt2);font-size:11px">–</span>';
     const initials = (s.name || '?').split(' ').map(w => w[0]).join('').substring(0, 2).toUpperCase();
     const avatarHtml = s.photo
-      ? `<span class="st-avatar-wrap" data-photo="${s.photo}" style="display:inline-flex;width:28px;height:28px;border-radius:50%;overflow:hidden;border:1px solid var(--bdr);background:var(--bg);align-items:center;justify-content:center;flex-shrink:0;vertical-align:middle;margin-right:8px"><img class="st-avatar-img" src="" style="width:100%;height:100%;object-fit:cover;display:none"><span class="st-avatar-fallback" style="font-size:10px;font-weight:700;color:var(--txt2)">${initials}</span></span>`
-      : `<span style="display:inline-flex;width:28px;height:28px;border-radius:50%;overflow:hidden;border:1px solid var(--bdr);background:var(--bg);align-items:center;justify-content:center;flex-shrink:0;vertical-align:middle;margin-right:8px;font-size:10px;font-weight:700;color:var(--txt2)">${initials}</span>`;
-    return `<tr>
-      <td><span class="chip cb2">${s.admno}</span></td>
-      <td>${srChip}</td>
-      <td><div style="display:flex;align-items:center">${avatarHtml}<strong>${s.name}</strong></div></td>
-      <td><span class="chip cr">${clL(s.cls)}</span> <span style="font-size:11px;color:var(--txt2)">Sec ${s.section || 'A'}</span></td>
-      <td>${s.father}</td>
-      <td><a href="tel:${s.phone}" style="color:var(--blu);text-decoration:none">${s.phone}</a></td>
-      <td>${s.gender}</td>
-      <td><span class="chip ${stClass}">${s.status || 'Active'}</span></td>
-      <td style="display:flex;gap:4px">
-        <button class="btn bo bsm" title="View Profile" onclick="viewProf(${s.id})">👁</button>
-        <button class="btn bo bsm" title="Edit Student" onclick="editSt(${s.id})">✏</button>
-        <button class="btn bd bsm" title="Archive / Delete" onclick="delSt(${s.id})">🗑</button>
+      ? `<span class="st-avatar-wrap" data-photo="${escapeHtml(s.photo)}"><img class="st-avatar-img" src="" alt=""><span class="st-avatar-fallback">${escapeHtml(initials)}</span></span>`
+      : `<span class="st-avatar-wrap"><span class="st-avatar-fallback">${escapeHtml(initials)}</span></span>`;
+    return `<tr class="${isLeft ? 'st-row-left' : ''}">
+      <td><span class="chip cb2">${escapeHtml(String(s.admno || ''))}</span></td>
+      <td style="text-align:center">${srChip}</td>
+      <td>
+        <div class="st-name-cell">
+          ${avatarHtml}
+          <span class="st-name-text" title="${escapeHtml(s.name || '')}">${escapeHtml(s.name || '')}</span>
+        </div>
+      </td>
+      <td><span class="chip cr">${clL(s.cls)}</span> <span style="font-size:11px;color:var(--txt2);margin-left:4px">Sec ${escapeHtml(s.section || 'A')}</span></td>
+      <td><div class="st-text-cell" title="${escapeHtml(s.father || '')}">${escapeHtml(s.father || '')}</div></td>
+      <td><a href="tel:${escapeHtml(s.phone || '')}" class="st-phone-link">${escapeHtml(s.phone || '')}</a></td>
+      <td>${escapeHtml(s.gender || '')}</td>
+      <td style="text-align:center"><span class="chip ${stClass}">${escapeHtml(s.status || 'Active')}</span></td>
+      <td class="st-actions-cell">
+        <div class="st-actions-wrap">
+          <button class="btn bo bsm st-action-btn" title="View Profile" onclick="viewProf(${s.id})">👁</button>
+          <button class="btn bo bsm st-action-btn" title="Edit Student" onclick="editSt(${s.id})">✏</button>
+          <button class="btn bd bsm st-action-btn" title="Archive / Delete" onclick="delSt(${s.id})">🗑</button>
+        </div>
       </td>
     </tr>`;
   }).join('');
@@ -2740,6 +2752,7 @@ async function chooseStudentPhoto() {
 
 function removeStudentPhoto() {
   pendingStudentPhotoAction = { type: 'remove' };
+  currentEditingStudentPhoto = '';
   const prevImg = document.getElementById('s_photo_prev');
   const placeholder = document.getElementById('s_photo_placeholder');
   const removeBtn = document.getElementById('btnRemoveStudentPhoto');
@@ -2749,9 +2762,9 @@ function removeStudentPhoto() {
     prevImg.src = '';
     prevImg.style.display = 'none';
   }
-  if (placeholder) placeholder.style.display = 'block';
+  if (placeholder) placeholder.style.display = 'flex';
   if (removeBtn) removeBtn.style.display = 'none';
-  if (statusTxt) statusTxt.textContent = 'No photo selected (photo will be removed upon save)';
+  if (statusTxt) statusTxt.textContent = 'Photo removed (will be cleared when saved)';
 }
 
 let isStudentSaving = false;
@@ -2898,6 +2911,7 @@ async function saveStudent() {
     if (eid && finalPhoto && window.electronAPI && typeof window.electronAPI.deleteStudentPhoto === 'function') {
       try {
         await window.electronAPI.deleteStudentPhoto(finalPhoto);
+        studentPhotoCache.delete(finalPhoto);
       } catch (err) {
         console.warn('Failed to delete old student photo:', err);
       }
@@ -2916,6 +2930,7 @@ async function saveStudent() {
           return;
         }
         if (photoRes && photoRes.success && photoRes.filename) {
+          if (finalPhoto) studentPhotoCache.delete(finalPhoto);
           finalPhoto = photoRes.filename;
           if (pendingStudentPhotoAction.previewDataUri) {
             studentPhotoCache.set(finalPhoto, pendingStudentPhotoAction.previewDataUri);
@@ -2933,6 +2948,13 @@ async function saveStudent() {
   }
 
   // 5. Build Student Object
+  const city = String(document.getElementById('s_city')?.value || '').trim();
+  const state = String(document.getElementById('s_state')?.value || 'Uttar Pradesh').trim();
+  const pincode = String(document.getElementById('s_pin')?.value || '').trim();
+  const category = String(document.getElementById('s_cat')?.value || 'General').trim();
+  const aadhar = String(document.getElementById('s_aadhar')?.value || '').trim();
+  const penNo = String(document.getElementById('s_pen')?.value || '').trim();
+
   const studentObj = {
     id: eid ? parseInt(eid) : (DB.nextId++),
     name,
@@ -2940,10 +2962,17 @@ async function saveStudent() {
     mother,
     dob,
     gender,
-    blood: document.getElementById('s_b').value || 'B+',
+    blood: document.getElementById('s_b')?.value || 'O+',
     phone,
-    email: document.getElementById('s_em').value.trim(),
+    email: (document.getElementById('s_em')?.value || '').trim(),
     address,
+    city,
+    village: city,
+    state,
+    pincode,
+    category,
+    aadhar,
+    penNo,
     admno: admVal,
     srNo: srNo || '',
     rollno,
@@ -2951,7 +2980,7 @@ async function saveStudent() {
     section,
     admissionDate,
     session,
-    status: document.getElementById('s_stat').value || 'Active',
+    status: document.getElementById('s_stat')?.value || 'Active',
     photo: finalPhoto || '',
     academicHistory: [],
     enrollments: []
@@ -3008,12 +3037,14 @@ async function saveStudent() {
 }
 
 function resetForm() {
-  ['s_n','s_f','s_m','s_dob','s_ph','s_em','s_ad','s_rn','s_srn','s_eid'].forEach(id => {
+  ['s_n','s_f','s_m','s_dob','s_ph','s_em','s_ad','s_city','s_pin','s_aadhar','s_pen','s_rn','s_srn','s_eid'].forEach(id => {
     const e = document.getElementById(id);
     if (e) e.value = '';
   });
   if (document.getElementById('s_g')) document.getElementById('s_g').value = 'Male';
-  if (document.getElementById('s_b')) document.getElementById('s_b').value = 'B+';
+  if (document.getElementById('s_b')) document.getElementById('s_b').value = 'O+';
+  if (document.getElementById('s_cat')) document.getElementById('s_cat').value = 'General';
+  if (document.getElementById('s_state')) document.getElementById('s_state').value = 'Uttar Pradesh';
   if (document.getElementById('s_stat')) document.getElementById('s_stat').value = 'Active';
   if (document.getElementById('s_cl')) document.getElementById('s_cl').value = '';
   populateStudentSections('', 'A');
@@ -3028,7 +3059,7 @@ function resetForm() {
     prevImg.src = '';
     prevImg.style.display = 'none';
   }
-  if (placeholder) placeholder.style.display = 'block';
+  if (placeholder) placeholder.style.display = 'flex';
   if (removeBtn) removeBtn.style.display = 'none';
   if (statusTxt) statusTxt.textContent = 'No photo selected (Optional — Max 5 MB, JPG/JPEG/PNG/WebP)';
 
@@ -3046,6 +3077,11 @@ function resetForm() {
 
   const sftEl = document.getElementById('sft');
   if (sftEl) sftEl.textContent = 'Add New Student';
+
+  const btnSave = document.getElementById('btnSaveStudent');
+  if (btnSave) {
+    btnSave.innerHTML = `<svg width="17" height="17" viewBox="0 0 24 24" fill="currentColor"><path d="M17 3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V7l-4-4zm-5 16c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3zm3-10H5V5h10v4z"/></svg>Save Student`;
+  }
 }
 
 function editSt(id) {
@@ -3055,16 +3091,26 @@ function editSt(id) {
   fillDDs();
 
   document.getElementById('sft').textContent = 'Edit Student — ' + s.name;
+  const btnSave = document.getElementById('btnSaveStudent');
+  if (btnSave) {
+    btnSave.innerHTML = `<svg width="17" height="17" viewBox="0 0 24 24" fill="currentColor"><path d="M17 3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V7l-4-4zm-5 16c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3zm3-10H5V5h10v4z"/></svg>Update Student`;
+  }
   document.getElementById('s_eid').value = String(s.id);
   document.getElementById('s_n').value = s.name || '';
   document.getElementById('s_f').value = s.father || '';
   document.getElementById('s_m').value = s.mother || '';
   document.getElementById('s_dob').value = s.dob || '';
   document.getElementById('s_g').value = s.gender || 'Male';
-  document.getElementById('s_b').value = s.blood || 'B+';
+  document.getElementById('s_b').value = s.blood || 'O+';
   document.getElementById('s_ph').value = s.phone || '';
   document.getElementById('s_em').value = s.email || '';
   document.getElementById('s_ad').value = s.address || '';
+  if (document.getElementById('s_city')) document.getElementById('s_city').value = s.village || s.city || '';
+  if (document.getElementById('s_state')) document.getElementById('s_state').value = s.state || 'Uttar Pradesh';
+  if (document.getElementById('s_pin')) document.getElementById('s_pin').value = s.pincode || '';
+  if (document.getElementById('s_cat')) document.getElementById('s_cat').value = s.category || 'General';
+  if (document.getElementById('s_aadhar')) document.getElementById('s_aadhar').value = s.aadhar || '';
+  if (document.getElementById('s_pen')) document.getElementById('s_pen').value = s.penNo || s.pen || '';
 
   // Preserved fields - read-only
   document.getElementById('s_an').value = s.admno || '';
@@ -3079,36 +3125,55 @@ function editSt(id) {
   document.getElementById('s_stat').value = s.status || 'Active';
 
   // Load student photo in edit form if present
-  currentEditingStudentPhoto = s.photo || '';
   pendingStudentPhotoAction = null;
+  currentEditingStudentPhoto = '';
+
+  const cleanPhoto = (s.photo && typeof s.photo === 'string' && s.photo.trim() !== '' && s.photo.trim() !== 'null' && s.photo.trim() !== 'undefined') ? s.photo.trim() : '';
+
   const prevImg = document.getElementById('s_photo_prev');
   const placeholder = document.getElementById('s_photo_placeholder');
   const removeBtn = document.getElementById('btnRemoveStudentPhoto');
   const statusTxt = document.getElementById('s_photo_status');
 
-  if (s.photo) {
-    if (statusTxt) statusTxt.textContent = `Current photo: ${s.photo}`;
-    if (removeBtn) removeBtn.style.display = 'inline-flex';
+  if (cleanPhoto) {
+    currentEditingStudentPhoto = cleanPhoto;
     if (placeholder) placeholder.style.display = 'none';
-    if (prevImg) {
-      prevImg.style.display = 'block';
-      resolveStudentPhotoUrl(s.photo).then(uri => {
-        if (uri && prevImg) {
-          prevImg.src = uri;
-        } else if (placeholder) {
-          prevImg.style.display = 'none';
-          placeholder.style.display = 'block';
-        }
-      });
-    }
-  } else {
     if (prevImg) {
       prevImg.src = '';
       prevImg.style.display = 'none';
     }
-    if (placeholder) placeholder.style.display = 'block';
     if (removeBtn) removeBtn.style.display = 'none';
-    if (statusTxt) statusTxt.textContent = 'No photo selected';
+    if (statusTxt) statusTxt.textContent = 'Loading photo...';
+
+    resolveStudentPhotoUrl(cleanPhoto).then(uri => {
+      if (currentEditingStudentPhoto === cleanPhoto && !pendingStudentPhotoAction) {
+        if (uri && prevImg) {
+          prevImg.src = uri;
+          prevImg.style.display = 'block';
+          if (placeholder) placeholder.style.display = 'none';
+          if (removeBtn) removeBtn.style.display = 'inline-flex';
+          if (statusTxt) statusTxt.textContent = `Current photo: ${cleanPhoto}`;
+        } else {
+          currentEditingStudentPhoto = '';
+          if (prevImg) {
+            prevImg.src = '';
+            prevImg.style.display = 'none';
+          }
+          if (placeholder) placeholder.style.display = 'flex';
+          if (removeBtn) removeBtn.style.display = 'none';
+          if (statusTxt) statusTxt.textContent = 'No photo attached (Missing photo file)';
+        }
+      }
+    });
+  } else {
+    currentEditingStudentPhoto = '';
+    if (prevImg) {
+      prevImg.src = '';
+      prevImg.style.display = 'none';
+    }
+    if (placeholder) placeholder.style.display = 'flex';
+    if (removeBtn) removeBtn.style.display = 'none';
+    if (statusTxt) statusTxt.textContent = 'No photo selected (Optional - Max 5 MB, JPG/JPEG/PNG/WebP)';
   }
 }
 
@@ -3151,10 +3216,56 @@ function delSt(id) {
   }
 }
 
+function openFeeLedgerForStudent(studentId) {
+  closeM('profM');
+  const s = (DB.students || []).find(x => x.id === Number(studentId));
+  if (!s) {
+    toast('Student record could not be found.', 'error');
+    return;
+  }
+
+  showPage('fees', null);
+
+  // Set class filter to student's class
+  const clEl = document.getElementById('fe_cl');
+  if (clEl) {
+    clEl.value = s.cls || '';
+  }
+  loadFeSt();
+
+  // Ensure the student exists as an option in fe_st and select it
+  const stEl = document.getElementById('fe_st');
+  if (stEl) {
+    let opt = Array.from(stEl.options).find(o => o.value === String(s.id));
+    if (!opt) {
+      opt = document.createElement('option');
+      opt.value = String(s.id);
+      opt.textContent = `${s.name} (Adm: ${s.admno}${s.cls ? ' · Class ' + clL(s.cls) : ''}${s.session ? ' · ' + s.session : ''})`;
+      stEl.appendChild(opt);
+    }
+    stEl.value = String(s.id);
+  }
+
+  curFSid = s.id;
+
+  // Sync year dropdown to student's session start year
+  if (s.session) {
+    const [stY] = parseSessionYears(s.session);
+    const yrEl = document.getElementById('fe_yr');
+    if (yrEl && stY) {
+      const curY = parseInt(yrEl.value);
+      if (curY !== stY && curY !== (stY + 1)) {
+        yrEl.value = stY;
+      }
+    }
+  }
+
+  renderFeD();
+}
+
 function viewProf(id) {
   const s = DB.students.find(x => x.id === id);
   if (!s) return;
-  const initials = s.name.split(' ').map(w => w[0]).join('').substring(0, 2).toUpperCase();
 
   // Financial summary for student
   let totFees = 0, totPaid = 0;
@@ -3168,62 +3279,204 @@ function viewProf(id) {
       });
     }
   });
+  const outstandingDue = Math.max(0, totFees - totPaid);
+
+  const statusText = s.status || 'Active';
+  const isActive = statusText.toLowerCase() === 'active';
+  const isLeft = statusText.toLowerCase().includes('left');
+  const statusColor = isActive ? '#16a34a' : (isLeft ? '#dc2626' : '#ea580c');
+  const statusBg = isActive ? '#dcfce7' : (isLeft ? '#fee2e2' : '#ffedd5');
+  const statusBorder = isActive ? '#86efac' : (isLeft ? '#fca5a5' : '#fed7aa');
+  const statusIcon = isActive ? '✔' : '●';
+
+  const classLabel = clL(s.cls);
+  const sectionLabel = s.section || 'A';
+  const sessionText = s.session || '2026-27';
+  const dVal = (val) => (val !== undefined && val !== null && String(val).trim() !== '' && String(val).trim() !== 'null' && String(val).trim() !== 'undefined') ? escapeHtml(String(val).trim()) : '—';
+  const cleanPhoto = (s.photo && typeof s.photo === 'string' && s.photo.trim() !== '' && s.photo.trim() !== 'null' && s.photo.trim() !== 'undefined') ? s.photo.trim() : '';
 
   document.getElementById('profB').innerHTML = `
-    <div class="ph">
-      <div class="pa" id="profAvatarBox" style="padding:0;overflow:hidden;display:flex;align-items:center;justify-content:center;background:var(--pri);color:#fff;font-weight:700">
-        <span id="profAvatarInitials">${initials}</span>
-        <img id="profAvatarImg" src="" alt="${s.name}" style="display:none;width:100%;height:100%;object-fit:cover;border-radius:50%">
-      </div>
-      <div>
-        <h2 style="font-size:18px;margin-bottom:4px">${s.name}</h2>
-        <p style="opacity:.9">${clL(s.cls)} – Section ${s.section || 'A'} | Adm No: ${s.admno}${s.srNo ? ` | SR No: ${s.srNo}` : ''}</p>
-        <p style="opacity:.75;font-size:12px">Father: ${s.father} | Mother: ${s.mother || '–'}</p>
-      </div>
-    </div>
-    <div class="g3" style="gap:10px;margin-bottom:14px">
-      ${pf('Date of Birth', s.dob || '–')}
-      ${pf('Gender', s.gender)}
-      ${pf('Blood Group', s.blood)}
-      ${pf('Student SR No.', s.srNo || '–')}
-      ${pf('Roll Number', s.rollno || '–')}
-      ${pf('Contact Phone', s.phone)}
-      ${pf('Email', s.email || '–')}
-      ${pf('Academic Session', s.session || '2026–27')}
-      ${pf('Admission Date', s.admissionDate || '–')}
-      ${pf('Current Status', s.status || 'Active')}
-    </div>
-    <div style="background:var(--bg);border-radius:7px;padding:10px 14px;margin-bottom:12px">
-      <div style="font-size:10.5px;color:var(--txt2);margin-bottom:2px">Residential Address</div>
-      <div style="font-weight:500;font-size:13px">${s.address || '–'}</div>
-    </div>
-    <!-- Academic Session Enrollments & Progression -->
-    <div style="background:var(--bg);border-radius:7px;padding:10px 14px;margin-bottom:12px;border:1px solid var(--bdr)">
-      <div style="font-size:11px;font-weight:700;color:var(--txt);margin-bottom:6px">📚 Academic Session Enrollments & Progression</div>
-      ${getStudentEnrollments(s).map(e => `
-        <div style="display:flex;justify-content:space-between;align-items:center;font-size:12px;padding:3px 0;border-bottom:1px dashed #e2e8f0">
-          <span><strong>Class ${clL(e.cls)}</strong> (Sec ${e.section || 'A'}) — Session <strong>${e.session}</strong></span>
-          <span class="chip ${e.session === s.session ? 'cg' : 'cgr'}" style="font-size:10px">${e.status || (e.session === s.session ? 'Current' : 'Historical')}</span>
+    <!-- Top Section: Left Large Photo + Right Red Gradient Identity Banner -->
+    <div class="prof-header-section">
+      <div class="prof-photo-box">
+        <div id="profAvatarPlaceholder" class="prof-photo-placeholder">
+          <svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+            <circle cx="12" cy="7" r="4"></circle>
+          </svg>
+          <span style="font-size:12px;font-weight:700;margin-top:6px;color:#94a3b8;letter-spacing:0.3px;">No Photo</span>
         </div>
-      `).join('')}
+        <img id="profAvatarImg" class="prof-photo-img" src="" alt="${escapeHtml(s.name)}" style="display:none;">
+      </div>
+
+      <div class="prof-identity-banner">
+        <div class="prof-identity-top">
+          <div class="prof-identity-name-wrap">
+            <h2 class="prof-identity-name" title="${escapeHtml(s.name)}">${escapeHtml(s.name)}</h2>
+            <div class="prof-identity-class">${escapeHtml(classLabel)} – Section ${escapeHtml(sectionLabel)}</div>
+          </div>
+          <div class="prof-status-pill-top">
+            <span style="color:${statusColor}">${statusIcon}</span>
+            <span>${escapeHtml(statusText)}</span>
+          </div>
+        </div>
+
+        <div class="prof-identity-meta-row1">
+          <span>Admission No: <strong>${dVal(s.admno)}</strong></span>
+          <span class="prof-meta-sep">|</span>
+          <span>SR No: <strong>${dVal(s.srNo)}</strong></span>
+          <span class="prof-meta-sep">|</span>
+          <span>Roll No: <strong>${dVal(s.rollno)}</strong></span>
+        </div>
+        <div class="prof-identity-meta-row2">
+          <span>Father's Name: <strong>${dVal(s.father)}</strong></span>
+          <span class="prof-meta-sep">|</span>
+          <span>Mother's Name: <strong>${dVal(s.mother)}</strong></span>
+        </div>
+      </div>
     </div>
-    <div class="g3" style="gap:10px;margin-bottom:12px">
-      <div class="fb"><div class="lbl">Total Fees Billed</div><div class="amt" style="font-size:16px">₹${totFees.toLocaleString('en-IN')}</div></div>
-      <div class="fb"><div class="lbl">Total Fees Paid</div><div class="amt" style="font-size:16px;color:var(--grn)">₹${totPaid.toLocaleString('en-IN')}</div></div>
-      <div class="fb"><div class="lbl">Outstanding Due</div><div class="amt" style="font-size:16px;color:var(--red)">₹${(totFees - totPaid).toLocaleString('en-IN')}</div></div>
+
+    <!-- 2-Column Information Cards Grid -->
+    <div class="prof-cards-grid">
+      <!-- Card 1: Personal Information (Green) -->
+      <div class="prof-card prof-card-green">
+        <div class="prof-card-head">
+          <div class="prof-card-icon-badge" style="background:#22c55e;">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>
+            </svg>
+          </div>
+          <span class="prof-card-title">Personal Information</span>
+        </div>
+        <div class="prof-row"><span class="prof-row-lbl">Date of Birth</span><span class="prof-row-colon">:</span><span class="prof-row-val">${dVal(s.dob)}</span></div>
+        <div class="prof-row"><span class="prof-row-lbl">Gender</span><span class="prof-row-colon">:</span><span class="prof-row-val">${dVal(s.gender)}</span></div>
+        <div class="prof-row"><span class="prof-row-lbl">Blood Group</span><span class="prof-row-colon">:</span><span class="prof-row-val">${dVal(s.blood)}</span></div>
+        <div class="prof-row"><span class="prof-row-lbl">Category</span><span class="prof-row-colon">:</span><span class="prof-row-val">${dVal(s.category)}</span></div>
+      </div>
+
+      <!-- Card 2: Academic Information (Blue) -->
+      <div class="prof-card prof-card-blue">
+        <div class="prof-card-head">
+          <div class="prof-card-icon-badge" style="background:#3b82f6;">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M5 13.18v4L12 21l7-3.82v-4L12 17l-7-3.82zM12 3L1 9l11 6 9-4.91V17h2V9L12 3z"/>
+            </svg>
+          </div>
+          <span class="prof-card-title">Academic Information</span>
+        </div>
+        <div class="prof-row"><span class="prof-row-lbl">Academic Session</span><span class="prof-row-colon">:</span><span class="prof-row-val">${dVal(sessionText)}</span></div>
+        <div class="prof-row"><span class="prof-row-lbl">Class</span><span class="prof-row-colon">:</span><span class="prof-row-val">${escapeHtml(classLabel)}</span></div>
+        <div class="prof-row"><span class="prof-row-lbl">Section</span><span class="prof-row-colon">:</span><span class="prof-row-val">${dVal(sectionLabel)}</span></div>
+        <div class="prof-row"><span class="prof-row-lbl">Admission Date</span><span class="prof-row-colon">:</span><span class="prof-row-val">${dVal(s.admissionDate)}</span></div>
+      </div>
+
+      <!-- Card 3: Address Information (Pink) -->
+      <div class="prof-card prof-card-pink">
+        <div class="prof-card-head">
+          <div class="prof-card-icon-badge" style="background:#f43f5e;">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/>
+            </svg>
+          </div>
+          <span class="prof-card-title">Address Information</span>
+        </div>
+        <div class="prof-row"><span class="prof-row-lbl">Address</span><span class="prof-row-colon">:</span><span class="prof-row-val">${dVal(s.address)}</span></div>
+        <div class="prof-row"><span class="prof-row-lbl">Village</span><span class="prof-row-colon">:</span><span class="prof-row-val">${dVal(s.village || s.city)}</span></div>
+        <div class="prof-row"><span class="prof-row-lbl">Pincode</span><span class="prof-row-colon">:</span><span class="prof-row-val">${dVal(s.pincode)}</span></div>
+        <div class="prof-row"><span class="prof-row-lbl">State</span><span class="prof-row-colon">:</span><span class="prof-row-val">${dVal(s.state || 'Uttar Pradesh')}</span></div>
+      </div>
+
+      <!-- Card 4: Contact Information (Yellow) -->
+      <div class="prof-card prof-card-yellow">
+        <div class="prof-card-head">
+          <div class="prof-card-icon-badge" style="background:#f59e0b;">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M20.01 15.38c-1.23 0-2.42-.2-3.53-.56a.977.977 0 0 0-1.01.24l-2.2 2.2a15.053 15.053 0 0 1-6.59-6.59l2.2-2.21a.96.96 0 0 0 .25-1.01A11.36 11.36 0 0 1 8.5 3.99c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1 0 9.39 7.61 17 17 17 .55 0 1-.45 1-1v-3.5c0-.55-.45-1-.99-1.11z"/>
+            </svg>
+          </div>
+          <span class="prof-card-title">Contact Information</span>
+        </div>
+        <div class="prof-row"><span class="prof-row-lbl">Contact Phone</span><span class="prof-row-colon">:</span><span class="prof-row-val">${dVal(s.phone)}</span></div>
+        <div class="prof-row"><span class="prof-row-lbl">Email</span><span class="prof-row-colon">:</span><span class="prof-row-val">${dVal(s.email)}</span></div>
+        <div class="prof-row"><span class="prof-row-lbl">Aadhar No.</span><span class="prof-row-colon">:</span><span class="prof-row-val">${dVal(s.aadhar)}</span></div>
+        <div class="prof-row"><span class="prof-row-lbl">PEN No.</span><span class="prof-row-colon">:</span><span class="prof-row-val">${dVal(s.penNo)}</span></div>
+      </div>
+
+      <!-- Card 5: Current Status (Purple) -->
+      <div class="prof-card prof-card-purple">
+        <div class="prof-card-head">
+          <div class="prof-card-icon-badge" style="background:#8b5cf6;">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
+            </svg>
+          </div>
+          <span class="prof-card-title">Current Status</span>
+        </div>
+        <div class="prof-row" style="margin-top:2px;">
+          <span class="prof-row-lbl">Status</span>
+          <span class="prof-row-colon">:</span>
+          <span class="prof-row-val">
+            <span class="prof-status-pill-card" style="background:${statusBg};color:${statusColor};border:1px solid ${statusBorder};">
+              <span style="color:${statusColor};font-size:12px;">${statusIcon}</span> ${escapeHtml(statusText)}
+            </span>
+          </span>
+        </div>
+      </div>
+
+      <!-- Card 6: Fee Summary (Purple) -->
+      <div class="prof-card prof-card-purple">
+        <div class="prof-card-head">
+          <div class="prof-card-icon-badge" style="background:#8b5cf6;">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M12 2C6.48 2 2 4.02 2 6.5s4.48 4.5 10 4.5 10-2.02 10-4.5S17.52 2 12 2zm0 6.5c-3.87 0-7-1.12-7-2.5s3.13-2.5 7-2.5 7 1.12 7 2.5-3.13 2.5-7 2.5zm0 3c-4.42 0-8-1.57-8-3.5V11c0 2.21 3.58 4 8 4s8-1.79 8-4V8c0 1.93-3.58 3.5-8 3.5zm0 5c-4.42 0-8-1.57-8-3.5V16c0 2.21 3.58 4 8 4s8-1.79 8-4v-2.5c0 1.93-3.58 3.5-8 3.5z"/>
+            </svg>
+          </div>
+          <span class="prof-card-title">Fee Summary (Session: ${dVal(sessionText)})</span>
+        </div>
+        <div class="prof-fee-boxes-grid">
+          <div class="prof-fee-box billed">
+            <div class="prof-fee-lbl">Total Fees Billed</div>
+            <div class="prof-fee-val">₹${totFees.toLocaleString('en-IN')}</div>
+          </div>
+          <div class="prof-fee-box paid">
+            <div class="prof-fee-lbl">Total Fees Paid</div>
+            <div class="prof-fee-val">₹${totPaid.toLocaleString('en-IN')}</div>
+          </div>
+          <div class="prof-fee-box due">
+            <div class="prof-fee-lbl">Outstanding Due</div>
+            <div class="prof-fee-val">₹${outstandingDue.toLocaleString('en-IN')}</div>
+          </div>
+        </div>
+      </div>
     </div>
-    <div style="display:flex;gap:8px;justify-content:flex-end">
-      <button class="btn bo bsm" onclick="editSt(${id});closeM('profM')">✏ Edit Profile</button>
-      <button class="btn bp bsm" onclick="closeM('profM');curFSid=${id};showPage('fees',null)">💳 View Fee Ledger</button>
+
+    <!-- Bottom Actions Row -->
+    <div class="prof-actions-row">
+      <button class="prof-btn-edit" onclick="editSt(${id});closeM('profM')">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/>
+        </svg>
+        <span>Edit Profile</span>
+      </button>
+      <button class="prof-btn-ledger" onclick="openFeeLedgerForStudent(${id})">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V5h14v14zM7 10h10v2H7zm0-3h10v2H7zm0 6h7v2H7z"/>
+        </svg>
+        <span>View Fee Ledger</span>
+      </button>
     </div>`;
-  if (s.photo) {
-    resolveStudentPhotoUrl(s.photo).then(uri => {
+
+  if (cleanPhoto) {
+    resolveStudentPhotoUrl(cleanPhoto).then(uri => {
       const img = document.getElementById('profAvatarImg');
-      const init = document.getElementById('profAvatarInitials');
+      const placeholder = document.getElementById('profAvatarPlaceholder');
       if (uri && img) {
         img.src = uri;
         img.style.display = 'block';
-        if (init) init.style.display = 'none';
+        if (placeholder) placeholder.style.display = 'none';
+      } else {
+        if (img) img.style.display = 'none';
+        if (placeholder) placeholder.style.display = 'flex';
       }
     });
   }
@@ -4079,6 +4332,14 @@ function loadFeSt() {
     optionsHtml += `<option value="${s.id}">${s.name} (Adm: ${s.admno}${s.cls ? ' · Class ' + clL(s.cls) : ''}${s.session ? ' · ' + s.session : ''})</option>`;
   });
 
+  // If a specific student was selected (e.g. from profile modal) but is filtered out, keep option available
+  if (curFSid && curFSid !== 'all' && !filteredStudents.some(s => s.id === curFSid)) {
+    const targetStudent = (DB.students || []).find(s => s.id === curFSid);
+    if (targetStudent) {
+      optionsHtml += `<option value="${targetStudent.id}">${targetStudent.name} (Adm: ${targetStudent.admno}${targetStudent.cls ? ' · Class ' + clL(targetStudent.cls) : ''}${targetStudent.status ? ' · [' + targetStudent.status + ']' : ''})</option>`;
+    }
+  }
+
   sel.innerHTML = optionsHtml;
 
   if (prevVal === 'all') {
@@ -4087,6 +4348,8 @@ function loadFeSt() {
   } else if (prevVal && filteredStudents.some(s => String(s.id) === String(prevVal))) {
     sel.value = prevVal;
     curFSid = parseInt(prevVal);
+  } else if (curFSid && (curFSid === 'all' || (DB.students || []).some(s => s.id === curFSid))) {
+    sel.value = String(curFSid);
   } else {
     sel.value = '';
     curFSid = null;
