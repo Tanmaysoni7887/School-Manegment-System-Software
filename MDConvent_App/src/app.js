@@ -13067,6 +13067,20 @@ function printTransportReceipt() {
 // MODAL 5: STUDENT TRANSPORT DETAILS & ACTIONS
 // ============================================================
 
+let isViewAllTransportReceipts = false;
+
+function formatEffectiveFromMonth(val) {
+  if (!val) return 'Start';
+  if (/^\d{4}-\d{2}$/.test(val)) {
+    const [y, m] = val.split('-');
+    const mIdx = parseInt(m, 10) - 1;
+    const months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+    return months[mIdx] || val;
+  }
+  const parts = String(val).trim().split(/\s+/);
+  return parts[0] || val;
+}
+
 function openStudentTransportDetailsModal(studentId) {
   const student = (DB.students || []).find(s => s.id === Number(studentId));
   const assignments = (DB.transport && DB.transport.assignments) ? DB.transport.assignments : {};
@@ -13079,107 +13093,187 @@ function openStudentTransportDetailsModal(studentId) {
 
   transportState.selectedStudentForDetails = studentId;
 
+  // Header Title
   const titleEl = document.getElementById('tr_details_modal_title');
   if (titleEl) {
     titleEl.textContent = `${student.name} (${student.admno}) — Transport Details`;
   }
 
+  // Session Badge
   const sessLabel = document.getElementById('tr_details_session_label');
   if (sessLabel) {
     sessLabel.textContent = `Session: ${transportState.activeSession || '2026–27'}`;
   }
 
-  const detailsCard = document.getElementById('tr_details_card');
-  if (detailsCard) {
-    const isSeparate = assign.type === 'separate';
-    const statusText = assign.active ? '<span class="tr-badge tr-badge-paid">Active</span>' : '<span class="tr-badge tr-badge-due">Service Stopped</span>';
-    detailsCard.innerHTML = `
-      <div style="display:flex;justify-content:space-between;align-items:center">
-        <span style="font-size:15px;font-weight:700;color:#0f172a">${escapeHtml(student.name)} (${escapeHtml(student.admno)})</span>
-        <span>${statusText}</span>
-      </div>
-      <div style="font-size:12px;color:#475569">Class: <strong>${escapeHtml(student.cls + (student.section ? ' ' + student.section : ''))}</strong></div>
-      <div style="font-size:12px;color:#475569">Transport Mode: <strong>${isSeparate ? 'Pickup + Drop (Separate Stops)' : 'Single Stop'}</strong></div>
-      <div style="font-size:12px;color:#475569">
-        Pickup Stop: <strong>${escapeHtml(assign.pickupStopName || '-')}</strong>
-        ${isSeparate ? ` | Drop Stop: <strong>${escapeHtml(assign.dropStopName || '-')}</strong>` : ''}
-      </div>
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:4px;padding-top:4px;border-top:1px dashed #cbd5e1">
-        <span style="font-size:12px;font-weight:600;color:#475569">Monthly Transport Fee</span>
-        <span style="font-size:15px;font-weight:800;color:var(--red)">₹ ${Number(assign.monthlyFee).toLocaleString('en-IN')}</span>
-      </div>
-      <div style="font-size:11px;color:#64748b;margin-top:2px">
-        Effective From: ${escapeHtml(assign.effectiveFrom || 'Start')} ${assign.stoppedAt ? ' • Stopped At: ' + escapeHtml(assign.stoppedAt) : ''}
-      </div>
-    `;
+  // Top Student Info Card: Photo & Metadata
+  const photoImg = document.getElementById('tr_det_photo_img');
+  const photoPh = document.getElementById('tr_det_photo_ph');
+  if (photoImg) { photoImg.src = ''; photoImg.style.display = 'none'; }
+  if (photoPh) { photoPh.style.display = 'flex'; }
+
+  const cleanPhoto = (student.photo && typeof student.photo === 'string' && student.photo.trim() !== '' && student.photo.trim() !== 'null' && student.photo.trim() !== 'undefined') ? student.photo.trim() : '';
+  if (cleanPhoto) {
+    resolveStudentPhotoUrl(cleanPhoto).then(uri => {
+      if (uri && photoImg) {
+        photoImg.src = uri;
+        photoImg.style.display = 'block';
+        if (photoPh) photoPh.style.display = 'none';
+      }
+    }).catch(() => {});
+  }
+
+  const nameAdmEl = document.getElementById('tr_det_name_adm');
+  if (nameAdmEl) nameAdmEl.textContent = `${student.name} (${student.admno})`;
+
+  const statusPill = document.getElementById('tr_det_status_pill');
+  if (statusPill) {
+    if (assign.active) {
+      statusPill.className = 'tr-det-pill-active';
+      statusPill.textContent = 'Active';
+    } else {
+      statusPill.className = 'tr-det-pill-stopped';
+      statusPill.textContent = 'Service Stopped';
+    }
+  }
+
+  const classEl = document.getElementById('tr_det_class');
+  if (classEl) {
+    classEl.textContent = `${student.cls || '—'}${student.section ? ' ' + student.section : ''}`;
+  }
+
+  const modeEl = document.getElementById('tr_det_mode');
+  if (modeEl) {
+    modeEl.textContent = assign.type === 'separate' ? 'Both Ways' : 'Single Stop';
+  }
+
+  const fEl = document.getElementById('tr_det_father');
+  if (fEl) fEl.textContent = student.father || '—';
+
+  const mEl = document.getElementById('tr_det_mother');
+  if (mEl) mEl.textContent = student.mother || '—';
+
+  const stopsLine = document.getElementById('tr_det_stops_line');
+  if (stopsLine) {
+    const pinSvg = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#64748b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg>`;
+    if (assign.type === 'separate' && assign.dropStopName) {
+      stopsLine.innerHTML = `${pinSvg} <span>Pickup Stop: <strong id="tr_det_pickup_stop">${escapeHtml(assign.pickupStopName || '—')}</strong></span><span class="tr-det-meta-sep">|</span>${pinSvg} <span>Drop Stop: <strong id="tr_det_drop_stop">${escapeHtml(assign.dropStopName || '—')}</strong></span>`;
+    } else {
+      stopsLine.innerHTML = `${pinSvg} <span>Pickup Stop: <strong id="tr_det_pickup_stop">${escapeHtml(assign.pickupStopName || '—')}</strong></span>`;
+    }
+  }
+
+  // Monthly Transport Fee Card
+  const feeEl = document.getElementById('tr_det_monthly_fee');
+  if (feeEl) feeEl.textContent = `₹ ${Number(assign.monthlyFee || 0).toLocaleString('en-IN')}`;
+
+  const effEl = document.getElementById('tr_det_effective_from');
+  if (effEl) {
+    const calSvg = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#64748b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>`;
+    const effMonth = formatEffectiveFromMonth(assign.effectiveFrom);
+    const stoppedStr = assign.stoppedAt ? ` • Stopped: ${formatEffectiveFromMonth(assign.stoppedAt)}` : '';
+    effEl.innerHTML = `${calSvg} <span>Effective From: ${escapeHtml(effMonth)}${escapeHtml(stoppedStr)}</span>`;
+  }
+
+  // Quick Action Buttons
+  const btnRemove = document.getElementById('tr_btn_details_remove');
+  if (btnRemove) {
+    btnRemove.style.display = assign.active ? 'inline-flex' : 'none';
   }
 
   // 1. Month-wise Transport Usage & Fee History Section
+  const sessionMonths = getTransportAcademicMonths(transportState.activeSession);
+  let totalFees = 0;
+  let totalPaid = 0;
+  let totalDiscount = 0;
+
   const usageTbody = document.getElementById('tr_details_usage_tbody');
   if (usageTbody) {
-    const sessionMonths = getTransportAcademicMonths(transportState.activeSession);
-    const curMonthSortKey = getFeeMonthSortKey(getCurrentMonthKey());
-
     usageTbody.innerHTML = sessionMonths.map(m => {
       const isEnrolled = isMonthInAssignmentPeriod(m, assign.effectiveFrom, assign.stoppedAt);
       const mSortKey = getFeeMonthSortKey(m);
       const fee = isEnrolled ? (Number(assign.monthlyFee) || 0) : 0;
       const { paid, discount } = getStudentMonthTransportAccounting(studentId, m);
-      const balance = isEnrolled ? Math.max(0, fee - discount - paid) : 0;
+      const dueAmount = isEnrolled ? Math.max(0, fee - discount - paid) : 0;
+
+      if (isEnrolled) {
+        totalFees += fee;
+        totalPaid += paid;
+        totalDiscount += discount;
+      }
 
       let enrollmentStatus = 'Enrolled';
+      let statusBadgeClass = 'tr-badge-paid';
       if (!isEnrolled) {
         if (assign.stoppedAt && mSortKey > getFeeMonthSortKey(assign.stoppedAt)) {
           enrollmentStatus = 'Cancelled';
+          statusBadgeClass = 'tr-badge-due';
         } else {
           enrollmentStatus = 'Not Enrolled';
+          statusBadgeClass = 'tr-badge-na';
         }
       }
 
-      let typeStr = '-';
-      let pickupStr = '-';
-      let dropStr = '-';
-      if (isEnrolled) {
-        typeStr = assign.type === 'separate' ? 'Both Ways' : 'Single Stop';
-        pickupStr = assign.pickupStopName || '-';
-        dropStr = (assign.type === 'separate' && assign.dropStopName) ? assign.dropStopName : '-';
-      }
+      const typeStr = isEnrolled ? (assign.type === 'separate' ? 'Both Ways' : 'Single Stop') : '—';
+      const pickupStr = isEnrolled ? (assign.pickupStopName || '—') : '—';
+      const displayMonth = m.replace(/(\w{3})\w*\s+(\d{4})/, '$1 $2');
 
-      let monthBadge = '';
-      if (!isEnrolled) {
-        monthBadge = `<span class="tr-badge tr-badge-na">Not Applicable</span>`;
-      } else if (balance === 0 && (paid > 0 || discount >= fee)) {
-        monthBadge = `<span class="tr-badge tr-badge-paid">Paid</span>`;
-      } else if (mSortKey > curMonthSortKey && paid === 0) {
-        monthBadge = `<span class="tr-badge tr-badge-upcoming">Upcoming</span>`;
-      } else if (paid > 0 && balance > 0) {
-        monthBadge = `<span class="tr-badge tr-badge-partial">Partial</span>`;
-      } else {
-        monthBadge = `<span class="tr-badge tr-badge-due">Due</span>`;
+      const feeStr = isEnrolled ? `₹ ${fee.toLocaleString('en-IN')}` : '—';
+      const paidStr = isEnrolled ? `₹ ${paid.toLocaleString('en-IN')}` : '—';
+      let dueStr = '—';
+      if (isEnrolled) {
+        if (dueAmount === 0) {
+          dueStr = `<span style="color:#16a34a;font-weight:700">₹ 0</span>`;
+        } else {
+          dueStr = `<span style="color:#c0392b;font-weight:700">₹ ${dueAmount.toLocaleString('en-IN')}</span>`;
+        }
       }
 
       return `
         <tr>
-          <td style="color:#64748b">${escapeHtml(transportState.activeSession)}</td>
-          <td style="font-weight:600;color:#0f172a">${escapeHtml(m)}</td>
-          <td style="color:#475569">${escapeHtml(enrollmentStatus)}</td>
+          <td style="font-weight:700;color:#0f172a">${escapeHtml(displayMonth)}</td>
+          <td class="text-center"><span class="tr-badge ${statusBadgeClass}">${escapeHtml(enrollmentStatus)}</span></td>
           <td style="color:#475569">${escapeHtml(typeStr)}</td>
           <td style="color:#1e293b">${escapeHtml(pickupStr)}</td>
-          <td style="color:#1e293b">${escapeHtml(dropStr)}</td>
-          <td class="text-right" style="font-weight:600">₹ ${fee.toLocaleString('en-IN')}</td>
-          <td class="text-right" style="font-weight:600">${safeCurrency(fee)}</td>
-          <td class="text-right" style="color:#16a34a;font-weight:600">${safeCurrency(paid)}</td>
-          <td class="text-right" style="color:#d97706">${discount > 0 ? safeCurrency(discount) : '-'}</td>
-          <td class="text-right" style="font-weight:700;color:${balance > 0 ? '#c0392b' : '#0f172a'}">${safeCurrency(balance)}</td>
-          <td class="text-center">${monthBadge}</td>
+          <td class="text-right" style="font-weight:600;color:#0f172a">${feeStr}</td>
+          <td class="text-right" style="font-weight:600;color:#0f172a">${paidStr}</td>
+          <td class="text-right">${dueStr}</td>
         </tr>
       `;
     }).join('');
   }
 
+  // Payment Summary Card calculation
+  const outstandingDue = Math.max(0, totalFees - totalPaid - totalDiscount);
+
+  const totFeesEl = document.getElementById('tr_sum_total_fees');
+  if (totFeesEl) totFeesEl.textContent = `₹ ${totalFees.toLocaleString('en-IN')}`;
+
+  const totPaidEl = document.getElementById('tr_sum_total_paid');
+  if (totPaidEl) totPaidEl.textContent = `₹ ${totalPaid.toLocaleString('en-IN')}`;
+
+  const totDiscEl = document.getElementById('tr_sum_total_disc');
+  if (totDiscEl) totDiscEl.textContent = `₹ ${totalDiscount.toLocaleString('en-IN')}`;
+
+  const dueBox = document.getElementById('tr_sum_due_box');
+  const dueValEl = document.getElementById('tr_sum_outstanding_due');
+  if (dueBox && dueValEl) {
+    dueValEl.textContent = `₹ ${outstandingDue.toLocaleString('en-IN')}`;
+    if (outstandingDue === 0) {
+      dueBox.className = 'tr-sum-due-box zero';
+    } else {
+      dueBox.className = 'tr-sum-due-box due';
+    }
+  }
+
   // 2. Payment Receipts Section
   const tbody = document.getElementById('tr_details_history_tbody');
   const countEl = document.getElementById('tr_details_payments_count');
+  const viewAllBtn = document.getElementById('tr_btn_view_all_rcpts');
+  const wrapEl = document.getElementById('tr_details_receipts_wrap');
+
+  isViewAllTransportReceipts = false;
+  if (wrapEl) wrapEl.style.maxHeight = '115px';
+
   const allPayments = (DB.transport && Array.isArray(DB.transport.payments)) ? DB.transport.payments : [];
   const payments = allPayments.filter(p => p.studentId === studentId && isValidTransportPayment(p));
 
@@ -13187,35 +13281,64 @@ function openStudentTransportDetailsModal(studentId) {
 
   if (tbody) {
     if (payments.length === 0) {
-      tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;padding:24px 16px;color:#64748b;font-size:12px;font-weight:500">No transport payments recorded yet.</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;padding:24px 16px;color:#64748b;font-size:12px;font-weight:500">No transport payments recorded yet.</td></tr>`;
+      if (viewAllBtn) viewAllBtn.style.display = 'none';
     } else {
       tbody.innerHTML = payments.slice().reverse().map(p => {
-        const months = p.months || (Array.isArray(p.allocations) ? p.allocations.map(a => a.month) : (p.month ? [p.month + (p.year ? ' ' + p.year : '')] : []));
-        const moStr = formatCompactTransportMonthRange(months);
         const amt = safeNum(p.amountReceived !== undefined ? p.amountReceived : p.amount, 0);
-        const disc = safeNum(p.discount, 0);
-        return `<tr>
-          <td style="font-weight:700;color:#0f172a">${escapeHtml(p.receiptNo || '–')}</td>
-          <td style="color:#475569">${escapeHtml(p.date || '–')}</td>
-          <td style="color:#1e293b">${escapeHtml(moStr)}</td>
-          <td class="text-right" style="font-weight:700;color:#16a34a">${safeCurrency(amt)}</td>
-          <td class="text-right">${disc > 0 ? safeCurrency(disc) : '-'}</td>
-          <td style="color:#475569">${escapeHtml(p.paymentMode || 'Cash')}</td>
-          <td class="text-center">
-            <button class="btn bo bsm" onclick="viewTransportReceiptByNo('${escapeHtml(p.receiptNo)}')" style="padding:2px 8px;font-size:11px">View</button>
-          </td>
-        </tr>`;
+        return `
+          <tr>
+            <td style="font-weight:700;color:#0f172a">${escapeHtml(p.receiptNo || '—')}</td>
+            <td style="color:#475569">${escapeHtml(p.date || '—')}</td>
+            <td class="text-right" style="font-weight:700;color:#0f172a">₹ ${amt.toLocaleString('en-IN')}</td>
+            <td style="color:#475569">${escapeHtml(p.paymentMode || 'Cash')}</td>
+            <td class="text-center" style="white-space:nowrap;">
+              <button class="tr-rcpt-action-btn view" onclick="viewTransportReceiptByNo('${escapeHtml(p.receiptNo)}')">
+                <span>👁</span> <span>View</span>
+              </button>
+              <button class="tr-rcpt-action-btn print" onclick="printTransportReceiptByNo('${escapeHtml(p.receiptNo)}')">
+                <span>🖨</span> <span>Print</span>
+              </button>
+            </td>
+          </tr>
+        `;
       }).join('');
+
+      if (viewAllBtn) {
+        if (payments.length > 3) {
+          viewAllBtn.style.display = 'inline-flex';
+          viewAllBtn.setAttribute('data-count', String(payments.length));
+          viewAllBtn.innerHTML = `<span>View All (${payments.length}) ➔</span>`;
+        } else {
+          viewAllBtn.style.display = 'none';
+        }
+      }
     }
   }
 
-  // Update button states
-  const btnRemove = document.getElementById('tr_btn_details_remove');
-  if (btnRemove) {
-    btnRemove.style.display = assign.active ? 'inline-block' : 'none';
-  }
-
   openM('modalStudentTransportDetails');
+}
+
+function toggleViewAllTransportReceipts() {
+  isViewAllTransportReceipts = !isViewAllTransportReceipts;
+  const wrap = document.getElementById('tr_details_receipts_wrap');
+  const btn = document.getElementById('tr_btn_view_all_rcpts');
+  if (wrap) {
+    wrap.style.maxHeight = isViewAllTransportReceipts ? 'none' : '115px';
+  }
+  if (btn) {
+    const count = btn.getAttribute('data-count') || '';
+    btn.innerHTML = isViewAllTransportReceipts ? '<span>Show Less ▴</span>' : `<span>View All (${count}) ➔</span>`;
+  }
+}
+
+function printTransportReceiptByNo(receiptNo) {
+  const payments = (DB.transport && Array.isArray(DB.transport.payments)) ? DB.transport.payments : [];
+  const rcpt = payments.find(p => p.receiptNo === receiptNo && isValidTransportPayment(p));
+  if (!rcpt) return;
+
+  populateTransportReceiptModal(rcpt);
+  printTransportReceipt();
 }
 
 function onDetailsCollectClick() {
