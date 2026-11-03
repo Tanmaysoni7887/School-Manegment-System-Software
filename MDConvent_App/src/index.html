@@ -268,9 +268,9 @@ input:checked+.slider:before{transform:translateX(18px)}
 /* STUDENT TRANSPORT DETAILS MODAL REDESIGN (SCOPED)            */
 /* ============================================================ */
 #modalStudentTransportDetails .md {
-  max-width: min(1080px, 96vw) !important;
-  width: 1080px !important;
-  max-height: 92vh !important;
+  max-width: min(1060px, 94vw) !important;
+  width: 1060px !important;
+  max-height: min(88vh, 760px) !important;
   border-radius: 14px !important;
   box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.35) !important;
   background: #ffffff !important;
@@ -283,7 +283,7 @@ input:checked+.slider:before{transform:translateX(18px)}
 #modalStudentTransportDetails .tr-modal-header {
   background: linear-gradient(135deg, #a81c1c 0%, #c0392b 100%) !important;
   color: #ffffff !important;
-  padding: 14px 22px !important;
+  padding: 10px 18px !important;
   display: flex !important;
   align-items: center !important;
   justify-content: space-between !important;
@@ -293,7 +293,7 @@ input:checked+.slider:before{transform:translateX(18px)}
 }
 
 #modalStudentTransportDetails .tr-modal-title {
-  font-size: 16px !important;
+  font-size: 15px !important;
   font-weight: 700 !important;
   color: #ffffff !important;
   margin: 0 !important;
@@ -305,8 +305,8 @@ input:checked+.slider:before{transform:translateX(18px)}
   border: none !important;
   color: #ffffff !important;
   font-size: 15px !important;
-  width: 28px !important;
-  height: 28px !important;
+  width: 26px !important;
+  height: 26px !important;
   border-radius: 50% !important;
   display: flex !important;
   align-items: center !important;
@@ -320,13 +320,14 @@ input:checked+.slider:before{transform:translateX(18px)}
 }
 
 #modalStudentTransportDetails .tr-modal-body {
-  padding: 12px 18px !important;
+  padding: 10px 16px !important;
   display: flex !important;
   flex-direction: column !important;
-  gap: 10px !important;
+  gap: 8px !important;
   background: #f8fafc !important;
   max-height: none !important;
-  overflow: visible !important;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
   flex: 1 !important;
 }
 
@@ -576,9 +577,9 @@ input:checked+.slider:before{transform:translateX(18px)}
 /* Lower Two-Column Grid */
 #modalStudentTransportDetails .tr-det-lower-grid {
   display: grid;
-  grid-template-columns: 1.55fr 1fr;
+  grid-template-columns: 1.48fr 1fr;
   gap: 12px;
-  align-items: start;
+  align-items: stretch;
 }
 
 @media (max-width: 880px) {
@@ -592,10 +593,10 @@ input:checked+.slider:before{transform:translateX(18px)}
   background: #eff6ff;
   border: 1px solid #bfdbfe;
   border-radius: 10px;
-  padding: 10px 12px;
+  padding: 9px 11px;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 7px;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.02);
 }
 
@@ -664,9 +665,9 @@ input:checked+.slider:before{transform:translateX(18px)}
   background: #ffffff;
   border: 1px solid #cbd5e1;
   border-radius: 8px;
-  overflow: hidden;
-  max-height: 220px;
-  overflow-y: auto;
+  overflow: hidden !important;
+  max-height: none !important;
+  overflow-y: visible !important;
 }
 
 #modalStudentTransportDetails .tr-det-table {
@@ -679,7 +680,7 @@ input:checked+.slider:before{transform:translateX(18px)}
   background: #f8fafc;
   color: #475569;
   font-weight: 700;
-  padding: 7px 8px;
+  padding: 5px 6px;
   border-bottom: 1px solid #cbd5e1;
   position: sticky;
   top: 0;
@@ -688,7 +689,7 @@ input:checked+.slider:before{transform:translateX(18px)}
 }
 
 #modalStudentTransportDetails .tr-det-table td {
-  padding: 6px 8px;
+  padding: 4px 6px;
   border-bottom: 1px solid #f1f5f9;
   color: #1e293b;
   vertical-align: middle;
@@ -711,6 +712,7 @@ input:checked+.slider:before{transform:translateX(18px)}
   display: flex;
   flex-direction: column;
   gap: 10px;
+  height: 100%;
 }
 
 /* Right Card 1: Summary Card */
@@ -721,7 +723,7 @@ input:checked+.slider:before{transform:translateX(18px)}
   padding: 10px 12px;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 8px;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.02);
 }
 
@@ -729,10 +731,10 @@ input:checked+.slider:before{transform:translateX(18px)}
   background: #ffffff;
   border: 1px solid #e2e8f0;
   border-radius: 8px;
-  padding: 7px 10px;
+  padding: 8px 12px;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 6px;
 }
 
 #modalStudentTransportDetails .tr-det-sum-row {
@@ -749,11 +751,11 @@ input:checked+.slider:before{transform:translateX(18px)}
 
 #modalStudentTransportDetails .tr-sum-due-box {
   border-radius: 6px;
-  padding: 5px 10px;
+  padding: 7px 12px;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  font-size: 12.5px;
+  font-size: 13px;
   font-weight: 700;
   transition: all 0.15s ease;
 }
@@ -778,8 +780,9 @@ input:checked+.slider:before{transform:translateX(18px)}
   padding: 10px 12px;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 8px;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.02);
+  flex: 1;
 }
 
 #modalStudentTransportDetails .tr-det-rcpts-wrap {
@@ -787,8 +790,10 @@ input:checked+.slider:before{transform:translateX(18px)}
   border: 1px solid #fde68a;
   border-radius: 8px;
   overflow: hidden;
-  max-height: 115px;
   overflow-y: auto;
+  flex: 1;
+  min-height: 145px;
+  max-height: 185px;
   transition: max-height 0.25s ease;
 }
 
@@ -848,7 +853,7 @@ input:checked+.slider:before{transform:translateX(18px)}
 }
 
 #modalStudentTransportDetails .tr-modal-footer {
-  padding: 8px 18px !important;
+  padding: 8px 16px !important;
   border-top: 1px solid #e2e8f0 !important;
   display: flex !important;
   justify-content: flex-end !important;
@@ -862,8 +867,8 @@ input:checked+.slider:before{transform:translateX(18px)}
   color: #1e293b;
   border: 1px solid #cbd5e1;
   border-radius: 6px;
-  padding: 5px 18px;
-  font-size: 12.5px;
+  padding: 4px 16px;
+  font-size: 12px;
   font-weight: 600;
   cursor: pointer;
   transition: all 0.15s ease;

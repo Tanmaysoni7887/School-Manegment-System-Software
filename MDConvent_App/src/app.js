@@ -11163,32 +11163,87 @@ function getTransportAcademicMonths(sessionName) {
   });
 }
 
-// Chronological numeric sort key e.g. "October 2026" or "2026-10" -> 202610
-function getFeeMonthSortKey(monthStrOrKey) {
+// Chronological numeric sort key e.g. "October 2026" -> 202610, "May" -> 202605, "2026-10" -> 202610
+function getFeeMonthSortKey(monthStrOrKey, sessionContext) {
   if (!monthStrOrKey) return 0;
-  const key = displayToMonthKey(String(monthStrOrKey));
-  if (/^\d{4}-\d{2}$/.test(key)) {
-    const parts = key.split('-');
-    return parseInt(parts[0], 10) * 100 + parseInt(parts[1], 10);
+  const s = String(monthStrOrKey).trim();
+  if (!s || s.toLowerCase() === 'start' || s.toLowerCase() === 'session start') return 0;
+
+  // 1. Direct ISO format e.g. "2026-05" or "2026-05-15"
+  const isoMatch = s.match(/^(\d{4})-(\d{1,2})/);
+  if (isoMatch) {
+    return parseInt(isoMatch[1], 10) * 100 + parseInt(isoMatch[2], 10);
   }
-  const parts = String(monthStrOrKey).trim().split(/\s+/);
-  if (parts.length >= 2) {
-    const mIdx = MONTHS_LIST.indexOf(parts[0]);
-    const yr = parseInt(parts[1], 10) || 0;
-    return yr * 100 + (mIdx >= 0 ? mIdx + 1 : 0);
+
+  // 2. Format with month name and optional year e.g. "May 2026", "October 2026", "May", "April"
+  const parts = s.split(/[\s,–—\-_]+/);
+  let foundMonthName = null;
+  let foundYear = null;
+
+  for (const part of parts) {
+    if (/^\d{4}$/.test(part)) {
+      foundYear = parseInt(part, 10);
+    } else {
+      const fullIdx = SYS_MONTHS.findIndex(m => m.toLowerCase() === part.toLowerCase());
+      if (fullIdx >= 0) {
+        foundMonthName = SYS_MONTHS[fullIdx];
+      } else {
+        const abbrIdx = SYS_MONTHS.findIndex(m => m.toLowerCase().startsWith(part.toLowerCase().slice(0, 3)));
+        if (abbrIdx >= 0 && part.length >= 3) {
+          foundMonthName = SYS_MONTHS[abbrIdx];
+        }
+      }
+    }
   }
+
+  // Determine session years for year inference if year was omitted
+  let startYear = 2026;
+  let endYear = 2027;
+  try {
+    const sess = sessionContext || (typeof transportState !== 'undefined' && transportState.activeSession) || (typeof DB !== 'undefined' && DB.settings && DB.settings.currentSession);
+    if (sess && typeof parseSessionYears === 'function') {
+      [startYear, endYear] = parseSessionYears(sess);
+    }
+  } catch (e) {}
+
+  if (foundMonthName) {
+    const calendarMonth = SYS_MONTHS.indexOf(foundMonthName) + 1; // 1 to 12
+    if (!foundYear) {
+      // In academic session (April to March):
+      // April (4) to December (12) are startYear (e.g. 2026)
+      // January (1) to March (3) are endYear (e.g. 2027)
+      foundYear = calendarMonth >= 4 ? startYear : endYear;
+    }
+    return foundYear * 100 + calendarMonth;
+  }
+
+  if (foundYear) {
+    return foundYear * 100;
+  }
+
   return 0;
 }
 
-// Check if a month is within effective period
-function isMonthInAssignmentPeriod(targetMonth, effectiveFrom, stoppedAt) {
+// Check if a month is within effective transport assignment period
+function isMonthInAssignmentPeriod(targetMonth, effectiveFrom, stoppedAt, isActive) {
   const targetKey = getFeeMonthSortKey(targetMonth);
-  const fromKey = getFeeMonthSortKey(effectiveFrom);
-  if (fromKey && targetKey < fromKey) return false;
+  if (!targetKey) return false;
+
+  // 1. Check start of enrollment
+  if (effectiveFrom && String(effectiveFrom).trim().toLowerCase() !== 'start') {
+    const fromKey = getFeeMonthSortKey(effectiveFrom);
+    if (fromKey && targetKey < fromKey) return false;
+  }
+
+  // 2. Check cessation / removal
   if (stoppedAt) {
     const toKey = getFeeMonthSortKey(stoppedAt);
     if (toKey && targetKey > toKey) return false;
+  } else if (isActive === false) {
+    // If student assignment is inactive and no stoppedAt specified, not enrolled
+    return false;
   }
+
   return true;
 }
 
@@ -11458,12 +11513,13 @@ function buildTransportLedgerRows() {
     if (!assign) return;
 
     // Check if assignment covers the active month
-    const coversMonth = isMonthInAssignmentPeriod(transportState.activeMonth, assign.effectiveFrom, assign.stoppedAt);
+    const coversMonth = isMonthInAssignmentPeriod(transportState.activeMonth, assign.effectiveFrom, assign.stoppedAt, assign.active);
     if (!coversMonth && !assign.active) return;
 
-    const monthlyFee = safeNum(assign.monthlyFee, 0);
+    const monthlyFee = coversMonth ? safeNum(assign.monthlyFee, 0) : 0;
     const { paid, discount } = getStudentMonthTransportAccounting(st.id, transportState.activeMonth);
-    const due = Math.max(0, monthlyFee - discount - paid);
+    const isFutureActiveMonth = activeMonthSortKey > curMonthSortKey;
+    const due = (coversMonth && !isFutureActiveMonth) ? Math.max(0, monthlyFee - discount - paid) : 0;
     const prevDues = safeNum(getStudentPreviousSessionTransportDues(st.id, transportState.activeSession), 0);
 
     let status = 'Due';
@@ -11471,7 +11527,7 @@ function buildTransportLedgerRows() {
       status = 'Not Applicable';
     } else if (due === 0 && (paid > 0 || discount >= monthlyFee)) {
       status = 'Paid';
-    } else if (activeMonthSortKey > curMonthSortKey && paid === 0) {
+    } else if (isFutureActiveMonth && paid === 0) {
       status = 'Upcoming';
     } else if (paid > 0 && due > 0) {
       status = 'Partial';
@@ -12762,6 +12818,32 @@ function saveTransportPayment() {
     return;
   }
 
+  const assignments = (DB.transport && DB.transport.assignments) ? DB.transport.assignments : {};
+  const assign = assignments[student.id];
+  if (!assign) {
+    showToast('Student transport assignment not found.', 'error');
+    return;
+  }
+
+  const allowAdvance = !!document.getElementById('tr_col_allow_advance')?.checked;
+  const curMonthSortKey = getFeeMonthSortKey(getCurrentMonthKey());
+
+  // Strict check: Prevent collecting transport fees for non-enrolled / cancelled months,
+  // or future months when advance collection is not allowed.
+  for (const cb of checkedBoxes) {
+    const moName = cb.value;
+    const isEnrolled = isMonthInAssignmentPeriod(moName, assign.effectiveFrom, assign.stoppedAt, assign.active);
+    if (!isEnrolled) {
+      showToast(`Cannot collect transport fee for ${moName} as the student was not enrolled in transport for that month.`, 'error');
+      return;
+    }
+    const moSortKey = getFeeMonthSortKey(moName);
+    if (moSortKey > curMonthSortKey && !allowAdvance) {
+      showToast(`Cannot collect transport fee for upcoming month (${moName}) unless 'Allow advance collection' is enabled.`, 'error');
+      return;
+    }
+  }
+
   const totalDueAcrossChecked = checkedBoxes.reduce((acc, cb) => acc + (parseFloat(cb.getAttribute('data-balance')) || 0), 0);
   const discAmtInput = document.getElementById('tr_col_discount_amount');
   const discount = Math.min(totalDueAcrossChecked, Math.max(0, parseFloat(discAmtInput?.value) || 0));
@@ -13185,32 +13267,62 @@ function openStudentTransportDetailsModal(studentId) {
   let totalFees = 0;
   let totalPaid = 0;
   let totalDiscount = 0;
+  const curMonthSortKey = getFeeMonthSortKey(getCurrentMonthKey());
 
   const usageTbody = document.getElementById('tr_details_usage_tbody');
   if (usageTbody) {
     usageTbody.innerHTML = sessionMonths.map(m => {
-      const isEnrolled = isMonthInAssignmentPeriod(m, assign.effectiveFrom, assign.stoppedAt);
+      const isEnrolled = isMonthInAssignmentPeriod(m, assign.effectiveFrom, assign.stoppedAt, assign.active);
       const mSortKey = getFeeMonthSortKey(m);
+      const isFuture = mSortKey > curMonthSortKey;
       const fee = isEnrolled ? (Number(assign.monthlyFee) || 0) : 0;
       const { paid, discount } = getStudentMonthTransportAccounting(studentId, m);
-      const dueAmount = isEnrolled ? Math.max(0, fee - discount - paid) : 0;
+      
+      // Calculate dues: only eligible months up to current month can generate payable dues
+      const dueAmount = (isEnrolled && !isFuture) ? Math.max(0, fee - discount - paid) : 0;
 
-      if (isEnrolled) {
+      if (isEnrolled && !isFuture) {
+        // Enrolled past or current month
         totalFees += fee;
         totalPaid += paid;
         totalDiscount += discount;
+      } else if (isFuture) {
+        // Future month: do NOT include in Outstanding Due or billed totalFees,
+        // but if advance payment was already recorded, preserve it in totals cleanly
+        if (paid > 0 || discount > 0) {
+          totalFees += Math.min(fee, paid + discount);
+          totalPaid += paid;
+          totalDiscount += discount;
+        }
+      } else {
+        // Non-enrolled past month: fees are 0. Preserve any historical payment if it exists
+        if (paid > 0) totalPaid += paid;
+        if (discount > 0) totalDiscount += discount;
       }
 
       let enrollmentStatus = 'Enrolled';
       let statusBadgeClass = 'tr-badge-paid';
       if (!isEnrolled) {
-        if (assign.stoppedAt && mSortKey > getFeeMonthSortKey(assign.stoppedAt)) {
+        const fromKey = getFeeMonthSortKey(assign.effectiveFrom);
+        const toKey = assign.stoppedAt ? getFeeMonthSortKey(assign.stoppedAt) : 0;
+        if (toKey && mSortKey > toKey) {
           enrollmentStatus = 'Cancelled';
           statusBadgeClass = 'tr-badge-due';
+        } else if (fromKey && mSortKey < fromKey) {
+          enrollmentStatus = 'Not Enrolled';
+          statusBadgeClass = 'tr-badge-na';
         } else {
           enrollmentStatus = 'Not Enrolled';
           statusBadgeClass = 'tr-badge-na';
         }
+      } else if (isFuture) {
+        // Scheduled future months show Upcoming
+        enrollmentStatus = 'Upcoming';
+        statusBadgeClass = 'tr-badge-upcoming';
+      } else {
+        // Eligible past or current enrolled month
+        enrollmentStatus = 'Enrolled';
+        statusBadgeClass = 'tr-badge-paid';
       }
 
       const typeStr = isEnrolled ? (assign.type === 'separate' ? 'Both Ways' : 'Single Stop') : '—';
@@ -13218,14 +13330,17 @@ function openStudentTransportDetailsModal(studentId) {
       const displayMonth = m.replace(/(\w{3})\w*\s+(\d{4})/, '$1 $2');
 
       const feeStr = isEnrolled ? `₹ ${fee.toLocaleString('en-IN')}` : '—';
-      const paidStr = isEnrolled ? `₹ ${paid.toLocaleString('en-IN')}` : '—';
+      const paidStr = paid > 0 ? `₹ ${paid.toLocaleString('en-IN')}` : (isEnrolled ? '₹ 0' : '—');
+      
       let dueStr = '—';
-      if (isEnrolled) {
+      if (isEnrolled && !isFuture) {
         if (dueAmount === 0) {
           dueStr = `<span style="color:#16a34a;font-weight:700">₹ 0</span>`;
         } else {
           dueStr = `<span style="color:#c0392b;font-weight:700">₹ ${dueAmount.toLocaleString('en-IN')}</span>`;
         }
+      } else {
+        dueStr = '—';
       }
 
       return `
@@ -13272,7 +13387,7 @@ function openStudentTransportDetailsModal(studentId) {
   const wrapEl = document.getElementById('tr_details_receipts_wrap');
 
   isViewAllTransportReceipts = false;
-  if (wrapEl) wrapEl.style.maxHeight = '115px';
+  if (wrapEl) wrapEl.style.maxHeight = '180px';
 
   const allPayments = (DB.transport && Array.isArray(DB.transport.payments)) ? DB.transport.payments : [];
   const payments = allPayments.filter(p => p.studentId === studentId && isValidTransportPayment(p));
@@ -13324,7 +13439,7 @@ function toggleViewAllTransportReceipts() {
   const wrap = document.getElementById('tr_details_receipts_wrap');
   const btn = document.getElementById('tr_btn_view_all_rcpts');
   if (wrap) {
-    wrap.style.maxHeight = isViewAllTransportReceipts ? 'none' : '115px';
+    wrap.style.maxHeight = isViewAllTransportReceipts ? 'none' : '180px';
   }
   if (btn) {
     const count = btn.getAttribute('data-count') || '';
