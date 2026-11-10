@@ -1477,13 +1477,28 @@ async function confirmAndRestoreBackup(backupName) {
 }
 
 function showPage(id, btn) {
-  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.page').forEach(p => {
+    p.classList.remove('active');
+    p.style.display = 'none';
+  });
   const target = document.getElementById('page-' + id);
-  if (target) target.classList.add('active');
+  if (target) {
+    target.classList.add('active');
+    target.style.display = (id === 'dashboard' || id === 'addstudent') ? 'flex' : 'block';
+  }
 
   const ca = document.querySelector('.ca');
   if (ca) {
     ca.style.overflowX = 'hidden';
+    if (id === 'dashboard') {
+      ca.style.overflowY = 'hidden';
+      ca.style.padding = '4px 14px';
+      document.body.classList.add('is-dashboard');
+    } else {
+      ca.style.overflowY = 'auto';
+      ca.style.padding = '16px 22px';
+      document.body.classList.remove('is-dashboard');
+    }
   }
 
   document.querySelectorAll('.nb').forEach(b => b.classList.remove('active'));
@@ -1498,7 +1513,7 @@ function showPage(id, btn) {
   }
 
   const titles = {
-    dashboard: 'Dashboard Overview',
+    dashboard: 'Dashboard',
     students: 'Student Management',
     addstudent: 'Add / Edit Student',
     classes: 'Class & Section Management',
@@ -1853,26 +1868,241 @@ function renderDB() {
     }
   });
 
-  const top10 = Object.values(defMap).filter(d => d.due > 0).sort((a, b) => b.due - a.due).slice(0, 10);
+  // Cached full sorted list of fee defaulters for current session
+  cachedTopDefaulters = Object.values(defMap).filter(d => d.due > 0).sort((a, b) => b.due - a.due);
+
+  // Main Dashboard displays only Top 3 Fee Defaulters to prevent clutter and clipping
+  const top3 = cachedTopDefaulters.slice(0, 3);
   const defEl = document.getElementById('defaultersList');
   if (defEl) {
-    if (!top10.length) {
-      defEl.innerHTML = '<div class="empty" style="color:var(--grn)">✓ No outstanding fee defaulters recorded!</div>';
+    if (!top3.length) {
+      defEl.innerHTML = '<div class="empty" style="color:var(--grn);padding:24px 0;font-size:12px;font-weight:600">✓ No outstanding fee defaulters recorded!</div>';
     } else {
-      defEl.innerHTML = top10.map((d, i) => `
-        <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 14px;border-bottom:1px solid var(--bdr);${i === 0 ? 'background:#fdecea;' : i < 3 ? 'background:#fff8f8;' : ''}">
-          <div style="display:flex;align-items:center;gap:8px">
-            <span style="width:20px;height:20px;border-radius:50%;background:${i === 0 ? 'var(--red)' : i < 3 ? 'var(--ylw)' : 'var(--bdr)'};color:${i < 3 ? '#fff' : 'var(--txt2)'};display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;flex-shrink:0">${i + 1}</span>
-            <div>
-              <div style="font-weight:600;font-size:12.5px">${d.student.name}</div>
-              <div style="font-size:10.5px;color:var(--txt2)">${clL(d.student.cls)} ${d.student.section || 'A'} | ${d.student.phone}</div>
+      defEl.innerHTML = top3.map((d, i) => {
+        const rank = i + 1;
+        const rankClass = rank === 1 ? 'rank-1' : (rank === 2 ? 'rank-2' : 'rank-3');
+        const phone = d.student.phone ? `| ${d.student.phone}` : (d.student.admno ? `| Adm: ${d.student.admno}` : '');
+        return `
+          <div class="def-item">
+            <div class="def-item-left">
+              <span class="def-badge ${rankClass}">${rank}</span>
+              <div class="def-meta">
+                <div class="def-name">${escapeHtml(d.student.name)}</div>
+                <div class="def-sub">${clL(d.student.cls)} ${d.student.section || 'A'} ${phone}</div>
+              </div>
             </div>
-          </div>
-          <span style="font-weight:700;color:var(--red);font-size:13px">₹${d.due.toLocaleString('en-IN')}</span>
-        </div>`).join('');
+            <span class="def-due">₹${d.due.toLocaleString('en-IN')}</span>
+          </div>`;
+      }).join('');
     }
   }
 }
+
+// ============================================================
+// TOP 10 FEE DEFAULTERS MODAL & WORKFLOW
+// ============================================================
+let cachedTopDefaulters = [];
+
+function openTopDefaultersModal() {
+  const curSess = (DB.settings && DB.settings.currentSession) || '2026–27';
+  
+  // Re-verify defaulters if not already computed
+  if (!cachedTopDefaulters || cachedTopDefaulters.length === 0) {
+    const activeStudents = (DB.students || []).filter(s => s.status !== 'Inactive' && s.status !== 'Left School' && s.status !== 'Alumni');
+    const sessionDues = getPendingFeesDueList({ sessMode: 'current', dueType: 'all', month: '' });
+    let defMap = {};
+    sessionDues.forEach(d => {
+      if (!defMap[d.studentId]) {
+        const st = activeStudents.find(s => s.id === d.studentId);
+        if (st) {
+          defMap[d.studentId] = { student: st, due: 0 };
+        }
+      }
+      if (defMap[d.studentId]) {
+        defMap[d.studentId].due += d.amount;
+      }
+    });
+    cachedTopDefaulters = Object.values(defMap).filter(d => d.due > 0).sort((a, b) => b.due - a.due);
+  }
+
+  // Update summary KPI bar in modal
+  const sessEl = document.getElementById('def_kpi_session');
+  if (sessEl) sessEl.textContent = `Session ${curSess}`;
+
+  const countEl = document.getElementById('def_kpi_count');
+  if (countEl) countEl.textContent = `${cachedTopDefaulters.length} Student${cachedTopDefaulters.length === 1 ? '' : 's'}`;
+
+  const top10 = cachedTopDefaulters.slice(0, 10);
+  const totalTop10Due = top10.reduce((acc, cur) => acc + cur.due, 0);
+  const totalEl = document.getElementById('def_kpi_total');
+  if (totalEl) totalEl.textContent = `₹${totalTop10Due.toLocaleString('en-IN')}`;
+
+  // Reset search
+  const searchInp = document.getElementById('def_search_input');
+  if (searchInp) searchInp.value = '';
+  const clearBtn = document.getElementById('def_search_clear');
+  if (clearBtn) clearBtn.style.display = 'none';
+
+  renderTopDefaultersTable('');
+  openM('modalTopDefaulters');
+}
+
+function closeTopDefaultersModal() {
+  closeM('modalTopDefaulters');
+}
+
+function renderTopDefaultersTable(filterText = '') {
+  const tbody = document.getElementById('defModalTableBody');
+  if (!tbody) return;
+
+  const q = (filterText || '').trim().toLowerCase();
+  let list = cachedTopDefaulters.slice(0, 10);
+
+  if (q) {
+    list = cachedTopDefaulters.filter(d => {
+      const name = (d.student.name || '').toLowerCase();
+      const adm = (d.student.admno || '').toLowerCase();
+      const cls = (d.student.cls || '').toLowerCase();
+      const fullCls = clL(d.student.cls).toLowerCase();
+      const phone = (d.student.phone || '').toLowerCase();
+      return name.includes(q) || adm.includes(q) || cls.includes(q) || fullCls.includes(q) || phone.includes(q);
+    }).slice(0, 10);
+  }
+
+  const badgeEl = document.getElementById('def_filter_badge');
+  if (badgeEl) {
+    if (q) {
+      badgeEl.textContent = `Matching: ${list.length} student${list.length === 1 ? '' : 's'}`;
+    } else {
+      badgeEl.textContent = `Showing Top ${Math.min(10, cachedTopDefaulters.length)} Defaulters`;
+    }
+  }
+
+  if (!list.length) {
+    tbody.innerHTML = `
+      <tr>
+        <td colspan="6" style="text-align:center;padding:36px 12px;color:var(--txt2);font-weight:600">
+          ${q ? 'No fee defaulters match the search criteria.' : '✓ No outstanding fee defaulters recorded for this session!'}
+        </td>
+      </tr>`;
+    return;
+  }
+
+  tbody.innerHTML = list.map((d, idx) => {
+    // Find original rank in cachedTopDefaulters
+    const origRank = cachedTopDefaulters.findIndex(x => x.student.id === d.student.id) + 1;
+    const rankClass = origRank === 1 ? 'rank-1' : (origRank === 2 ? 'rank-2' : (origRank === 3 ? 'rank-3' : 'rank-other'));
+    const rowClass = origRank === 1 ? 'def-row-1' : (origRank === 2 ? 'def-row-2' : (origRank === 3 ? 'def-row-3' : ''));
+    const phone = d.student.phone || '—';
+    const adm = d.student.admno ? `Adm: ${d.student.admno}` : '';
+
+    return `
+      <tr class="${rowClass}">
+        <td style="text-align:center">
+          <span class="def-modal-rank ${rankClass}">${origRank}</span>
+        </td>
+        <td>
+          <div style="font-weight:700;color:#11143A;font-size:12.5px">${escapeHtml(d.student.name)}</div>
+          <div style="font-size:10.5px;color:#64749B">${escapeHtml(adm)}</div>
+        </td>
+        <td>
+          <span style="font-weight:600;color:#11143A">${clL(d.student.cls)}</span>
+          <span style="font-size:11px;color:#64749B">${d.student.section ? `(${d.student.section})` : ''}</span>
+        </td>
+        <td style="color:#11143A;font-weight:500">${escapeHtml(phone)}</td>
+        <td style="text-align:right">
+          <span style="font-weight:800;color:#DC2626;font-size:13.5px">₹${d.due.toLocaleString('en-IN')}</span>
+        </td>
+        <td style="text-align:center">
+          <div style="display:inline-flex;gap:6px;justify-content:center">
+            <button type="button" class="btn bo bsm def-btn-profile" data-action="profile" data-sid="${d.student.id}" onclick="viewDefaulterProfile(${d.student.id}, event)" style="padding:5px 10px;font-size:11.5px;cursor:pointer" title="View Student Profile">
+              👤 Profile
+            </button>
+            <button type="button" class="btn bp bsm def-btn-collect" data-action="collect" data-sid="${d.student.id}" onclick="collectDefaulterFee(${d.student.id}, event)" style="padding:5px 10px;font-size:11.5px;cursor:pointer" title="Collect Fee">
+              💳 Collect Fee
+            </button>
+          </div>
+        </td>
+      </tr>`;
+  }).join('');
+}
+
+function onDefaultersSearchChange(val) {
+  const clearBtn = document.getElementById('def_search_clear');
+  if (clearBtn) clearBtn.style.display = val ? 'block' : 'none';
+  renderTopDefaultersTable(val);
+}
+
+function clearDefaultersSearch() {
+  const searchInp = document.getElementById('def_search_input');
+  if (searchInp) {
+    searchInp.value = '';
+    searchInp.focus();
+  }
+  const clearBtn = document.getElementById('def_search_clear');
+  if (clearBtn) clearBtn.style.display = 'none';
+  renderTopDefaultersTable('');
+}
+
+function viewDefaulterProfile(studentId, event) {
+  if (event) {
+    event.stopPropagation();
+    event.preventDefault();
+  }
+  const sid = Number(studentId);
+  const s = (DB.students || []).find(x => x.id === sid);
+  if (!s) {
+    toast('Student record not found', 'error');
+    return;
+  }
+
+  // Elevate profM z-index so it clearly renders ON TOP of modalTopDefaulters
+  const profM = document.getElementById('profM');
+  if (profM) {
+    profM.style.zIndex = '1100';
+  }
+
+  // Open the student profile modal directly
+  viewProf(sid);
+}
+
+function collectDefaulterFee(studentId, event) {
+  if (event) {
+    event.stopPropagation();
+    event.preventDefault();
+  }
+  const sid = Number(studentId);
+  const s = (DB.students || []).find(x => x.id === sid);
+  if (!s) {
+    toast('Student record not found', 'error');
+    return;
+  }
+
+  // Ensure profM is closed so no stale profile is visible
+  closeM('profM');
+
+  // Close the Defaulters modal cleanly
+  closeTopDefaultersModal();
+
+  // Open the existing Fee Collection workflow for this exact student
+  openFeeLedgerForStudent(sid);
+}
+
+// Layered Escape key listener for modals
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') {
+    const profM = document.getElementById('profM');
+    if (profM && profM.classList.contains('show')) {
+      closeM('profM');
+      return;
+    }
+    const defM = document.getElementById('modalTopDefaulters');
+    if (defM && defM.classList.contains('show')) {
+      closeTopDefaultersModal();
+    }
+  }
+});
+
 
 // Collected Details Modal
 function getValidPaymentTransactions() {
@@ -8130,7 +8360,7 @@ function printReceiptByNumber(receiptNo, format = 'a4') {
       @page { size: A4; margin: 12mm; }
       body { margin: 0; font-family: Arial, sans-serif; font-size: 12.5px; color: #222; background: #fff; }
       .rc-box { max-width: 720px; margin: 10px auto; border: 2px solid ${isVoid ? '#c0392b' : '#333'}; border-radius: 8px; padding: 20px; position: relative; }
-      .hdr { text-align: center; border-bottom: 2px solid #c0392b; padding-bottom: 10px; margin-bottom: 12px; }
+      .hdr { text-align: center; border-bottom: 2px solid #2E236C; padding-bottom: 10px; margin-bottom: 12px; }
       .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
       .rw { display: flex; justify-content: space-between; padding: 3px 0; border-bottom: 1px solid #f0f0f0; }
       table { width: 100%; border-collapse: collapse; margin-top: 10px; }
@@ -8145,7 +8375,7 @@ function printReceiptByNumber(receiptNo, format = 'a4') {
 
         <div class="hdr">
           ${logoHtml}
-          <div style="font-weight:bold;font-size:18px;color:#c0392b">${settings.schoolName || 'MD Convent Public School'}</div>
+          <div style="font-weight:bold;font-size:18px;color:#2E236C">${settings.schoolName || 'MD Convent Public School'}</div>
           <div style="font-size:11px;color:#555">${settings.schoolAddr || ''} | Contact: ${settings.schoolPhone || ''}</div>
           <div style="margin-top:6px;display:flex;justify-content:center;gap:8px">
             <span style="background:${isVoid ? '#fdecea' : '#eafaf1'};color:${isVoid ? '#c0392b' : '#27ae60'};padding:3px 16px;border-radius:20px;font-weight:bold;font-size:11.5px;border:1px solid ${isVoid ? '#f5b7b1' : '#a9dfbf'}">OFFICIAL FEE RECEIPT</span>
@@ -13121,7 +13351,7 @@ function printTransportReceipt() {
   body { font-family: 'Segoe UI', Tahoma, Arial, sans-serif; margin: 20px; color: #0f172a; background: #fff; }
   .tr-receipt-container { width: 100%; max-width: 480px; margin: 0 auto; border: 1px solid #cbd5e1; border-radius: 6px; padding: 18px; background: #fff; box-sizing: border-box; }
   .tr-rcpt-header { text-align: center; border-bottom: 1px solid #e2e8f0; padding-bottom: 10px; margin-bottom: 10px; }
-  .tr-rcpt-school { font-size: 15px; font-weight: 800; color: #c0392b; letter-spacing: 0.3px; }
+  .tr-rcpt-school { font-size: 15px; font-weight: 800; color: #2E236C; letter-spacing: 0.3px; }
   .tr-rcpt-subtitle { font-size: 11px; font-weight: 700; color: #475569; margin-top: 2px; letter-spacing: 0.5px; }
   .tr-rcpt-meta-row { display: flex; justify-content: space-between; font-size: 11.5px; font-weight: 600; color: #64748b; margin-bottom: 10px; border-bottom: 1px dashed #cbd5e1; padding-bottom: 6px; }
   .tr-rcpt-student-box { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 8px 12px; font-size: 11.5px; margin-bottom: 10px; display: flex; flex-direction: column; gap: 4px; }

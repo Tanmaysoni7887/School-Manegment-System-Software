@@ -6,59 +6,1117 @@
 <title id="htmlAppTitle">School Management System</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
-:root{--red:#c0392b;--red-hover:#a93226;--red-active:#922b21;--red2:#e74c3c;--rl:#fdecea;--grn:#27ae60;--grn-hover:#219a52;--gl:#eafaf1;--ylw:#d97706;--ylw-hover:#b45309;--ylw-bg:#fffbeb;--ylw-bdr:#fcd34d;--ylw-txt:#92400e;--yl:#fef9e7;--blu:#2980b9;--bl:#ebf5fb;--bg:#f0f2f5;--bg-subtle:#f8fafc;--wht:#fff;--txt:#1e293b;--txt2:#64748b;--txt-muted:#94a3b8;--bdr:#dde3ea;--bdr-strong:#cbd5e1;--btn-sec-bg:#f1f5f9;--btn-sec-hover:#e2e8f0;--btn-sec-bdr:#cbd5e1;--btn-sec-txt:#1e293b;--focus-ring:0 0 0 3px rgba(192,57,43,0.25);--rad:10px;--rads:6px}
+:root{
+  /* Modern Soft Lavender + Indigo + Purple Palette */
+  --lavender-bg: #F1EFFF;
+  --lavender-surf: #F8F7FF;
+  --purple-surf: #EDE7FF;
+  --purple-surf-hover: #E0D7FF;
+  --primary-purple: #8B4DDB;
+  --primary-purple-hover: #7138C8;
+  --deep-purple: #7138C8;
+  --primary-indigo: #302D78;
+  --deep-indigo: #24245F;
+  --soft-indigo-bdr: #D5D0FF;
+
+  /* Global Surfaces - Softer Lavender-Tinted Off-White */
+  --bg: #F3F1FA;
+  --bg-subtle: #F7F5FC;
+  --bg-content: #F7F5FC;
+  --wht: #FAF9FE;
+  --card-bg: #FAF9FE;
+  --card-sec-bg: #F4F2FB;
+  --modal-bg: #FAF9FE;
+
+  /* Typography - Crisp & High Contrast Dark Navy */
+  --txt: #1E1F42;
+  --txt-heading: #1A1B40;
+  --txt2: #5E648A;
+  --txt-muted: #888CA8;
+
+  /* Borders - Soft Lavender-Tinted Elegance */
+  --bdr: #DCD7F2;
+  --bdr-strong: #D3CCE8;
+  --bdr-table: #E0DCF0;
+
+  /* Buttons */
+  --bp-bg: #8B4DDB;
+  --bp-hover: #7138C8;
+  --btn-sec-bg: #EDE7FF;
+  --btn-sec-hover: #E0D7FF;
+  --btn-sec-bdr: #C9BBFF;
+  --btn-sec-txt: #302D78;
+
+  /* Functional Status Colors */
+  --success: #16A765;
+  --success-hover: #148D55;
+  --success-bg: #E8F8F0;
+  --success-bdr: #A7F3D0;
+  --success-txt: #0F7645;
+
+  --warning: #F2A51A;
+  --warning-hover: #D9820B;
+  --warning-bg: #FEF7E8;
+  --warning-bdr: #FDE68A;
+  --warning-txt: #B45309;
+
+  --danger: #E5485D;
+  --danger-hover: #C93448;
+  --danger-bg: #FDF0F2;
+  --danger-bdr: #FECDD3;
+  --danger-txt: #BE123C;
+
+  --info: #268BE8;
+  --info-hover: #1A74C4;
+  --info-bg: #EBF5FE;
+  --info-bdr: #BAE6FD;
+  --info-txt: #0284C7;
+
+  --disabled: #A7A9BE;
+
+  /* Legacy mappings mapped smoothly to new system */
+  --red: #E5485D;
+  --red-hover: #C93448;
+  --red-active: #B02035;
+  --red2: #E5485D;
+  --rl: #FDF0F2;
+  --grn: #16A765;
+  --grn-hover: #148D55;
+  --gl: #E8F8F0;
+  --ylw: #F2A51A;
+  --ylw-hover: #D9820B;
+  --ylw-bg: #FEF7E8;
+  --ylw-bdr: #FDE68A;
+  --ylw-txt: #B45309;
+  --yl: #FEF7E8;
+  --blu: #268BE8;
+  --bl: #EBF5FE;
+
+  /* Focus ring & Geometry */
+  --focus-ring: 0 0 0 3px rgba(139, 77, 219, 0.25);
+  --rad: 12px;
+  --rads: 7px;
+  --card-shadow: 0 2px 8px rgba(48, 45, 120, 0.05);
+}
+
 body{font-family:'Segoe UI',Tahoma,sans-serif;background:var(--bg);color:var(--txt);font-size:14px;display:flex;height:100vh;overflow:hidden}
-.sidebar{width:236px;background:linear-gradient(180deg,#922b21,#c0392b);display:flex;flex-direction:column;flex-shrink:0;overflow-y:auto}
+
+/* Left Sidebar - Premium Deep Navy/Purple Gradient */
+.sidebar{width:236px;background:linear-gradient(180deg,#29245F 0%,#362875 40%,#49308B 100%) !important;display:flex;flex-direction:column;flex-shrink:0;position:relative !important;overflow:hidden !important}
 .sidebar::-webkit-scrollbar{width:3px}.sidebar::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.2)}
-.logo-area{padding:12px;background:rgba(0,0,0,0.25);display:flex;align-items:center;gap:10px;border-bottom:1px solid rgba(255,255,255,0.15)}
-.logo-img{width:46px;height:46px;border-radius:50%;object-fit:cover;border:2px solid rgba(255,255,255,0.4);flex-shrink:0;background:#fff}
-.logo-txt h3{color:#fff;font-size:11px;font-weight:700;line-height:1.3;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.logo-txt p{color:rgba(255,255,255,0.7);font-size:9.5px;margin-top:1px;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.ns{padding:6px 0}
-.nl{padding:6px 12px 3px;font-size:9px;text-transform:uppercase;letter-spacing:1px;color:rgba(255,255,255,0.45);font-weight:700}
-.nb{display:flex;align-items:center;gap:8px;padding:8px 12px;color:rgba(255,255,255,0.85);cursor:pointer;font-size:12.5px;border:none;background:none;width:100%;text-align:left;transition:all 0.15s;border-left:3px solid transparent}
-.nb:hover{background:rgba(255,255,255,0.12);color:#fff}.nb.active{background:rgba(255,255,255,0.22);color:#fff;border-left-color:#fff}
-.nb svg{width:14px;height:14px;flex-shrink:0}
-.ss{margin-top:auto;padding:8px 12px;font-size:10.5px;color:rgba(255,255,255,0.65);border-top:1px solid rgba(255,255,255,0.1);display:flex;align-items:center;gap:6px}
-.sd{width:8px;height:8px;border-radius:50%;background:#2ecc71;flex-shrink:0;transition:background 0.2s}
+.logo-area{padding:14px 14px 12px;background:rgba(0,0,0,0.12);display:flex;align-items:center;gap:10px;border-bottom:1px solid rgba(255,255,255,0.08);position:relative;z-index:2}
+.logo-img{width:44px;height:44px;border-radius:50%;object-fit:cover;border:2px solid rgba(255,255,255,0.3);flex-shrink:0;background:#fff}
+.logo-txt h3{color:#fff;font-size:11.5px;font-weight:700;line-height:1.3;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.logo-txt p{color:#D1CDED;font-size:9.5px;margin-top:2px;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ns{padding:8px 10px;flex:1;overflow-y:auto;position:relative;z-index:2}
+.ns::-webkit-scrollbar{width:3px}.ns::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.2)}
+.nl{padding:8px 8px 4px;font-size:9px;text-transform:uppercase;letter-spacing:1.2px;color:#B8B2E0 !important;font-weight:700}
+.nb{display:flex;align-items:center;gap:10px;padding:8px 12px;color:#D1CDED !important;cursor:pointer;font-size:12.5px;border:none;background:transparent;width:100%;text-align:left;transition:all 0.15s ease;border-radius:8px;margin-bottom:2px;border-left:none !important}
+.nb:hover{background:rgba(255,255,255,0.08) !important;color:#FFFFFF !important}
+.nb.active{background:linear-gradient(90deg,#7138D4 0%,#A855F7 100%) !important;color:#FFFFFF !important;font-weight:700;border-radius:8px;box-shadow:0 4px 12px rgba(113,56,212,0.45) !important;border-left:none !important}
+.nb svg{width:15px;height:15px;flex-shrink:0;opacity:0.9}
+.nb.active svg{opacity:1}
+.ss{margin-top:auto;padding:8px 14px;font-size:11px;color:#FFFFFF;display:flex;align-items:center;gap:8px;position:relative;z-index:2;background:transparent}
+.sd{width:8px;height:8px;border-radius:50%;background:#16A765;flex-shrink:0;box-shadow:0 0 6px rgba(22,167,101,0.6);transition:background 0.2s}
+
+/* Top Header & Main Layout */
 .main{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0}
-.topbar{background:#fff;border-bottom:1px solid var(--bdr);padding:10px 20px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;width:100%}
-.topbar-title{font-size:15px;font-weight:600}
+.topbar{background:var(--card-bg);border-bottom:1px solid var(--bdr);padding:10px 20px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;width:100%}
+.topbar-title{font-size:17px;font-weight:800;color:#11143A;letter-spacing:-0.01em}
 .tr{display:flex;align-items:center;gap:10px}
 .sb{display:flex;align-items:center;gap:6px;background:var(--bg);border:1px solid var(--bdr);border-radius:20px;padding:5px 12px}
 .sb input{border:none;background:none;outline:none;font-size:13px;width:180px;color:var(--txt)}
-.bdg{background:var(--rl);color:var(--red);padding:3px 10px;border-radius:20px;font-size:11px;font-weight:600}
+.bdg{background:#EDE7FF;color:#7138C8;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:600}
 .ca{flex:1;overflow-y:auto;overflow-x:hidden;padding:16px 22px;min-width:0;display:flex;flex-direction:column}
 .ca::-webkit-scrollbar{width:5px}.ca::-webkit-scrollbar-thumb{background:#ccc;border-radius:3px}
-.page{display:none;width:100%;max-width:100%;overflow-x:hidden}.page.active{display:block}
-#page-dashboard{width:100%;max-width:100%}
-.db-period-bar{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;background:#fff;padding:10px 16px;border:1px solid var(--bdr);border-radius:10px;flex-wrap:wrap;gap:10px;width:100%}
-.sg{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:10px;margin-bottom:16px;width:100%}
-@media(max-width:1180px){.sg{grid-template-columns:repeat(3,minmax(0,1fr))}}
-@media(max-width:768px){.sg{grid-template-columns:repeat(2,minmax(0,1fr))}}
-@media(max-width:480px){.sg{grid-template-columns:minmax(0,1fr)}}
-.sc{background:#fff;border-radius:10px;padding:9px 10px;border:1px solid var(--bdr);display:flex;align-items:center;gap:8px;min-width:0;min-height:72px;box-sizing:border-box;box-shadow:0 1px 3px rgba(0,0,0,0.03);transition:transform 0.15s,box-shadow 0.15s}
-.sc:hover{box-shadow:0 4px 12px rgba(0,0,0,0.06);transform:translateY(-1px)}
-.si{width:32px;height:32px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0}
-.sc-info{min-width:0;flex:1;display:flex;flex-direction:column;justify-content:center;overflow:hidden}
-.sv{font-size:clamp(15px, 1.1vw, 18px);font-weight:700;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.sl{font-size:10.5px;margin-top:2px;line-height:1.25;display:flex;flex-direction:column;min-width:0}
-.sl-title{font-size:10.5px;font-weight:600;color:var(--txt);line-height:1.2;white-space:nowrap}
-.sl-sub{font-size:9.5px;font-weight:500;color:var(--txt2);line-height:1.2;margin-top:1px;white-space:nowrap}
-.db-grid-row{display:grid;gap:14px;margin-bottom:14px;width:100%}
-.db-grid-row-1{grid-template-columns:2fr 1fr}
-.db-grid-row-2{grid-template-columns:minmax(0,3fr) minmax(0,2fr)}
-@media(max-width:980px){.db-grid-row-1,.db-grid-row-2{grid-template-columns:1fr}}
-.cbw{display:flex;align-items:center;gap:8px;padding:2px 0}
-.cbb{flex:1;background:var(--bg);border-radius:4px;height:14px;overflow:hidden}
-.cbf{background:var(--red);height:100%;border-radius:4px;transition:width 0.6s}
-.card{background:#fff;border-radius:var(--rad);border:1px solid var(--bdr);min-width:0}
+
+/* Page Isolation & Active Page Display */
+.page{display:none;width:100%;max-width:100%;overflow-x:hidden}
+.page.active{display:block}
+
+/* Dashboard Specific Zero-Scroll & Sizing Rules */
+body.is-dashboard .ca,
+.ca:has(#page-dashboard.active) {
+  padding: 4px 14px !important;
+  overflow-y: hidden !important;
+  overflow-x: hidden !important;
+  height: calc(100vh - 46px) !important;
+}
+
+#page-dashboard {
+  display: none !important;
+  width: 100%;
+  max-width: 100%;
+}
+
+#page-dashboard.active {
+  width: 100%;
+  max-width: 100%;
+  height: 100%;
+  display: flex !important;
+  flex-direction: column;
+  justify-content: flex-start;
+  gap: 7px;
+  box-sizing: border-box;
+  overflow: hidden !important;
+}
+
+/* 1. Academic Period Filter Bar (Compact & Shifted Upward) */
+.db-period-bar {
+  background: #FAF9FE !important;
+  border: 1px solid #D8CCFF !important;
+  border-radius: 11px !important;
+  box-shadow: 0 2px 6px rgba(41, 36, 95, 0.03) !important;
+  padding: 4px 14px !important;
+  display: flex !important;
+  justify-content: space-between !important;
+  align-items: center !important;
+  flex-shrink: 0 !important;
+  min-height: 35px !important;
+  width: 100% !important;
+  box-sizing: border-box !important;
+  margin-bottom: 0 !important;
+}
+
+.db-period-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.db-period-icon {
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  background: #EEE7FF;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #7138D4;
+  flex-shrink: 0;
+}
+
+.db-period-label {
+  font-size: 13px;
+  font-weight: 700;
+  color: #11143A;
+}
+
+.db-period-bar select {
+  padding: 5px 12px !important;
+  font-size: 12px !important;
+  font-weight: 600 !important;
+  border: 1.5px solid #D8CCFF !important;
+  border-radius: 8px !important;
+  background: #FAF9FE !important;
+  color: #11143A !important;
+  cursor: pointer;
+  outline: none;
+}
+
+.db-period-badge {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+  padding: 5px 14px !important;
+  border-radius: 20px !important;
+  font-size: 11.5px !important;
+  font-weight: 700 !important;
+  background: #EEE7FF !important;
+  color: #7138D4 !important;
+  border: 1px solid #D8CCFF !important;
+  white-space: nowrap !important;
+}
+
+/* 2. Six Pastel KPI Cards (Subtly Increased Height & Breathing Space) */
+.db-kpi-grid {
+  display: grid !important;
+  grid-template-columns: repeat(6, 1fr) !important;
+  gap: 10px !important;
+  flex-shrink: 0 !important;
+  min-height: 72px !important;
+  width: 100% !important;
+  box-sizing: border-box !important;
+  margin-bottom: 0 !important;
+}
+
+.kpi-card {
+  border-radius: 13px !important;
+  padding: 8px 14px !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 11px !important;
+  box-sizing: border-box !important;
+  box-shadow: 0 2px 6px rgba(41, 36, 95, 0.04) !important;
+  transition: transform 0.15s ease, box-shadow 0.15s ease !important;
+  min-height: 70px !important;
+  overflow: hidden !important;
+}
+
+.kpi-card:hover {
+  transform: translateY(-1px) !important;
+  box-shadow: 0 4px 12px rgba(41, 36, 95, 0.08) !important;
+}
+
+.kpi-icon {
+  width: 38px !important;
+  height: 38px !important;
+  border-radius: 50% !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  flex-shrink: 0 !important;
+}
+
+.kpi-info {
+  display: flex !important;
+  flex-direction: column !important;
+  justify-content: center !important;
+  min-width: 0 !important;
+  overflow: hidden !important;
+}
+
+.kpi-val {
+  font-size: 19px !important;
+  font-weight: 800 !important;
+  line-height: 1.15 !important;
+  white-space: nowrap !important;
+  letter-spacing: -0.01em !important;
+}
+
+.kpi-title {
+  font-size: 11.5px !important;
+  font-weight: 700 !important;
+  color: #11143A !important;
+  line-height: 1.2 !important;
+  white-space: nowrap !important;
+  margin-top: 1px !important;
+}
+
+.kpi-sub {
+  font-size: 10px !important;
+  font-weight: 600 !important;
+  color: #64749B !important;
+  line-height: 1.15 !important;
+  white-space: nowrap !important;
+}
+
+/* Card 1: Total Students (Light Blue) */
+.kpi-students {
+  background: linear-gradient(135deg, #E4F0FF 0%, #D4E6FF 100%) !important;
+  border: 1px solid #BFD9FF !important;
+}
+.kpi-students .kpi-icon { background: #C7DEFF !important; color: #2563EB !important; }
+.kpi-students .kpi-val, .kpi-students #dt { color: #11143A !important; }
+
+/* Card 2: Boys / Girls (Light Lavender) */
+.kpi-ratio {
+  background: linear-gradient(135deg, #F3E8FF 0%, #E9D5FF 100%) !important;
+  border: 1px solid #DDD6FE !important;
+}
+.kpi-ratio .kpi-icon { background: #E4D0FC !important; color: #7138D4 !important; }
+.kpi-ratio .kpi-val, .kpi-ratio #db, .kpi-ratio #dg { color: #11143A !important; }
+
+/* Card 3: Fee Collected (Mint Green) */
+.kpi-collected {
+  background: linear-gradient(135deg, #DFF8EA 0%, #C3F2D4 100%) !important;
+  border: 1px solid #A7F3D0 !important;
+  cursor: pointer !important;
+}
+.kpi-collected .kpi-icon { background: #B9F0CE !important; color: #16A34A !important; }
+.kpi-collected .kpi-val, .kpi-collected #dc { color: #15803D !important; }
+
+/* Card 4: Fee Pending (Peach / Orange) */
+.kpi-pending {
+  background: linear-gradient(135deg, #FFF0DD 0%, #FFE2BE 100%) !important;
+  border: 1px solid #FED7AA !important;
+  cursor: pointer !important;
+}
+.kpi-pending .kpi-icon { background: #FFD9A8 !important; color: #EA580C !important; }
+.kpi-pending .kpi-val, .kpi-pending #dd { color: #C2410C !important; }
+
+/* Card 5: Total Expected (Sky Blue) */
+.kpi-expected {
+  background: linear-gradient(135deg, #E2F1FF 0%, #C9E6FF 100%) !important;
+  border: 1px solid #BAE6FD !important;
+}
+.kpi-expected .kpi-icon { background: #BDDEFD !important; color: #0284C7 !important; }
+.kpi-expected .kpi-val, .kpi-expected #db-exp { color: #0369A1 !important; }
+
+/* Card 6: Collection Rate (Soft Pink) */
+.kpi-rate {
+  background: linear-gradient(135deg, #FFE6F1 0%, #FFD0E5 100%) !important;
+  border: 1px solid #FECDD3 !important;
+}
+.kpi-rate .kpi-icon { background: #FFCEE4 !important; color: #E83E8C !important; }
+.kpi-rate .kpi-val, .kpi-rate #db-rate { color: #BE185D !important; }
+
+/* 3. Middle Section: Class Enrollment + Quick Actions / Academic Overview (Subtle Height Increase) */
+.db-row-middle {
+  display: grid !important;
+  grid-template-columns: 1.95fr 1.05fr !important;
+  gap: 10px !important;
+  flex: 1.35 !important;
+  min-height: 330px !important;
+  max-height: 365px !important;
+  width: 100% !important;
+  box-sizing: border-box !important;
+}
+
+/* Card Shell with Soft #FAF9FE Surface */
+.db-card {
+  background: #FAF9FE !important;
+  border: 1px solid #D8CCFF !important;
+  border-radius: 14px !important;
+  box-shadow: 0 2px 8px rgba(41, 36, 95, 0.03) !important;
+  display: flex !important;
+  flex-direction: column !important;
+  overflow: hidden !important;
+  box-sizing: border-box !important;
+  min-height: 0 !important;
+}
+
+.db-card-header {
+  padding: 8px 16px !important;
+  border-bottom: 1px solid #EEE7FF !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  background: #FAF9FE !important;
+  flex-shrink: 0 !important;
+}
+
+.db-card-title-group {
+  display: flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+}
+
+.db-badge-icon {
+  width: 24px !important;
+  height: 24px !important;
+  border-radius: 50% !important;
+  background: #EEE7FF !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  color: #7138D4 !important;
+  flex-shrink: 0 !important;
+}
+
+.db-card-title {
+  font-size: 13px !important;
+  font-weight: 700 !important;
+  color: #11143A !important;
+  margin: 0 !important;
+}
+
+/* Class Enrollment Chart (Zero Clipping for all 15 classes Nursery-12) */
+#clsChart {
+  padding: 6px 16px 8px 16px !important;
+  display: flex !important;
+  flex-direction: column !important;
+  justify-content: space-between !important;
+  flex: 1 !important;
+  min-height: 0 !important;
+  box-sizing: border-box !important;
+  overflow: hidden !important;
+}
+
+#clsChart .cbw {
+  display: flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  height: 16px !important;
+  margin: 1px 0 !important;
+  padding: 0 !important;
+  flex-shrink: 0 !important;
+}
+
+#clsChart .cbw > div:first-child {
+  width: 78px !important;
+  font-size: 11px !important;
+  font-weight: 600 !important;
+  color: #11143A !important;
+  text-align: left !important;
+  white-space: nowrap !important;
+}
+
+#clsChart .cbb {
+  flex: 1 !important;
+  background: #EEE7FF !important;
+  border-radius: 6px !important;
+  height: 11px !important;
+  overflow: hidden !important;
+}
+
+#clsChart .cbf {
+  height: 100% !important;
+  background: linear-gradient(90deg, #7138D4 0%, #A855F7 100%) !important;
+  border-radius: 6px !important;
+  transition: width 0.4s ease !important;
+}
+
+#clsChart .cbw > div:last-child {
+  width: 22px !important;
+  font-size: 11px !important;
+  font-weight: 700 !important;
+  color: #11143A !important;
+  text-align: right !important;
+}
+
+/* Quick Actions Card Body (Optimized height, larger buttons, no empty space) */
+.qa-card-body {
+  padding: 7px 14px 8px 14px !important;
+  display: flex !important;
+  flex-direction: column !important;
+  justify-content: space-between !important;
+  flex: 1 !important;
+  min-height: 0 !important;
+  gap: 5px !important;
+  box-sizing: border-box !important;
+}
+
+.qa-buttons {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 5px !important;
+  flex-shrink: 0 !important;
+}
+
+.qa-btn-add {
+  background: linear-gradient(90deg, #7138D4 0%, #A855F7 100%) !important;
+  color: #FFFFFF !important;
+  border: none !important;
+  border-radius: 8px !important;
+  padding: 10px 14px !important;
+  font-size: 13px !important;
+  min-height: 38px !important;
+  font-weight: 700 !important;
+  box-shadow: 0 3px 10px rgba(113, 56, 212, 0.28) !important;
+  cursor: pointer !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 8px !important;
+  width: 100% !important;
+  transition: all 0.15s ease !important;
+  box-sizing: border-box !important;
+}
+
+.qa-btn-add:hover {
+  background: linear-gradient(90deg, #6028C0 0%, #9333EA 100%) !important;
+  transform: translateY(-1px) !important;
+  box-shadow: 0 4px 14px rgba(113, 56, 212, 0.38) !important;
+}
+
+.qa-btn-sec {
+  background: #F3EFFC !important;
+  color: #11143A !important;
+  border: 1.5px solid #D5D0F0 !important;
+  border-radius: 8px !important;
+  padding: 7.5px 14px !important;
+  font-size: 12.5px !important;
+  min-height: 34px !important;
+  font-weight: 700 !important;
+  cursor: pointer !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 8px !important;
+  width: 100% !important;
+  transition: all 0.15s ease !important;
+  box-sizing: border-box !important;
+}
+
+.qa-btn-sec:hover {
+  background: #EEE7FF !important;
+  border-color: #A855F7 !important;
+  color: #7138D4 !important;
+  transform: translateY(-1px) !important;
+}
+
+/* Academic Overview Sub-Card */
+.qa-overview {
+  background: #F3EFFC !important;
+  border: 1px solid #D5D0F0 !important;
+  border-radius: 10px !important;
+  padding: 8px 14px !important;
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 5px !important;
+  margin-top: 4px !important;
+  flex-shrink: 0 !important;
+  box-sizing: border-box !important;
+}
+
+.qa-overview-title {
+  display: flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+}
+
+.qa-overview-title span {
+  font-size: 10.5px !important;
+  font-weight: 800 !important;
+  color: #7138D4 !important;
+  letter-spacing: 0.6px !important;
+}
+
+.qa-overview-row {
+  border-top: 1px solid #E8E0FF !important;
+  padding-top: 4px !important;
+  display: flex !important;
+  justify-content: space-between !important;
+  align-items: center !important;
+  font-size: 12px !important;
+  line-height: 1.3 !important;
+}
+
+.qa-overview-row .label {
+  color: #64749B !important;
+}
+
+.qa-overview-row .val {
+  font-weight: 700 !important;
+  color: #11143A !important;
+}
+
+/* 4. Bottom Section: Monthly Revenue + Defaulters (Top 3) */
+.db-row-bottom {
+  display: grid !important;
+  grid-template-columns: 1.95fr 1.05fr !important;
+  gap: 10px !important;
+  flex: 1 !important;
+  min-height: 195px !important;
+  max-height: 235px !important;
+  width: 100% !important;
+  box-sizing: border-box !important;
+}
+
+/* Monthly Revenue Chart */
+#revenueChart {
+  padding: 6px 14px 8px 14px !important;
+  flex: 1 !important;
+  display: flex !important;
+  align-items: flex-end !important;
+  overflow: hidden !important;
+}
+
+#revenueChart > div {
+  width: 100% !important;
+  height: 145px !important;
+  display: flex !important;
+  align-items: flex-end !important;
+  gap: 8px !important;
+  padding: 0 !important;
+}
+
+#revenueChart div[title] {
+  background: linear-gradient(180deg, #22C55E 0%, #16A34A 100%) !important;
+  border-radius: 4px 4px 0 0 !important;
+  transition: transform 0.15s ease !important;
+}
+
+#revenueChart div[title]:hover {
+  filter: brightness(1.1) !important;
+  transform: scaleY(1.03) !important;
+}
+
+#revenueChart > div > div > div:first-child {
+  font-size: 9px !important;
+  font-weight: 700 !important;
+  color: #11143A !important;
+  min-height: 13px !important;
+}
+
+#revenueChart > div > div > div:last-child {
+  font-size: 10px !important;
+  font-weight: 600 !important;
+  color: #64749B !important;
+}
+
+/* Header View All Button for Defaulters */
+.btn-def-view-all {
+  background: #EEE7FF !important;
+  color: #7138D4 !important;
+  border: 1px solid #D5D0F0 !important;
+  border-radius: 6px !important;
+  padding: 2.5px 8px !important;
+  font-size: 10.5px !important;
+  font-weight: 700 !important;
+  cursor: pointer !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 3px !important;
+  transition: all 0.15s ease !important;
+  line-height: 1.3 !important;
+}
+
+.btn-def-view-all:hover {
+  background: #7138D4 !important;
+  color: #FFFFFF !important;
+  border-color: #7138D4 !important;
+  box-shadow: 0 2px 6px rgba(113, 56, 212, 0.25) !important;
+  transform: translateY(-1px) !important;
+}
+
+/* Fee Defaulters List (Top 3 Clean Display, Zero Clipping) */
+#defaultersList {
+  padding: 8px 12px !important;
+  flex: 1 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  justify-content: flex-start !important;
+  gap: 6px !important;
+  overflow: hidden !important;
+  box-sizing: border-box !important;
+}
+
+.def-item {
+  background: linear-gradient(135deg, #FFF0F4 0%, #FFF7F9 100%) !important;
+  border: 1px solid #FFD4DF !important;
+  border-radius: 8px !important;
+  padding: 6px 10px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  transition: all 0.15s ease !important;
+}
+
+.def-item:hover {
+  background: #FFE8F0 !important;
+  border-color: #FFB3C6 !important;
+  transform: translateY(-1px) !important;
+}
+
+.def-item-left {
+  display: flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  min-width: 0 !important;
+}
+
+.def-badge {
+  width: 20px !important;
+  height: 20px !important;
+  border-radius: 50% !important;
+  font-size: 10px !important;
+  font-weight: 800 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  flex-shrink: 0 !important;
+}
+
+.def-badge.rank-1 {
+  background: #EF4444 !important;
+  color: #FFFFFF !important;
+  box-shadow: 0 2px 4px rgba(239, 68, 68, 0.3) !important;
+}
+
+.def-badge.rank-2 {
+  background: #F59E0B !important;
+  color: #FFFFFF !important;
+  box-shadow: 0 2px 4px rgba(245, 158, 11, 0.3) !important;
+}
+
+.def-badge.rank-3 {
+  background: #8B5CF6 !important;
+  color: #FFFFFF !important;
+  box-shadow: 0 2px 4px rgba(139, 92, 246, 0.3) !important;
+}
+
+.def-meta {
+  display: flex !important;
+  flex-direction: column !important;
+  min-width: 0 !important;
+}
+
+.def-name {
+  color: #11143A !important;
+  font-weight: 700 !important;
+  font-size: 12px !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+}
+
+.def-sub {
+  color: #64749B !important;
+  font-weight: 500 !important;
+  font-size: 10.5px !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+}
+
+.def-due {
+  font-weight: 800 !important;
+  color: #DC2626 !important;
+  font-size: 13px !important;
+  white-space: nowrap !important;
+  flex-shrink: 0 !important;
+  margin-left: 8px !important;
+}
+
+/* ============================================================
+   TOP 10 FEE DEFAULTERS MODAL STYLING
+   ============================================================ */
+
+/* Ensure Student Profile Modal Always Renders Above Top Defaulters Modal */
+#profM {
+  z-index: 1100 !important;
+}
+.def-modal-dialog {
+  max-width: 920px !important;
+  width: 94vw !important;
+  max-height: 86vh !important;
+  display: flex !important;
+  flex-direction: column !important;
+  overflow: hidden !important;
+  background: #FAF9FE !important;
+  border: 1px solid #D5D0F0 !important;
+  border-radius: 14px !important;
+  box-shadow: 0 16px 40px rgba(41, 36, 95, 0.22) !important;
+}
+
+.def-modal-header {
+  background: linear-gradient(135deg, #29245F 0%, #49308B 100%) !important;
+  color: #FFFFFF !important;
+  padding: 13px 20px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  border-radius: 13px 13px 0 0 !important;
+  flex-shrink: 0 !important;
+}
+
+.def-modal-title-wrap {
+  display: flex !important;
+  align-items: center !important;
+  gap: 12px !important;
+}
+
+.def-modal-icon-badge {
+  width: 34px !important;
+  height: 34px !important;
+  border-radius: 9px !important;
+  background: rgba(255, 255, 255, 0.15) !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  color: #FFD4DF !important;
+  flex-shrink: 0 !important;
+}
+
+.def-modal-title {
+  font-size: 15px !important;
+  font-weight: 700 !important;
+  color: #FFFFFF !important;
+  margin: 0 0 2px 0 !important;
+}
+
+.def-modal-subtitle {
+  font-size: 11px !important;
+  color: rgba(255, 255, 255, 0.8) !important;
+  margin: 0 !important;
+  font-weight: 500 !important;
+}
+
+.def-modal-close {
+  background: rgba(255, 255, 255, 0.12) !important;
+  border: none !important;
+  color: #FFFFFF !important;
+  width: 28px !important;
+  height: 28px !important;
+  border-radius: 50% !important;
+  font-size: 14px !important;
+  cursor: pointer !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  transition: all 0.15s ease !important;
+}
+
+.def-modal-close:hover {
+  background: rgba(255, 255, 255, 0.25) !important;
+  transform: scale(1.05) !important;
+}
+
+.def-modal-body {
+  padding: 14px 20px !important;
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 10px !important;
+  flex: 1 !important;
+  min-height: 0 !important;
+  overflow: hidden !important;
+  background: #FAF9FE !important;
+}
+
+.def-kpi-summary {
+  display: grid !important;
+  grid-template-columns: 1fr 1.2fr 1.3fr !important;
+  gap: 10px !important;
+  flex-shrink: 0 !important;
+}
+
+.def-kpi-card {
+  background: #FFFFFF !important;
+  border: 1px solid #D5D0F0 !important;
+  border-radius: 9px !important;
+  padding: 9px 12px !important;
+  box-sizing: border-box !important;
+}
+
+.def-kpi-card.highlight-due {
+  background: linear-gradient(135deg, #FFF0F4 0%, #FFF7F9 100%) !important;
+  border-color: #FFC0CB !important;
+}
+
+.def-kpi-lbl {
+  font-size: 10px !important;
+  font-weight: 700 !important;
+  color: #64749B !important;
+  text-transform: uppercase !important;
+  margin-bottom: 3px !important;
+  letter-spacing: 0.4px !important;
+}
+
+.def-kpi-val {
+  font-size: 15px !important;
+  font-weight: 800 !important;
+  color: #11143A !important;
+}
+
+.def-kpi-card.highlight-due .def-kpi-val {
+  color: #DC2626 !important;
+  font-size: 17px !important;
+}
+
+.def-filter-bar {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 10px !important;
+  flex-shrink: 0 !important;
+}
+
+.def-search-wrap {
+  position: relative !important;
+  flex: 1 !important;
+  max-width: 420px !important;
+  display: flex !important;
+  align-items: center !important;
+}
+
+.def-search-wrap svg {
+  position: absolute !important;
+  left: 10px !important;
+  color: #64749B !important;
+  pointer-events: none !important;
+}
+
+.def-search-wrap input {
+  width: 100% !important;
+  padding: 6px 28px 6px 30px !important;
+  border-radius: 7px !important;
+  border: 1.5px solid #D5D0F0 !important;
+  font-size: 12px !important;
+  background: #FFFFFF !important;
+  color: #11143A !important;
+  outline: none !important;
+  transition: border-color 0.2s !important;
+  box-sizing: border-box !important;
+}
+
+.def-search-wrap input:focus {
+  border-color: #8B5CF6 !important;
+  box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.15) !important;
+}
+
+.def-search-clear {
+  position: absolute !important;
+  right: 8px !important;
+  background: none !important;
+  border: none !important;
+  color: #64749B !important;
+  cursor: pointer !important;
+  font-size: 12px !important;
+}
+
+.def-badge-pill {
+  background: #EEE7FF !important;
+  color: #7138D4 !important;
+  border: 1px solid #D5D0F0 !important;
+  border-radius: 16px !important;
+  padding: 3.5px 10px !important;
+  font-size: 10.5px !important;
+  font-weight: 700 !important;
+}
+
+.def-table-container {
+  flex: 1 !important;
+  min-height: 0 !important;
+  overflow-y: auto !important;
+  border: 1px solid #D5D0F0 !important;
+  border-radius: 8px !important;
+  background: #FFFFFF !important;
+}
+
+.def-table-container::-webkit-scrollbar {
+  width: 6px !important;
+}
+
+.def-table-container::-webkit-scrollbar-thumb {
+  background: #D8CCFF !important;
+  border-radius: 4px !important;
+}
+
+.def-table {
+  width: 100% !important;
+  border-collapse: collapse !important;
+  text-align: left !important;
+  font-size: 12px !important;
+}
+
+.def-table thead {
+  position: sticky !important;
+  top: 0 !important;
+  background: #FAF9FE !important;
+  z-index: 2 !important;
+}
+
+.def-table th {
+  padding: 8px 12px !important;
+  font-weight: 700 !important;
+  font-size: 11px !important;
+  color: #11143A !important;
+  border-bottom: 1.5px solid #D5D0F0 !important;
+  background: #FAF9FE !important;
+}
+
+.def-table td {
+  padding: 7px 12px !important;
+  border-bottom: 1px solid #F0ECF8 !important;
+  vertical-align: middle !important;
+}
+
+.def-table tr:hover td {
+  background: #F8F5FF !important;
+}
+
+.def-table tr.def-row-1 td {
+  background: #FFF5F7 !important;
+}
+
+.def-table tr.def-row-2 td {
+  background: #FFFBF2 !important;
+}
+
+.def-table tr.def-row-3 td {
+  background: #FAF7FF !important;
+}
+
+.def-modal-rank {
+  width: 22px !important;
+  height: 22px !important;
+  border-radius: 50% !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  font-size: 10.5px !important;
+  font-weight: 800 !important;
+}
+
+.def-modal-rank.rank-1 {
+  background: #EF4444 !important;
+  color: #FFFFFF !important;
+  box-shadow: 0 2px 4px rgba(239, 68, 68, 0.3) !important;
+}
+
+.def-modal-rank.rank-2 {
+  background: #F59E0B !important;
+  color: #FFFFFF !important;
+  box-shadow: 0 2px 4px rgba(245, 158, 11, 0.3) !important;
+}
+
+.def-modal-rank.rank-3 {
+  background: #8B5CF6 !important;
+  color: #FFFFFF !important;
+  box-shadow: 0 2px 4px rgba(139, 92, 246, 0.3) !important;
+}
+
+.def-modal-rank.rank-other {
+  background: #EEE7FF !important;
+  color: #7138D4 !important;
+}
+
+.def-modal-footer {
+  padding: 10px 20px !important;
+  border-top: 1px solid #D5D0F0 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  background: #FAF9FE !important;
+  border-radius: 0 0 13px 13px !important;
+  flex-shrink: 0 !important;
+}
+
+.def-footer-left {
+  font-size: 11px !important;
+  color: #64749B !important;
+  font-weight: 500 !important;
+}
+
+/* Media Query for compact viewports - preserves full card heights without compression */
+@media (max-height: 780px) {
+  body.is-dashboard .ca,
+  .ca:has(#page-dashboard.active) {
+    padding: 4px 12px !important;
+  }
+  #page-dashboard.active {
+    gap: 7px !important;
+  }
+  .db-period-bar {
+    min-height: 34px !important;
+    padding: 4px 12px !important;
+  }
+  /* Strict adherence: preserve 70px card height */
+  .db-kpi-grid {
+    min-height: 70px !important;
+    gap: 8px !important;
+  }
+  .kpi-card {
+    min-height: 70px !important;
+    padding: 8px 12px !important;
+  }
+  .kpi-val {
+    font-size: 18px !important;
+  }
+  .kpi-icon {
+    width: 36px !important;
+    height: 36px !important;
+  }
+  .db-row-middle {
+    min-height: 330px !important;
+    max-height: 365px !important;
+    gap: 8px !important;
+  }
+  .db-row-bottom {
+    min-height: 195px !important;
+    max-height: 235px !important;
+    gap: 8px !important;
+  }
+}
+.card{background:var(--card-bg);border-radius:var(--rad);border:1px solid var(--bdr);min-width:0}
 .ch{padding:13px 16px;border-bottom:1px solid var(--bdr);display:flex;align-items:center;justify-content:space-between}
 .ch h3{font-size:13.5px;font-weight:600}
 .cb{padding:16px}
 .btn{display:inline-flex;align-items:center;gap:6px;padding:7px 14px;border-radius:var(--rads);border:none;cursor:pointer;font-size:12.5px;font-weight:600;transition:all 0.15s ease;white-space:nowrap;user-select:none}
 .btn:focus-visible{outline:none;box-shadow:var(--focus-ring)}
-.bp{background:var(--red);color:#fff;box-shadow:0 1px 2px rgba(192,57,43,0.2)}.bp:hover{background:var(--red-hover);box-shadow:0 2px 4px rgba(192,57,43,0.3)}
+.bp{background:linear-gradient(90deg, #7839D4 0%, #9C5DF2 100%) !important;color:#fff !important;border:none !important;box-shadow:0 2px 6px rgba(120,57,212,0.25)}.bp:hover{background:linear-gradient(90deg, #6B28D0 0%, #8B4DDB 100%) !important;box-shadow:0 4px 10px rgba(120,57,212,0.35)}
 .bs{background:var(--grn);color:#fff;box-shadow:0 1px 2px rgba(39,174,96,0.2)}.bs:hover{background:var(--grn-hover);box-shadow:0 2px 4px rgba(39,174,96,0.3)}
 .bw{background:var(--ylw-bg);color:var(--ylw-txt);border:1px solid var(--ylw-bdr);box-shadow:0 1px 2px rgba(217,119,6,0.08)}.bw:hover{background:#fef3c7;border-color:#f59e0b;color:#78350f}
 .bo{background:var(--btn-sec-bg);color:var(--btn-sec-txt);border:1px solid var(--btn-sec-bdr);box-shadow:0 1px 2px rgba(0,0,0,0.04)}.bo:hover{background:var(--btn-sec-hover);border-color:#94a3b8;color:#0f172a}
@@ -68,7 +1126,7 @@ body{font-family:'Segoe UI',Tahoma,sans-serif;background:var(--bg);color:var(--t
 .fg{display:flex;flex-direction:column;gap:4px}
 .fg label{font-size:11.5px;font-weight:600;color:var(--txt2)}
 .fg input,.fg select,.fg textarea{border:1px solid var(--bdr);border-radius:var(--rads);padding:7px 10px;font-size:13px;outline:none;background:#fff;color:var(--txt);transition:border 0.15s}
-.fg input:focus,.fg select:focus{border-color:var(--red)}
+.fg input:focus,.fg select:focus{border-color:#7839D4;box-shadow:0 0 0 2px rgba(120,57,212,0.15);outline:none}
 .g2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
 .g3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
 .g4{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
@@ -76,21 +1134,21 @@ body{font-family:'Segoe UI',Tahoma,sans-serif;background:var(--bg);color:var(--t
 table{width:100%;border-collapse:collapse;font-size:12.5px}
 th{background:var(--bg);padding:9px 12px;text-align:left;font-weight:600;font-size:11.5px;color:var(--txt2);border-bottom:1px solid var(--bdr);white-space:nowrap}
 td{padding:9px 12px;border-bottom:1px solid var(--bdr);vertical-align:middle}
-tr:last-child td{border-bottom:none}tr:hover td{background:#fafbfc}
+tr:last-child td{border-bottom:none}tr:hover td{background:#F3EFFC}
 .mo{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:1000;align-items:center;justify-content:center;padding:20px}
 .mo.show{display:flex}
-.md{background:#fff;border-radius:14px;width:100%;max-height:90vh;overflow-y:auto}
+.md{background:var(--modal-bg);border-radius:14px;width:100%;max-height:90vh;overflow-y:auto}
 .md::-webkit-scrollbar{width:4px}.md::-webkit-scrollbar-thumb{background:#ddd;border-radius:2px}
-.mh{padding:14px 18px;border-bottom:1px solid var(--bdr);display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;background:#fff;z-index:1}
-.mh h3{font-size:14px;font-weight:600}
+.mh{padding:14px 18px;border-bottom:1px solid var(--bdr);display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;background:var(--modal-bg, #FAF9FE);z-index:1}
+.mh h3{font-size:14px;font-weight:700;color:var(--txt)}
 .mb{padding:18px}
-.mf{padding:12px 18px;border-top:1px solid var(--bdr);display:flex;gap:8px;justify-content:flex-end;background:#fff;position:sticky;bottom:0}
-.cx{background:none;border:none;cursor:pointer;font-size:17px;color:var(--txt2);padding:4px;line-height:1}
+.mf{padding:12px 18px;border-top:1px solid var(--bdr);display:flex;gap:8px;justify-content:flex-end;background:var(--modal-bg, #FAF9FE);position:sticky;bottom:0}
+.cx{background:none;border:none;cursor:pointer;font-size:17px;color:var(--txt2);padding:4px;line-height:1;border-radius:6px;transition:all 0.15s ease}.cx:hover{color:var(--txt);background:#EDE7FF}
 .tabs{display:flex;border-bottom:1px solid var(--bdr);margin-bottom:16px}
 .tab{padding:7px 14px;cursor:pointer;font-size:12.5px;font-weight:500;border-bottom:2px solid transparent;color:var(--txt2);transition:all 0.15s}
-.tab.active{color:var(--red);border-bottom-color:var(--red)}
+.tab.active{color:#7839D4;border-bottom-color:#7839D4;font-weight:700}
 .tw2{position:fixed;bottom:18px;right:18px;z-index:9999;display:flex;flex-direction:column;gap:7px}
-.toast{background:#2c3e50;color:#fff;padding:10px 16px;border-radius:8px;font-size:12.5px;display:flex;align-items:center;gap:8px;min-width:210px;box-shadow:0 4px 16px rgba(0,0,0,0.2);animation:tIn 0.3s ease}
+.toast{background:#1E1F42;color:#fff;padding:10px 16px;border-radius:8px;font-size:12.5px;border:1px solid rgba(220,215,242,0.3);display:flex;align-items:center;gap:8px;min-width:210px;box-shadow:0 6px 20px rgba(30,31,66,0.35);animation:tIn 0.3s ease}
 .toast.success{background:var(--grn)}.toast.error{background:var(--red)}.toast.warning{background:var(--ylw)}
 @keyframes tIn{from{transform:translateX(110%);opacity:0}to{transform:translateX(0);opacity:1}}
 .chip{display:inline-block;padding:2px 7px;border-radius:20px;font-size:11px;font-weight:600}
@@ -100,7 +1158,7 @@ tr:last-child td{border-bottom:none}tr:hover td{background:#fafbfc}
 .fsm{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:14px}
 .fb{background:var(--bg);border-radius:8px;padding:12px;text-align:center;border:1px solid var(--bdr)}
 .fb .amt{font-size:18px;font-weight:700;margin:4px 0}.fb .lbl{font-size:11px;color:var(--txt2);font-weight:500}
-.ph{background:linear-gradient(135deg,#922b21,#e74c3c);border-radius:12px;padding:18px;color:#fff;margin-bottom:16px;display:flex;align-items:center;gap:16px}
+.ph{background:linear-gradient(135deg,#2E236C 0%,#4D338C 100%);border-radius:12px;padding:18px;color:#fff;margin-bottom:16px;display:flex;align-items:center;gap:16px;box-shadow:0 4px 14px rgba(46,35,108,0.22)}
 .pa{width:60px;height:60px;border-radius:50%;background:rgba(255,255,255,0.2);display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:700;border:3px solid rgba(255,255,255,0.35);flex-shrink:0}
 .rcpt{background:#fff;border:2px solid var(--bdr);border-radius:10px;padding:18px}
 .rh{text-align:center;border-bottom:1px dashed var(--bdr);padding-bottom:12px;margin-bottom:12px}
@@ -124,12 +1182,12 @@ input:checked+.slider:before{transform:translateX(18px)}
 @media(max-width:1100px){.mc-grid{grid-template-columns:repeat(4,1fr)}}
 @media(max-width:700px){.mc-grid{grid-template-columns:repeat(3,1fr)}}
 .mc-card{background:#fff;border:1.5px solid var(--bdr);border-radius:8px;padding:8px 10px;cursor:pointer;transition:all 0.15s;display:flex;flex-direction:column;gap:4px}
-.mc-card:hover{border-color:var(--red);box-shadow:0 2px 8px rgba(0,0,0,0.06);transform:translateY(-1px)}
-.mc-card.active{border-color:var(--red);background:#fff9f9;box-shadow:0 0 0 2px rgba(192,57,43,0.2)}
+.mc-card:hover{border-color:#7839D4;box-shadow:0 2px 8px rgba(120,57,212,0.12);transform:translateY(-1px)}
+.mc-card.active{border-color:#7839D4;background:#F3EFFC;box-shadow:0 0 0 2px rgba(120,57,212,0.25)}
 .mc-card .mo-name{font-weight:700;font-size:12px;color:var(--txt)}
 .mc-card .mo-amt{font-size:11px;font-weight:600}
 .fe-sr-item{padding:7px 12px;cursor:pointer;border-bottom:1px solid #f0f0f0;display:flex;justify-content:space-between;align-items:center;font-size:12.5px}
-.fe-sr-item:hover{background:#f8f9fa;color:var(--red)}
+.fe-sr-item:hover{background:#F3EFFC;color:#7839D4}
 
 /* ============================================================
    PREMIUM ERP DESIGN SYSTEM: FINANCIAL REPORTS & DATA BACKUP
@@ -178,7 +1236,7 @@ input:checked+.slider:before{transform:translateX(18px)}
 .tr-container{display:flex;flex-direction:column;gap:16px;width:100%}
 .tr-page-header{background:#fff;border:1px solid var(--bdr);border-radius:var(--rad);padding:14px 20px;display:flex;align-items:center;justify-content:space-between;gap:16px;box-shadow:0 1px 3px rgba(0,0,0,0.02);flex-wrap:wrap}
 .tr-header-left{display:flex;align-items:center;gap:14px}
-.tr-bus-icon{width:46px;height:46px;background:var(--red);border-radius:10px;display:flex;align-items:center;justify-content:center;color:#fff;flex-shrink:0;box-shadow:0 2px 8px rgba(192,57,43,0.25)}
+.tr-bus-icon{width:46px;height:46px;background:linear-gradient(135deg,#7839D4,#A34DF0);border-radius:10px;display:flex;align-items:center;justify-content:center;color:#fff;flex-shrink:0;box-shadow:0 2px 8px rgba(120,57,212,0.25)}
 .tr-header-text{display:flex;flex-direction:column;gap:2px}
 .tr-page-title{font-size:20px;font-weight:700;color:#1e293b;margin:0;letter-spacing:-0.3px;line-height:1.2}
 .tr-page-subtitle{font-size:12.5px;color:#64748b;margin:0}
@@ -206,7 +1264,7 @@ input:checked+.slider:before{transform:translateX(18px)}
 .tr-filter-group{display:flex;flex-direction:column;gap:5px;flex:1;min-width:125px}
 .tr-filter-label{font-size:11px;font-weight:600;color:#64748b}
 .tr-filter-select{border:1px solid #cbd5e1;border-radius:6px;padding:7px 10px;font-size:12.5px;color:#1e293b;background:#fff;outline:none;height:35px;transition:border-color 0.15s ease;width:100%}
-.tr-filter-select:focus{border-color:var(--red);box-shadow:0 0 0 2px rgba(192,57,43,0.15)}
+.tr-filter-select:focus{border-color:#7839D4;box-shadow:0 0 0 2px rgba(120,57,212,0.15)}
 .tr-filter-actions{display:flex;align-items:center;gap:8px;margin-top:auto}
 
 /* Student Transport Ledger */
@@ -232,28 +1290,28 @@ input:checked+.slider:before{transform:translateX(18px)}
 .tr-st-card-list{border:1px solid #cbd5e1;border-radius:6px;max-height:280px;overflow-y:auto;background:#fff}
 .tr-st-item{padding:8px 12px;border-bottom:1px solid #f1f5f9;cursor:pointer;display:flex;justify-content:space-between;align-items:center;transition:background 0.12s}
 .tr-st-item:hover{background:#f8fafc}
-.tr-st-item.active{background:#fef2f2;border-left:3px solid var(--red)}
+.tr-st-item.active{background:#F3EFFC;border-left:3px solid #7839D4}
 
 /* Transport Modals Header & Structure */
-.tr-modal-header{background:linear-gradient(135deg,#852219,#a93226);color:#fff;padding:12px 18px;display:flex;align-items:center;justify-content:space-between;border-top-left-radius:12px;border-top-right-radius:12px}
+.tr-modal-header{background:linear-gradient(135deg,#2E236C 0%,#4D338C 100%);color:#fff;padding:12px 18px;display:flex;align-items:center;justify-content:space-between;border-top-left-radius:12px;border-top-right-radius:12px;box-shadow:0 2px 6px rgba(46,35,108,0.2)}
 .tr-modal-title{font-size:14.5px;font-weight:700;color:#fff;margin:0}
 .tr-modal-close{background:none;border:none;color:rgba(255,255,255,0.85);font-size:16px;cursor:pointer;padding:4px;line-height:1;transition:color 0.15s}
 .tr-modal-close:hover{color:#fff}
-.tr-modal-body{padding:18px 20px;display:flex;flex-direction:column;gap:12px;background:#fff;max-height:calc(85vh - 110px);overflow-y:auto}
-.tr-modal-footer{padding:12px 20px;border-top:1px solid #e2e8f0;display:flex;justify-content:flex-end;gap:10px;background:#fff;border-bottom-left-radius:12px;border-bottom-right-radius:12px}
+.tr-modal-body{padding:18px 20px;display:flex;flex-direction:column;gap:12px;background:#FAF9FE;max-height:calc(85vh - 110px);overflow-y:auto}
+.tr-modal-footer{padding:12px 20px;border-top:1px solid #DCD7F2;display:flex;justify-content:flex-end;gap:10px;background:#FAF9FE;border-bottom-left-radius:12px;border-bottom-right-radius:12px}
 
 /* Collect Modal Grid */
 .tr-collect-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
 @media(max-width:640px){.tr-collect-grid{grid-template-columns:1fr}}
-.tr-student-details-card{background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:14px;display:flex;flex-direction:column;gap:6px}
-.tr-fee-summary-card{background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:14px;display:flex;flex-direction:column;gap:8px}
+.tr-student-details-card{background:#F3F1FA;border:1px solid #DCD7F2;border-radius:8px;padding:14px;display:flex;flex-direction:column;gap:6px}
+.tr-fee-summary-card{background:#F3F1FA;border:1px solid #DCD7F2;border-radius:8px;padding:14px;display:flex;flex-direction:column;gap:8px}
 .tr-calc-row{display:flex;align-items:center;justify-content:space-between;font-size:12.5px;color:#1e293b}
 .tr-calc-val{font-weight:700}
 
 /* Printable Transport Receipt */
 .tr-receipt-container{width:100%;max-width:480px;margin:0 auto;background:#fff;border:1px solid #cbd5e1;border-radius:6px;padding:18px;box-shadow:0 4px 12px rgba(0,0,0,0.05);font-size:12px;color:#0f172a}
 .tr-rcpt-header{text-align:center;border-bottom:1px solid #e2e8f0;padding-bottom:10px;margin-bottom:10px}
-.tr-rcpt-school{font-size:15px;font-weight:800;color:var(--red);letter-spacing:0.3px}
+.tr-rcpt-school{font-size:15px;font-weight:800;color:#2E236C;letter-spacing:0.3px}
 .tr-rcpt-subtitle{font-size:11px;font-weight:700;color:#475569;margin-top:2px;letter-spacing:0.5px}
 .tr-rcpt-meta-row{display:flex;justify-content:space-between;font-size:11.5px;font-weight:600;color:#64748b;margin-bottom:10px;border-bottom:1px dashed #cbd5e1;padding-bottom:6px}
 .tr-rcpt-student-box{background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;padding:8px 12px;font-size:11.5px;margin-bottom:10px;display:flex;flex-direction:column;gap:4px}
@@ -281,7 +1339,7 @@ input:checked+.slider:before{transform:translateX(18px)}
 }
 
 #modalStudentTransportDetails .tr-modal-header {
-  background: linear-gradient(135deg, #a81c1c 0%, #c0392b 100%) !important;
+  background: linear-gradient(135deg, #2E236C 0%, #4D338C 100%) !important;
   color: #ffffff !important;
   padding: 10px 18px !important;
   display: flex !important;
@@ -324,7 +1382,7 @@ input:checked+.slider:before{transform:translateX(18px)}
   display: flex !important;
   flex-direction: column !important;
   gap: 8px !important;
-  background: #f8fafc !important;
+  background: #FAF9FE !important;
   max-height: none !important;
   overflow-y: auto !important;
   overflow-x: hidden !important;
@@ -516,7 +1574,7 @@ input:checked+.slider:before{transform:translateX(18px)}
 }
 
 #modalStudentTransportDetails .tr-det-btn-collect {
-  background: #c0392b;
+  background: linear-gradient(135deg, #7839D4 0%, #A34DF0 100%);
   color: #ffffff;
   border: none;
   border-radius: 6px;
@@ -531,13 +1589,13 @@ input:checked+.slider:before{transform:translateX(18px)}
 }
 
 #modalStudentTransportDetails .tr-det-btn-collect:hover {
-  background: #a93226;
+  background: linear-gradient(135deg, #6B28D0 0%, #913CE0 100%);
 }
 
 #modalStudentTransportDetails .tr-det-btn-edit {
-  background: #ffffff;
-  color: #1e293b;
-  border: 1px solid #cbd5e1;
+  background: #EDE7FF;
+  color: #302D78;
+  border: 1px solid #D5D0FF;
   border-radius: 6px;
   padding: 7px 16px;
   font-weight: 600;
@@ -550,8 +1608,9 @@ input:checked+.slider:before{transform:translateX(18px)}
 }
 
 #modalStudentTransportDetails .tr-det-btn-edit:hover {
-  background: #f8fafc;
-  border-color: #94a3b8;
+  background: #E0D7FF;
+  border-color: #A34DF0;
+  color: #7839D4;
 }
 
 #modalStudentTransportDetails .tr-det-btn-remove {
@@ -1526,11 +2585,11 @@ input:checked+.slider:before{transform:translateX(18px)}
 .prof-modal-dialog {
   max-width: 950px;
   width: 92vw;
-  background: #ffffff;
+  background: #FAF9FE;
   border-radius: 18px;
   overflow: hidden;
   box-shadow: 0 25px 60px -15px rgba(0, 0, 0, 0.35), 0 0 1px rgba(0, 0, 0, 0.1);
-  border: 1px solid rgba(226, 232, 240, 0.8);
+  border: 1px solid #DCD7F2;
   display: flex;
   flex-direction: column;
   max-height: 94vh;
@@ -1540,8 +2599,8 @@ input:checked+.slider:before{transform:translateX(18px)}
   display: flex;
   align-items: center;
   justify-content: space-between;
-  background: #ffffff;
-  border-bottom: 1px solid #f1f5f9;
+  background: #FAF9FE;
+  border-bottom: 1px solid #DCD7F2;
   flex-shrink: 0;
 }
 .prof-modal-title-wrap {
@@ -1553,17 +2612,17 @@ input:checked+.slider:before{transform:translateX(18px)}
   width: 34px;
   height: 34px;
   border-radius: 50%;
-  background: #0284c7;
+  background: linear-gradient(135deg, #7839D4 0%, #A34DF0 100%);
   color: #ffffff;
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 2px 6px rgba(2, 132, 199, 0.3);
+  box-shadow: 0 2px 6px rgba(120, 57, 212, 0.3);
 }
 .prof-modal-title {
   font-size: 18px;
   font-weight: 800;
-  color: #0f172a;
+  color: #11143A;
   letter-spacing: -0.01em;
   margin: 0;
 }
@@ -1583,13 +2642,13 @@ input:checked+.slider:before{transform:translateX(18px)}
   line-height: 1;
 }
 .prof-modal-close-btn:hover {
-  background: #f1f5f9;
-  color: #0f172a;
+  background: #EDE7FF;
+  color: #7839D4;
 }
 .prof-modal-body {
   padding: 14px 20px 14px 20px;
   overflow-y: auto;
-  background: #ffffff;
+  background: #FAF9FE;
 }
 .prof-modal-body::-webkit-scrollbar {
   width: 5px;
@@ -1639,7 +2698,7 @@ input:checked+.slider:before{transform:translateX(18px)}
 .prof-identity-banner {
   flex: 1;
   min-width: 0;
-  background: linear-gradient(135deg, #a8201a 0%, #c0392b 100%);
+  background: linear-gradient(135deg, #2E236C 0%, #4D338C 100%);
   border-radius: 13px;
   padding: 12px 20px;
   color: #ffffff;
@@ -1647,7 +2706,7 @@ input:checked+.slider:before{transform:translateX(18px)}
   flex-direction: column;
   justify-content: center;
   gap: 7px;
-  box-shadow: 0 4px 14px rgba(168, 32, 26, 0.22);
+  box-shadow: 0 4px 14px rgba(46, 35, 108, 0.22);
 }
 .prof-identity-top {
   display: flex;
@@ -1882,9 +2941,9 @@ input:checked+.slider:before{transform:translateX(18px)}
   margin-top: 10px;
 }
 .prof-btn-edit {
-  background: #ffffff;
-  border: 1.5px solid #cbd5e1;
-  color: #1e293b;
+  background: #EDE7FF;
+  border: 1.5px solid #D5D0FF;
+  color: #302D78;
   font-size: 12px;
   font-weight: 700;
   padding: 6px 15px;
@@ -1896,11 +2955,12 @@ input:checked+.slider:before{transform:translateX(18px)}
   transition: all 0.15s ease;
 }
 .prof-btn-edit:hover {
-  background: #f8fafc;
-  border-color: #94a3b8;
+  background: #E0D7FF;
+  border-color: #A34DF0;
+  color: #7839D4;
 }
 .prof-btn-ledger {
-  background: linear-gradient(135deg, #c0392b 0%, #a8201a 100%);
+  background: linear-gradient(135deg, #7839D4 0%, #A34DF0 100%);
   border: none;
   color: #ffffff;
   font-size: 12px;
@@ -1911,12 +2971,12 @@ input:checked+.slider:before{transform:translateX(18px)}
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  box-shadow: 0 2px 6px rgba(192, 57, 43, 0.3);
+  box-shadow: 0 2px 6px rgba(120, 57, 212, 0.3);
   transition: all 0.15s ease;
 }
 .prof-btn-ledger:hover {
-  background: linear-gradient(135deg, #a8201a 0%, #922b21 100%);
-  box-shadow: 0 4px 10px rgba(192, 57, 43, 0.4);
+  background: linear-gradient(135deg, #6B28D0 0%, #913CE0 100%);
+  box-shadow: 0 4px 10px rgba(120, 57, 212, 0.4);
 }
 
 @media (max-width: 800px) {
@@ -1941,7 +3001,7 @@ input:checked+.slider:before{transform:translateX(18px)}
 <div class="sidebar">
   <div class="logo-area">
     <img id="sbLogoImg" src="assets/default-school-logo.svg" class="logo-img" alt="School Logo" onerror="this.src='assets/default-school-logo.svg'">
-    <div id="logofb" style="display:none;width:46px;height:46px;border-radius:50%;background:#fff;align-items:center;justify-content:center;font-weight:800;font-size:13px;color:var(--red);flex-shrink:0">SCH</div>
+    <div id="logofb" style="display:none;width:46px;height:46px;border-radius:50%;background:#fff;align-items:center;justify-content:center;font-weight:800;font-size:13px;color:#7839D4;flex-shrink:0">SCH</div>
     <div class="logo-txt">
       <h3 id="sbSchoolName">School Name</h3>
       <p id="sbSchoolAddr">School Address</p>
@@ -1993,7 +3053,12 @@ input:checked+.slider:before{transform:translateX(18px)}
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>Support & Info
     </button>
   </div>
-  <div class="ss"><div class="sd" id="sdot"></div><span id="sstxt">All saved ✓</span></div>
+  <!-- Decorative curved purple waves at bottom of sidebar matching reference image -->
+  <svg class="sidebar-waves" viewBox="0 0 236 90" fill="none" preserveAspectRatio="none" style="position:absolute;bottom:0;left:0;width:100%;height:85px;pointer-events:none;z-index:1;">
+    <path d="M0 45 C 50 15, 120 75, 236 30 L 236 90 L 0 90 Z" fill="rgba(113, 56, 212, 0.45)"/>
+    <path d="M0 60 C 60 40, 140 85, 236 50 L 236 90 L 0 90 Z" fill="rgba(168, 85, 247, 0.35)"/>
+  </svg>
+  <div class="ss" style="position:relative;z-index:2;background:transparent;border-top:none;padding:8px 14px"><div class="sd" id="sdot"></div><span id="sstxt">All saved ✓</span></div>
 </div>
 
 <div class="main">
@@ -2014,25 +3079,25 @@ input:checked+.slider:before{transform:translateX(18px)}
 
     <!-- 1. DASHBOARD -->
     <div class="page active" id="page-dashboard">
-      <!-- Dashboard Period Selector -->
+      <!-- A. Academic Period Filter -->
       <div class="db-period-bar">
-        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
-          <div style="display:flex;align-items:center;gap:6px">
-            <span style="font-size:16px">📅</span>
-            <span style="font-size:12.5px;font-weight:700;color:var(--txt)">Academic Period:</span>
+        <div class="db-period-left">
+          <div class="db-period-icon">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M19 3h-1V1h-2v2H8V1H6v2H5c-1.11 0-1.99.9-1.99 2L3 19c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V8h14v11zM7 10h5v5H7z"/></svg>
           </div>
-          <select id="db_period_mode" onchange="onDashboardPeriodChange()" style="padding:5px 10px;font-size:12px;border:1.5px solid var(--bdr);border-radius:6px;font-weight:600;background:#fff;color:var(--txt);cursor:pointer">
+          <span class="db-period-label">Academic Period:</span>
+          <select id="db_period_mode" onchange="onDashboardPeriodChange()">
             <option value="current_month" selected>Current Month</option>
             <option value="select_month">Select Month & Year</option>
             <option value="full_session">Full Academic Session</option>
           </select>
           <div id="db_custom_month_wrap" style="display:none;align-items:center;gap:6px">
-            <select id="db_mo" onchange="renderDB()" style="padding:5px 8px;font-size:12px;border:1.5px solid var(--bdr);border-radius:6px;background:#fff;color:var(--txt);font-weight:500;cursor:pointer">
+            <select id="db_mo" onchange="renderDB()">
               <option>April</option><option>May</option><option>June</option><option>July</option>
               <option>August</option><option>September</option><option selected>October</option><option>November</option>
               <option>December</option><option>January</option><option>February</option><option>March</option>
             </select>
-            <select id="db_yr" onchange="renderDB()" style="padding:5px 8px;font-size:12px;border:1.5px solid var(--bdr);border-radius:6px;background:#fff;color:var(--txt);font-weight:500;cursor:pointer;min-width:76px">
+            <select id="db_yr" onchange="renderDB()" style="min-width:76px">
               <option value="2025">2025</option>
               <option value="2026" selected>2026</option>
               <option value="2027">2027</option>
@@ -2040,83 +3105,194 @@ input:checked+.slider:before{transform:translateX(18px)}
             </select>
           </div>
         </div>
-        <div id="db_period_badge" style="display:inline-flex;align-items:center;gap:6px;padding:4px 12px;border-radius:20px;font-size:11.5px;font-weight:600;background:var(--bl);color:var(--blu);border:1px solid #d4e6f1">
-          Scope: Current Month (October 2026)
+        <div class="db-period-badge" id="db_period_badge">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M19 3h-1V1h-2v2H8V1H6v2H5c-1.11 0-1.99.9-1.99 2L3 19c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V8h14v11z"/></svg>
+          Current Month: November 2026
         </div>
       </div>
 
-      <div class="sg">
-        <div class="sc"><div class="si" style="background:#fdecea">👨‍🎓</div><div class="sc-info"><div class="sv" id="dt">0</div><div class="sl"><span class="sl-title">Total Students</span><span class="sl-sub">(All Classes)</span></div></div></div>
-        <div class="sc"><div class="si" style="background:#ebf5fb">👫</div><div class="sc-info"><div class="sv"><span id="db">0</span>/<span id="dg">0</span></div><div class="sl"><span class="sl-title">Boys / Girls</span><span class="sl-sub">(Gender Ratio)</span></div></div></div>
-        <div class="sc" style="cursor:pointer" onclick="showCollectedDetail()" title="Click to view collected payments ledger">
-          <div class="si" style="background:#eafaf1">💰</div>
-          <div class="sc-info"><div class="sv" id="dc" style="color:var(--grn)">₹0</div><div class="sl" id="dc_lbl"><span class="sl-title">Fee Collected</span><span class="sl-sub">(October 2026)</span></div></div>
+      <!-- B. Six Pastel KPI Cards -->
+      <div class="db-kpi-grid">
+        <!-- 1. Total Students -->
+        <div class="kpi-card kpi-students">
+          <div class="kpi-icon">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M12 3L1 9l11 6 9-4.91V17h2V9L12 3zm0 12.5L5.7 12 12 8.57 18.3 12 12 15.5zM6 13.5v4c0 2.21 2.69 4 6 4s6-1.79 6-4v-4l-6 3.27-6-3.27z"/></svg>
+          </div>
+          <div class="kpi-info">
+            <div class="kpi-val" id="dt">0</div>
+            <div class="kpi-title">Total Students</div>
+            <div class="kpi-sub">(All Classes)</div>
+          </div>
         </div>
-        <div class="sc" style="cursor:pointer" onclick="showPendingDetail()" title="Click to view pending fee dues report">
-          <div class="si" style="background:#fef9e7">⚠️</div>
-          <div class="sc-info"><div class="sv" id="dd" style="color:var(--red)">₹0</div><div class="sl" id="dd_lbl"><span class="sl-title">Fee Pending</span><span class="sl-sub">(October 2026)</span></div></div>
+
+        <!-- 2. Boys / Girls -->
+        <div class="kpi-card kpi-ratio">
+          <div class="kpi-icon">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5s-3 1.34-3 3 1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg>
+          </div>
+          <div class="kpi-info">
+            <div class="kpi-val"><span id="db">0</span>/<span id="dg">0</span></div>
+            <div class="kpi-title">Boys / Girls</div>
+            <div class="kpi-sub">(Gender Ratio)</div>
+          </div>
         </div>
-        <div class="sc">
-          <div class="si" style="background:#ebf5fb">📈</div>
-          <div class="sc-info"><div class="sv" id="db-exp" style="color:var(--blu)">₹0</div><div class="sl" id="db-exp-lbl"><span class="sl-title">Total Expected</span><span class="sl-sub">(October 2026)</span></div></div>
+
+        <!-- 3. Fee Collected -->
+        <div class="kpi-card kpi-collected" onclick="showCollectedDetail()" title="Click to view collected payments ledger">
+          <div class="kpi-icon">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M11.8 10.9c-2.27-.59-3-1.2-3-2.15 0-1.09 1.01-1.85 2.7-1.85 1.78 0 2.44.85 2.5 2.1h2.21c-.07-1.72-1.12-3.3-3.21-3.81V3h-3v2.16c-1.94.42-3.5 1.68-3.5 3.61 0 2.31 1.91 3.46 4.7 4.13 2.5.6 3 1.48 3 2.41 0 .69-.49 1.79-2.7 1.79-2.06 0-2.87-.92-2.98-2.1h-2.2c.12 2.19 1.76 3.42 3.68 3.83V21h3v-2.15c1.95-.37 3.5-1.5 3.5-3.55 0-2.84-2.43-3.81-4.7-4.4z"/></svg>
+          </div>
+          <div class="kpi-info">
+            <div class="kpi-val" id="dc">₹0</div>
+            <div class="kpi-title">Fee Collected</div>
+            <div class="kpi-sub" id="dc_lbl">(November 2026)</div>
+          </div>
         </div>
-        <div class="sc">
-          <div class="si" style="background:#eafaf1">🎯</div>
-          <div class="sc-info"><div class="sv" id="db-rate" style="color:var(--grn)">0%</div><div class="sl" id="db-rate-lbl"><span class="sl-title">Collection Rate</span><span class="sl-sub">(October 2026)</span></div></div>
+
+        <!-- 4. Fee Pending -->
+        <div class="kpi-card kpi-pending" onclick="showPendingDetail()" title="Click to view pending fee dues report">
+          <div class="kpi-icon">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"/></svg>
+          </div>
+          <div class="kpi-info">
+            <div class="kpi-val" id="dd">₹0</div>
+            <div class="kpi-title">Fee Pending</div>
+            <div class="kpi-sub" id="dd_lbl">(November 2026)</div>
+          </div>
+        </div>
+
+        <!-- 5. Total Expected -->
+        <div class="kpi-card kpi-expected">
+          <div class="kpi-icon">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>
+          </div>
+          <div class="kpi-info">
+            <div class="kpi-val" id="db-exp">₹0</div>
+            <div class="kpi-title">Total Expected</div>
+            <div class="kpi-sub" id="db-exp-lbl">(November 2026)</div>
+          </div>
+        </div>
+
+        <!-- 6. Collection Rate -->
+        <div class="kpi-card kpi-rate">
+          <div class="kpi-icon">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>
+          </div>
+          <div class="kpi-info">
+            <div class="kpi-val" id="db-rate">0%</div>
+            <div class="kpi-title">Collection Rate</div>
+            <div class="kpi-sub" id="db-rate-lbl">(November 2026)</div>
+          </div>
         </div>
       </div>
 
-      <!-- Row 1: Enrollment + Quick Actions -->
-      <div class="db-grid-row db-grid-row-1">
-        <div class="card">
-          <div class="ch"><h3>Class-wise Enrollment (NC, LKG, UKG, 1–12)</h3></div>
+      <!-- C. Main Middle Section: Class Enrollment + Quick Actions & Academic Overview -->
+      <div class="db-row-middle">
+        <!-- Left: Class-wise Enrollment -->
+        <div class="db-card">
+          <div class="db-card-header">
+            <div class="db-card-title-group">
+              <div class="db-badge-icon">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5s-3 1.34-3 3 1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg>
+              </div>
+              <h3 class="db-card-title">Class-wise Enrollment (NC, LKG, UKG, 1–12)</h3>
+            </div>
+          </div>
           <div class="cb" id="clsChart"></div>
         </div>
-        <div class="card" style="display:flex;flex-direction:column">
-          <div class="ch"><h3>Quick Actions</h3></div>
-          <div class="cb" style="display:flex;flex-direction:column;flex:1;padding:16px;gap:10px">
-            <div style="display:flex;flex-direction:column;gap:9px">
-              <button class="btn bp" style="width:100%;justify-content:center;padding:9px 14px;font-size:12.5px;font-weight:600;border-radius:6px" onclick="openAddStudent()">+ Add New Student</button>
-              <button class="btn bo" style="width:100%;justify-content:center;padding:9px 14px;font-size:12.5px;font-weight:600;border-radius:6px" onclick="showPage('fees',null)">💳 Collect Fee</button>
-              <button class="btn bo" style="width:100%;justify-content:center;padding:9px 14px;font-size:12.5px;font-weight:600;border-radius:6px" onclick="showPage('reminder',null)">🔔 Fee Reminders</button>
-              <button class="btn bo" style="width:100%;justify-content:center;padding:9px 14px;font-size:12.5px;font-weight:600;border-radius:6px" onclick="showPage('reports',null)">📄 Reports & Backup</button>
+
+        <!-- Right: Quick Actions & Academic Overview -->
+        <div class="db-card">
+          <div class="db-card-header">
+            <div class="db-card-title-group">
+              <div class="db-badge-icon">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M7 2v11h3v9l7-12h-4l4-8z"/></svg>
+              </div>
+              <h3 class="db-card-title">Quick Actions</h3>
             </div>
-            <div style="margin-top:auto;background:var(--bg);border:1px solid var(--bdr);border-radius:8px;padding:11px 13px;display:flex;flex-direction:column;gap:6px">
-              <div style="font-size:10.5px;font-weight:700;color:var(--txt2);text-transform:uppercase;letter-spacing:0.5px">Academic Overview</div>
-              <div style="display:flex;justify-content:space-between;align-items:center;font-size:11.5px">
-                <span style="color:var(--txt2)">Session</span>
-                <span style="font-weight:600;color:var(--txt)" id="qaSessVal">Session 2026–27</span>
+          </div>
+          <div class="qa-card-body">
+            <div class="qa-buttons">
+              <button class="qa-btn-add" onclick="openAddStudent()">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
+                + Add New Student
+              </button>
+              <button class="qa-btn-sec" onclick="showPage('fees',null)">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" style="color:#1674D1"><path d="M20 4H4c-1.11 0-1.99.89-1.99 2L2 18c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V6c0-1.11-.89-2-2-2zm0 14H4v-6h16v6zm0-10H4V6h16v2z"/></svg>
+                Collect Fee
+              </button>
+              <button class="qa-btn-sec" onclick="showPage('reminder',null)">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" style="color:#EA8A13"><path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.63-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.64 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2zm-2 1H8v-6c0-2.48 1.51-4.5 4-4.5s4 2.02 4 4.5v6z"/></svg>
+                Fee Reminders
+              </button>
+              <button class="qa-btn-sec" onclick="showPage('reports',null)">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" style="color:#8138D8"><path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/></svg>
+                Reports & Backup
+              </button>
+            </div>
+
+            <!-- Academic Overview Sub-Card -->
+            <div class="qa-overview">
+              <div class="qa-overview-title">
+                <div class="db-badge-icon" style="width:20px;height:20px">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M12 3L1 9l11 6 9-4.91V17h2V9L12 3zm0 12.5L5.7 12 12 8.57 18.3 12 12 15.5zM6 13.5v4c0 2.21 2.69 4 6 4s6-1.79 6-4v-4l-6 3.27-6-3.27z"/></svg>
+                </div>
+                <span>ACADEMIC OVERVIEW</span>
               </div>
-              <div style="display:flex;justify-content:space-between;align-items:center;font-size:11.5px">
-                <span style="color:var(--txt2)">Active Classes</span>
-                <span style="font-weight:600;color:var(--txt)">15 (NC to 12)</span>
+              <div class="qa-overview-row">
+                <span class="label">Session</span>
+                <span class="val" id="qaSessVal">Session 2026–27</span>
               </div>
-              <div style="display:flex;justify-content:space-between;align-items:center;font-size:11.5px">
-                <span style="color:var(--txt2)">System Status</span>
-                <span style="font-weight:600;color:var(--grn);display:flex;align-items:center;gap:4px"><span style="width:6px;height:6px;border-radius:50%;background:var(--grn);display:inline-block"></span>All saved</span>
+              <div class="qa-overview-row">
+                <span class="label">Active Classes</span>
+                <span class="val">15 (NC to 12)</span>
+              </div>
+              <div class="qa-overview-row">
+                <span class="label">System Status</span>
+                <span class="val" style="color:#16A34A;display:flex;align-items:center;gap:5px">
+                  <span style="width:7px;height:7px;border-radius:50%;background:#16A34A;display:inline-block;box-shadow:0 0 6px rgba(22,163,74,0.6)"></span>
+                  All saved
+                </span>
               </div>
             </div>
           </div>
         </div>
       </div>
 
-      <!-- Row 2: Monthly Revenue + Defaulters -->
-      <div class="db-grid-row db-grid-row-2">
-        <div class="card" style="display:flex;flex-direction:column">
-          <div class="ch"><h3>📈 Monthly Revenue (April to March Financial Year)</h3></div>
-          <div class="cb" id="revenueChart" style="padding:16px 18px;min-height:200px;flex:1"></div>
-        </div>
-        <div class="card" style="display:flex;flex-direction:column">
-          <div class="ch">
-            <h3>🔴 Top 10 Fee Defaulters</h3>
-            <span style="font-size:11.5px;color:var(--txt2);font-weight:500">Ranked by session dues</span>
+      <!-- D. Bottom Section: Monthly Revenue + Defaulters -->
+      <div class="db-row-bottom">
+        <!-- Left: Monthly Revenue -->
+        <div class="db-card">
+          <div class="db-card-header">
+            <div class="db-card-title-group">
+              <div class="db-badge-icon">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M5 9.2h3V19H5zM10.6 5h2.8v14h-2.8zm5.6 8H19v6h-2.8z"/></svg>
+              </div>
+              <h3 class="db-card-title">Monthly Revenue (April to March Financial Year)</h3>
+            </div>
           </div>
-          <div class="cb" style="padding:0;max-height:235px;overflow-y:auto;flex:1" id="defaultersList"></div>
+          <div class="cb" id="revenueChart"></div>
+        </div>
+
+        <!-- Right: Top 10 Fee Defaulters -->
+        <div class="db-card">
+          <div class="db-card-header">
+            <div class="db-card-title-group">
+              <div class="db-badge-icon" style="background:#FFE6F1;color:#E83E8C">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg>
+              </div>
+              <h3 class="db-card-title">Top 10 Fee Defaulters</h3>
+            </div>
+            <div style="display:flex;align-items:center;gap:10px">
+              <span style="font-size:10px;color:#64749B;font-weight:600">Ranked by session dues</span>
+              <button type="button" class="btn-def-view-all" onclick="openTopDefaultersModal()" title="View complete Top 10 fee defaulters">View All &rarr;</button>
+            </div>
+          </div>
+          <div class="cb" id="defaultersList"></div>
         </div>
       </div>
     </div>
 
-    <!-- 2. ALL STUDENTS -->
     <div class="page" id="page-students">
       <div class="card">
         <div class="ch"><h3>All Students</h3>
@@ -3068,7 +4244,7 @@ input:checked+.slider:before{transform:translateX(18px)}
         <div class="card">
           <div class="ch"><h3>👨‍💻 Developer & Support</h3></div>
           <div class="cb">
-            <div style="display:flex;align-items:center;gap:14px;margin-bottom:16px;padding:14px;background:linear-gradient(135deg,#922b21,#c0392b);border-radius:10px;color:#fff">
+            <div style="display:flex;align-items:center;gap:14px;margin-bottom:16px;padding:14px;background:linear-gradient(135deg,#30266F 0%,#5B32A8 100%);border-radius:10px;color:#fff;box-shadow:0 4px 14px rgba(48,38,111,0.2)">
               <div style="width:56px;height:56px;border-radius:50%;background:rgba(255,255,255,0.2);display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:700;border:2px solid rgba(255,255,255,0.4);flex-shrink:0">T</div>
               <div>
                 <div style="font-weight:700;font-size:15px">Tanmay Soni</div>
@@ -3098,16 +4274,16 @@ input:checked+.slider:before{transform:translateX(18px)}
         <div class="card">
           <div class="ch"><h3>🛠 Available Customization Services</h3></div>
           <div class="cb" style="display:flex;flex-direction:column;gap:8px">
-            <div style="padding:10px 14px;background:var(--bg);border-radius:8px;border-left:3px solid var(--red);font-size:13px">
+            <div style="padding:10px 14px;background:var(--bg);border-radius:8px;border-left:3px solid #7839D4;font-size:13px">
               🏫 <strong>School Branding</strong>: Custom school name, logo, address, and letterhead headers
             </div>
-            <div style="padding:10px 14px;background:var(--bg);border-radius:8px;border-left:3px solid var(--red);font-size:13px">
+            <div style="padding:10px 14px;background:var(--bg);border-radius:8px;border-left:3px solid #7839D4;font-size:13px">
               💰 <strong>Fee Structures</strong>: Class-wise school fee, van fee, and admission fee tailoring
             </div>
-            <div style="padding:10px 14px;background:var(--bg);border-radius:8px;border-left:3px solid var(--red);font-size:13px">
+            <div style="padding:10px 14px;background:var(--bg);border-radius:8px;border-left:3px solid #7839D4;font-size:13px">
               🧾 <strong>Receipt & Reminder Design</strong>: Thermal or A4 formatted printable receipts
             </div>
-            <div style="padding:10px 14px;background:var(--bg);border-radius:8px;border-left:3px solid var(--red);font-size:13px">
+            <div style="padding:10px 14px;background:var(--bg);border-radius:8px;border-left:3px solid #7839D4;font-size:13px">
               🔒 <strong>Offline Data Safety</strong>: Automatic JSON backups and PC migration support
             </div>
           </div>
@@ -3119,7 +4295,7 @@ input:checked+.slider:before{transform:translateX(18px)}
         <div class="cb">
           <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px">
             <div style="background:var(--bg);border-radius:8px;padding:12px;text-align:center;border:1px solid var(--bdr)">
-              <div style="font-size:22px;font-weight:700;color:var(--red)">v2.0</div>
+              <div style="font-size:22px;font-weight:700;color:#7839D4">v2.0</div>
               <div style="font-size:11px;color:var(--txt2)">Application Version</div>
             </div>
             <div style="background:var(--bg);border-radius:8px;padding:12px;text-align:center;border:1px solid var(--bdr)">
@@ -3363,6 +4539,85 @@ input:checked+.slider:before{transform:translateX(18px)}
   </div>
 </div></div>
 
+
+<!-- Top 10 Fee Defaulters Modal -->
+<div class="mo" id="modalTopDefaulters" onclick="if(event.target===this)closeTopDefaultersModal()">
+  <div class="md def-modal-dialog">
+    <!-- Header -->
+    <div class="def-modal-header">
+      <div class="def-modal-title-wrap">
+        <div class="def-modal-icon-badge">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg>
+        </div>
+        <div>
+          <h3 class="def-modal-title">Top 10 Fee Defaulters</h3>
+          <p class="def-modal-subtitle">Students ranked by outstanding fees for the selected academic session.</p>
+        </div>
+      </div>
+      <button class="def-modal-close" onclick="closeTopDefaultersModal()" title="Close (Esc)">✕</button>
+    </div>
+
+    <!-- Body -->
+    <div class="def-modal-body">
+      <!-- 3 Summary KPI Cards -->
+      <div class="def-kpi-summary">
+        <div class="def-kpi-card">
+          <div class="def-kpi-lbl">Academic Session</div>
+          <div class="def-kpi-val" id="def_kpi_session">Session 2026–27</div>
+        </div>
+        <div class="def-kpi-card">
+          <div class="def-kpi-lbl">Students with Outstanding Dues</div>
+          <div class="def-kpi-val" id="def_kpi_count">0 Students</div>
+        </div>
+        <div class="def-kpi-card highlight-due">
+          <div class="def-kpi-lbl">Top 10 Total Outstanding</div>
+          <div class="def-kpi-val" id="def_kpi_total">₹0</div>
+        </div>
+      </div>
+
+      <!-- Search & Filter Controls -->
+      <div class="def-filter-bar">
+        <div class="def-search-wrap">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
+          <input type="text" id="def_search_input" placeholder="Search by student name, admission no, or class..." oninput="onDefaultersSearchChange(this.value)">
+          <button class="def-search-clear" id="def_search_clear" onclick="clearDefaultersSearch()" style="display:none" title="Clear search">✕</button>
+        </div>
+        <div class="def-badge-pill" id="def_filter_badge">
+          Showing Top 10 Defaulters
+        </div>
+      </div>
+
+      <!-- Defaulters Table Container -->
+      <div class="def-table-container">
+        <table class="st-table def-table">
+          <thead>
+            <tr>
+              <th style="width:58px;text-align:center">Rank</th>
+              <th>Student Details</th>
+              <th style="width:130px">Class & Section</th>
+              <th style="width:125px">Mobile No.</th>
+              <th style="width:140px;text-align:right">Outstanding Due</th>
+              <th style="width:185px;text-align:center">Actions</th>
+            </tr>
+          </thead>
+          <tbody id="defModalTableBody">
+            <!-- Rendered dynamically -->
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Footer -->
+    <div class="def-modal-footer">
+      <div class="def-footer-left" id="def_footer_note">
+        Ranked in descending order of session dues.
+      </div>
+      <div style="display:flex;gap:8px">
+        <button class="btn bo" onclick="closeTopDefaultersModal()">Close</button>
+      </div>
+    </div>
+  </div>
+</div>
 
 <!-- Payment Void / Reversal Modal -->
 <div class="mo" id="voidPayM"><div class="md" style="max-width:480px">
