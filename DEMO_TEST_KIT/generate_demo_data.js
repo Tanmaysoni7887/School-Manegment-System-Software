@@ -30,7 +30,7 @@ args.forEach(arg => {
   }
 });
 
-if (!requestedCount || requestedCount < 1000) {
+if (!requestedCount || requestedCount <= 0) {
   requestedCount = getRandomStudentCount(1000, 1500);
 }
 
@@ -118,7 +118,7 @@ function generateSyntheticAvatar(name, isMale) {
 }
 
 function generateDemoDatabase(count) {
-  if (count < 1000 || count > 5000) throw new Error('Student count must be between 1000 and 5000');
+  if (count < 50 || count > 10000) throw new Error('Student count must be between 50 and 10000');
   const curSession = '2026–27';
   const startYr = 2026;
 

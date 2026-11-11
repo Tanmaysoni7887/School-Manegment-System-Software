@@ -1,11 +1,11 @@
 {
   "name": "mdconvent-sms",
-  "version": "1.0.0",
+  "version": "2.1.0",
   "description": "MD Convent Public School - School Management System",
   "main": "main.js",
   "scripts": {
     "start": "electron .",
-    "package": "electron-packager . \"MD Convent SMS\" --platform=win32 --arch=x64 --out=dist --icon=icon.ico --overwrite --asar",
+    "package": "electron-packager . \"MD Convent SMS\" --platform=win32 --arch=x64 --out=dist --icon=icon.ico --overwrite --asar --ignore=test",
     "build:installer": "innosetup-compiler installer.iss",
     "dist": "npm run package && npm run build:installer",
     "build": "electron-builder --win --x64"

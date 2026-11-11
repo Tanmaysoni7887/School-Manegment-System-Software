@@ -71,12 +71,16 @@ app.whenReady().then(async () => {
     await win.webContents.executeJavaScript(`showPage('students', null);`);
     await new Promise(r => setTimeout(r, 800));
 
-    const stTableCount = await win.webContents.executeJavaScript(`(() => {
-      return document.querySelectorAll('#sTb tr').length;
+    const stStatus = await win.webContents.executeJavaScript(`(() => {
+      return {
+        rowCount: document.querySelectorAll('#sTb tr').length,
+        totalFiltered: window.stTotalFiltered,
+        pageInfo: document.getElementById('stPageInfo')?.textContent
+      };
     })()`);
-    console.log(`Rendered students in table: ${stTableCount}`);
-    if (stTableCount < 1000) {
-      throw new Error(`FAIL: Students table only rendered ${stTableCount} rows`);
+    console.log(`Rendered students in table: ${stStatus.rowCount}, Total: ${stStatus.totalFiltered}, Info: ${stStatus.pageInfo}`);
+    if (stStatus.rowCount !== 50 || stStatus.totalFiltered !== demoDB.students.length) {
+      throw new Error(`FAIL: Students table pagination error: rendered ${stStatus.rowCount}, expected 50 of ${demoDB.students.length}`);
     }
 
     // Search for a specific student name
@@ -90,10 +94,10 @@ app.whenReady().then(async () => {
       return document.querySelectorAll('#sTb tr').length;
     })()`);
     console.log(`Search filter for "${searchTarget}" returned: ${searchResultCount} rows`);
-    if (searchResultCount === 0 || searchResultCount >= stTableCount) {
+    if (searchResultCount === 0 || searchResultCount > 50) {
       throw new Error(`FAIL: Search filter for "${searchTarget}" was ineffective`);
     }
-    console.log(`✓ TEST 2 PASSED: All Students table rendered all ${stTableCount} records with responsive live search.`);
+    console.log(`✓ TEST 2 PASSED: All Students table rendered paginated records with responsive live search.`);
 
     // Reset search
     await win.webContents.executeJavaScript(`

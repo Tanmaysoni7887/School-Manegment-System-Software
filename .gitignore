@@ -29,6 +29,9 @@ _dev_archive_*/
 scratch/
 test-data/
 DEMO_TEST_KIT/demo_data/
+MDConvent_App/test/benchmark_datasets/
+MDConvent_App/test/benchmark_results_current.json
+benchmark_datasets/
 .system_generated/
 *.bak
 *.tmp

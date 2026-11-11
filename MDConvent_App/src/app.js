@@ -18,6 +18,119 @@ let curVoidReceiptNo = null;   // Active receipt number selected for void revers
 let activeReceiptNo = null;    // Current receipt number for printing (A4 / Thermal)
 let curDailyFilter = 'today';  // Active shortcut for Daily Collection Report
 
+// ============================================================
+// PERFORMANCE OPTIMIZATION INDICES & CACHES (v2.0)
+// High-speed O(1) in-memory maps for 2000+ student records
+// ============================================================
+let _idxStudentById = new Map();
+let _idxPaymentsByStudent = new Map();
+let _idxFeesByStudent = new Map();
+let _idxTransportPaymentsByStudent = new Map();
+let _idxTransportAssignByStudent = new Map();
+let _activeStudentsCache = null;
+let _activeTransportStudentsCache = null;
+let _indicesDirty = true;
+let _dashboardMetricsCache = null;
+let _top10DefaultersCache = null;
+let _cachedValidTransactions = null;
+let _cachedFilteredTransactions = null;
+let _colCurrentPage = 1;
+let _colPageSize = 50;
+
+function ensurePerformanceIndices() {
+  if (!_indicesDirty && _idxStudentById.size > 0) return;
+  _idxStudentById.clear();
+  _idxPaymentsByStudent.clear();
+  _idxFeesByStudent.clear();
+  _idxTransportPaymentsByStudent.clear();
+  _idxTransportAssignByStudent.clear();
+  _activeStudentsCache = null;
+  _activeTransportStudentsCache = null;
+
+  (DB.students || []).forEach(s => {
+    _idxStudentById.set(s.id, s);
+    s._searchStr = `${s.name || ''} ${s.admno || ''} ${s.srNo || ''} ${s.father || ''} ${s.mother || ''} ${s.phone || ''}`.toLowerCase();
+  });
+
+  (DB.payments || []).forEach(p => {
+    if (p.reversed) return;
+    const sid = p.studentId;
+    let list = _idxPaymentsByStudent.get(sid);
+    if (!list) {
+      list = [];
+      _idxPaymentsByStudent.set(sid, list);
+    }
+    list.push(p);
+  });
+
+  if (DB.fees && typeof DB.fees === 'object') {
+    Object.entries(DB.fees).forEach(([k, arr]) => {
+      if (!Array.isArray(arr) || arr.length === 0) return;
+      const underIdx = k.indexOf('_');
+      if (underIdx === -1) return;
+      const sid = parseInt(k.substring(0, underIdx));
+      if (isNaN(sid)) return;
+      let list = _idxFeesByStudent.get(sid);
+      if (!list) {
+        list = [];
+        _idxFeesByStudent.set(sid, list);
+      }
+      list.push({ key: k, arr });
+    });
+  }
+
+  // Transport indexing for high-speed calculation
+  if (DB.transport && typeof DB.transport === 'object') {
+    if (Array.isArray(DB.transport.payments)) {
+      DB.transport.payments.forEach(p => {
+        if (p.reversed) return;
+        const sid = p.studentId;
+        let list = _idxTransportPaymentsByStudent.get(sid);
+        if (!list) {
+          list = [];
+          _idxTransportPaymentsByStudent.set(sid, list);
+        }
+        list.push(p);
+      });
+    }
+    if (DB.transport.assignments && typeof DB.transport.assignments === 'object') {
+      Object.entries(DB.transport.assignments).forEach(([sidStr, assign]) => {
+        _idxTransportAssignByStudent.set(Number(sidStr), assign);
+      });
+    }
+  }
+
+  _indicesDirty = false;
+}
+
+function invalidatePerformanceIndices() {
+  _indicesDirty = true;
+  _dashboardMetricsCache = null;
+  _top10DefaultersCache = null;
+  _activeStudentsCache = null;
+  _activeTransportStudentsCache = null;
+  _cachedValidTransactions = null;
+  _cachedFilteredTransactions = null;
+  if (typeof window !== 'undefined') {
+    window._cachedValidTransactions = null;
+    window._cachedFilteredTransactions = null;
+  }
+}
+
+function getStudentById(id) {
+  if (id === null || id === undefined) return null;
+  ensurePerformanceIndices();
+  return _idxStudentById.get(Number(id)) || null;
+}
+
+function getActiveStudents() {
+  ensurePerformanceIndices();
+  if (!_activeStudentsCache) {
+    _activeStudentsCache = (DB.students || []).filter(s => s.status !== 'Inactive' && s.status !== 'Left School' && s.status !== 'Alumni');
+  }
+  return _activeStudentsCache;
+}
+
 // Helper: Parse session string (e.g. "2026–27" or "2026-27") into [startYear, endYear]
 function parseSessionYears(sessStr) {
   const s = String(sessStr || '2026–27');
@@ -164,10 +277,10 @@ function isExamFeeAlreadyPaid(studentId, mo, yr) {
     const ef = fees.find(f => f.type === 'Exam Fee');
     if (ef && ef.paid) return true;
   }
-  if (Array.isArray(DB.payments)) {
-    const hasPaid = DB.payments.some(p =>
-      !p.reversed &&
-      String(p.studentId) === String(studentId) &&
+  ensurePerformanceIndices();
+  const stPayments = _idxPaymentsByStudent.get(Number(studentId)) || _idxPaymentsByStudent.get(String(studentId));
+  if (stPayments) {
+    const hasPaid = stPayments.some(p =>
       Array.isArray(p.items) &&
       p.items.some(it => it.type === 'Exam Fee' && it.month === mo && Number(it.year) === Number(yr))
     );
@@ -180,22 +293,22 @@ function isExamFeeAlreadyPaid(studentId, mo, yr) {
 function getStudentAdmissionFeePaymentRecord(studentId, sessionStr = null) {
   const curSess = sessionStr || (DB.settings && DB.settings.currentSession) || '2026–27';
   let record = null;
+  ensurePerformanceIndices();
 
-  // 1. Check DB.fees records for curSess
-  Object.entries(DB.fees || {}).forEach(([k, arr]) => {
-    if (record) return;
-    if (k.startsWith(studentId + '_') && Array.isArray(arr)) {
-      const parts = k.split('_');
-      if (isFeeInAcademicSession(parts[1], parts[2], curSess)) {
-        const af = arr.find(f => {
-          if (f.type !== 'Admission Fee' || !f.paid) return false;
-          if (f.receiptNo && Array.isArray(DB.payments)) {
-            const isRev = DB.payments.some(p => p.receiptNo === f.receiptNo && p.reversed);
-            if (isRev) return false;
-          }
-          return true;
-        });
-        if (af) {
+  const sidNum = Number(studentId);
+  const stFees = _idxFeesByStudent.get(sidNum) || [];
+  for (let i = 0; i < stFees.length; i++) {
+    const { key: k, arr } = stFees[i];
+    const parts = k.split('_');
+    if (isFeeInAcademicSession(parts[1], parts[2], curSess)) {
+      const af = arr.find(f => f.type === 'Admission Fee' && f.paid);
+      if (af) {
+        let isRev = false;
+        if (af.receiptNo) {
+          const stPayments = _idxPaymentsByStudent.get(sidNum);
+          if (stPayments) isRev = stPayments.some(p => p.receiptNo === af.receiptNo && p.reversed);
+        }
+        if (!isRev) {
           record = {
             paid: true,
             receiptNo: af.receiptNo || '–',
@@ -203,52 +316,52 @@ function getStudentAdmissionFeePaymentRecord(studentId, sessionStr = null) {
             amount: Number(af.amount) || 0,
             mode: af.mode || 'Cash'
           };
+          break;
         }
       }
     }
-  });
+  }
 
-  // 2. Check DB.payments transactions specifically for curSess
-  if (!record && Array.isArray(DB.payments)) {
-    const p = DB.payments.find(p => {
-      if (p.reversed) return false;
-      if (String(p.studentId) !== String(studentId)) return false;
-      const sessMatches = p.session ? (p.session === curSess || p.session.replace(/[-–]/g, '-') === curSess.replace(/[-–]/g, '-')) : false;
+  if (!record) {
+    const stPayments = _idxPaymentsByStudent.get(sidNum);
+    if (stPayments) {
+      const p = stPayments.find(p => {
+        const sessMatches = p.session ? (p.session === curSess || p.session.replace(/[-–]/g, '-') === curSess.replace(/[-–]/g, '-')) : false;
+        if (Array.isArray(p.items) && p.items.length > 0) {
+          return p.items.some(it => {
+            if (it.type !== 'Admission Fee') return false;
+            if (sessMatches) return true;
+            if (it.year) return isFeeInAcademicSession(it.month || 'April', it.year, curSess);
+            if (p.date) {
+              const yr = parseInt(p.date.split('-')[0]);
+              return isFeeInAcademicSession(p.month || 'April', yr, curSess);
+            }
+            return false;
+          });
+        }
 
-      if (Array.isArray(p.items) && p.items.length > 0) {
-        return p.items.some(it => {
-          if (it.type !== 'Admission Fee') return false;
+        if (p.category === 'Admission Fee') {
           if (sessMatches) return true;
-          if (it.year) return isFeeInAcademicSession(it.month || 'April', it.year, curSess);
+          if (p.year) return isFeeInAcademicSession(p.month || 'April', p.year, curSess);
           if (p.date) {
             const yr = parseInt(p.date.split('-')[0]);
             return isFeeInAcademicSession(p.month || 'April', yr, curSess);
           }
-          return false;
-        });
-      }
-
-      if (p.category === 'Admission Fee') {
-        if (sessMatches) return true;
-        if (p.year) return isFeeInAcademicSession(p.month || 'April', p.year, curSess);
-        if (p.date) {
-          const yr = parseInt(p.date.split('-')[0]);
-          return isFeeInAcademicSession(p.month || 'April', yr, curSess);
         }
+
+        return false;
+      });
+
+      if (p) {
+        const admItem = Array.isArray(p.items) ? p.items.find(it => it.type === 'Admission Fee') : null;
+        record = {
+          paid: true,
+          receiptNo: p.receiptNo || '–',
+          date: p.date || '–',
+          amount: admItem ? (Number(admItem.paidAmount) || Number(admItem.baseAmount) || Number(p.amount)) : Number(p.amount),
+          mode: p.mode || 'Cash'
+        };
       }
-
-      return false;
-    });
-
-    if (p) {
-      const admItem = Array.isArray(p.items) ? p.items.find(it => it.type === 'Admission Fee') : null;
-      record = {
-        paid: true,
-        receiptNo: p.receiptNo || '–',
-        date: p.date || '–',
-        amount: admItem ? (Number(admItem.paidAmount) || Number(admItem.baseAmount) || Number(p.amount)) : Number(p.amount),
-        mode: p.mode || 'Cash'
-      };
     }
   }
 
@@ -286,7 +399,7 @@ function hasAcademicSessionStarted(sessionStr, todayStr = null) {
 
 // Helper: Determine accurate status for a student's admission fee in an academic session
 function getStudentAdmissionFeeStatus(studentId, sessionStr = null, todayStr = null) {
-  const s = (DB.students || []).find(x => String(x.id) === String(studentId));
+  const s = getStudentById(studentId) || (DB.students || []).find(x => String(x.id) === String(studentId));
   const curSess = sessionStr || s?.session || (DB.settings && DB.settings.currentSession) || '2026–27';
   const cfg = s ? getStudentFeeConfig(s.id) : {};
   const struct = (s && DB.feeStructures && DB.feeStructures[s.cls]) ? DB.feeStructures[s.cls] : { admission: 500 };
@@ -679,9 +792,9 @@ function groupFeeItemsByPeriod(items) {
   return grouped;
 }
 
-function getTransactionSummaryPeriod(tx) {
+function getTransactionSummaryPeriod(tx, precomputedGrp = null) {
   if (Array.isArray(tx.items) && tx.items.length > 0) {
-    const grp = groupFeeItemsByPeriod(tx.items);
+    const grp = precomputedGrp || groupFeeItemsByPeriod(tx.items);
     if (grp.length === 1) {
       return grp[0].period;
     }
@@ -1085,6 +1198,9 @@ async function loadDB() {
   }
   ensureDefaultState();
   applyBranding();
+  window.DB = DB;
+  invalidatePerformanceIndices();
+  ensurePerformanceIndices();
 }
 
 function migrateExistingData(legacy) {
@@ -1233,6 +1349,7 @@ let pendingSaveQueued = false;
 let lastSaveError = '';
 
 function saveDB(now = false) {
+  invalidatePerformanceIndices();
   if (isDataCorrupted) {
     console.error('Save aborted: Database is in corrupted/emergency recovery state.');
     setSS('recovery');
@@ -1476,7 +1593,12 @@ async function confirmAndRestoreBackup(backupName) {
   if (e) e.textContent = 'Data File: ' + p;
 }
 
+let curActivePage = null;
 function showPage(id, btn) {
+  if (curActivePage === id && id !== 'dashboard' && id !== 'students' && id !== 'addstudent') {
+    return;
+  }
+  curActivePage = id;
   document.querySelectorAll('.page').forEach(p => {
     p.classList.remove('active');
     p.style.display = 'none';
@@ -1584,11 +1706,31 @@ function autoSetCurrentMonth(moId, yrId, forceLive = false) {
 
 function openM(id) {
   const el = document.getElementById(id);
-  if (el) el.classList.add('show');
+  if (el) {
+    el.classList.remove('closing');
+    el.classList.add('show');
+    if (typeof updateModalBackdropState === 'function') updateModalBackdropState();
+  }
 }
 function closeM(id) {
   const el = document.getElementById(id);
-  if (el) el.classList.remove('show');
+  if (!el) return;
+  el.classList.remove('show');
+  el.classList.add('closing');
+  setTimeout(() => {
+    el.classList.remove('closing');
+    if (typeof updateModalBackdropState === 'function') updateModalBackdropState();
+  }, 180);
+  if (typeof updateModalBackdropState === 'function') updateModalBackdropState();
+}
+
+function updateModalBackdropState() {
+  const anyOpen = document.querySelector('.mo.show, .mo.closing');
+  if (anyOpen) {
+    document.body.classList.add('has-modal-active');
+  } else {
+    document.body.classList.remove('has-modal-active');
+  }
 }
 
 function clL(c) {
@@ -1609,23 +1751,24 @@ function fillDDs() {
     if (!el) return;
     const cur = el.value;
     const isFilter = (id === 'fCls' || id === 'fe_cl' || id === 'prm_from_cls');
-    el.innerHTML = isFilter ? '<option value="">All Classes</option>' : '<option value="">Select Class</option>';
+    let opts = isFilter ? '<option value="">All Classes</option>' : '<option value="">Select Class</option>';
     CLASSES.forEach(c => {
-      el.innerHTML += `<option value="${c}">${clL(c)}</option>`;
+      opts += `<option value="${c}">${clL(c)}</option>`;
     });
+    el.innerHTML = opts;
     if (cur) el.value = cur;
   });
-  if (typeof loadFeSt === 'function') loadFeSt();
 
   // Sessions dropdowns
   ['set_cur_session'].forEach(id => {
     const el = document.getElementById(id);
     if (!el) return;
     const cur = el.value || (DB.settings && DB.settings.currentSession);
-    el.innerHTML = '';
+    let opts = '';
     (DB.sessions || []).forEach(sess => {
-      el.innerHTML += `<option value="${sess.name}"${sess.name === cur ? ' selected' : ''}>${sess.name}</option>`;
+      opts += `<option value="${sess.name}"${sess.name === cur ? ' selected' : ''}>${sess.name}</option>`;
     });
+    el.innerHTML = opts;
   });
 }
 
@@ -1642,12 +1785,18 @@ function onDashboardPeriodChange() {
 }
 
 function getDashboardFinancialMetrics(periodMode = 'current_month', targetMonth = null, targetYear = null, targetSession = null) {
+  ensurePerformanceIndices();
   const curSess = targetSession || (DB.settings && DB.settings.currentSession) || '2026–27';
   const today = new Date();
   const curMo = SYS_MONTHS[today.getMonth()] || 'October';
   const curYr = today.getFullYear();
   const tMo = targetMonth || curMo;
   const tYr = targetYear || curYr;
+
+  const cacheKey = `${periodMode}_${tMo}_${tYr}_${curSess}`;
+  if (_dashboardMetricsCache && _dashboardMetricsCache.key === cacheKey && !_indicesDirty) {
+    return _dashboardMetricsCache.metrics;
+  }
 
   let label = '';
   let badgeText = '';
@@ -1718,7 +1867,7 @@ function getDashboardFinancialMetrics(periodMode = 'current_month', targetMonth 
     ? Math.min(100, Math.round((collectedAmt / totalExpected) * 100))
     : (collectedAmt > 0 ? 100 : 0);
 
-  return {
+  const res = {
     periodMode,
     label,
     badgeText,
@@ -1728,6 +1877,8 @@ function getDashboardFinancialMetrics(periodMode = 'current_month', targetMonth 
     collectionRate,
     curSess
   };
+  _dashboardMetricsCache = { key: cacheKey, metrics: res };
+  return res;
 }
 
 function renderDB() {
@@ -1816,19 +1967,26 @@ function renderDB() {
     }).join('');
   }
 
-  // Monthly revenue chart (April to March)
-  const revData = MONTHS_LIST.map(mo => {
-    let amt = 0;
-    Object.entries(DB.fees || {}).forEach(([key, arr]) => {
+  // Monthly revenue chart (April to March) - single pass O(K) aggregation
+  const revByMonth = {};
+  MONTHS_LIST.forEach(m => { revByMonth[m] = 0; });
+  if (DB.fees && typeof DB.fees === 'object') {
+    Object.entries(DB.fees).forEach(([key, arr]) => {
+      if (!Array.isArray(arr)) return;
       const parts = key.split('_');
-      if (parts[1] === mo && Array.isArray(arr)) {
+      const mo = parts[1];
+      if (revByMonth[mo] !== undefined) {
         arr.forEach(f => {
-          if (f.paid && f.enabled !== false) amt += (Number(f.amount) || 0);
+          if (f.paid && f.enabled !== false) revByMonth[mo] += (Number(f.amount) || 0);
         });
       }
     });
-    return { mo: mo.substring(0, 3), fullMo: mo, amt };
-  });
+  }
+  const revData = MONTHS_LIST.map(mo => ({
+    mo: mo.substring(0, 3),
+    fullMo: mo,
+    amt: revByMonth[mo] || 0
+  }));
 
   const maxRev = Math.max(...revData.map(r => r.amt), 1);
   const revEl = document.getElementById('revenueChart');
@@ -1852,21 +2010,26 @@ function renderDB() {
     }
   }
 
-  // Top 10 Defaulters: calculate session-to-date total dues (April through current calendar month)
-  // regardless of dashboard month filter, including School Fee, Exam Fee, Admission Fee, and Arrears
-  const sessionDues = getPendingFeesDueList({ sessMode: 'current', dueType: 'all', month: '' });
+  // Top 10 Defaulters: calculate session-to-date total dues using indexed lookups & cache
+  ensurePerformanceIndices();
   let defMap = {};
-  sessionDues.forEach(d => {
-    if (!defMap[d.studentId]) {
-      const st = activeStudents.find(s => s.id === d.studentId);
-      if (st) {
-        defMap[d.studentId] = { student: st, due: 0 };
+  if (_top10DefaultersCache && !_indicesDirty) {
+    defMap = _top10DefaultersCache;
+  } else {
+    const sessionDues = getPendingFeesDueList({ sessMode: 'current', dueType: 'all', month: '' });
+    sessionDues.forEach(d => {
+      if (!defMap[d.studentId]) {
+        const st = _idxStudentById.get(d.studentId);
+        if (st && st.status !== 'Inactive' && st.status !== 'Left School' && st.status !== 'Alumni') {
+          defMap[d.studentId] = { student: st, due: 0 };
+        }
       }
-    }
-    if (defMap[d.studentId]) {
-      defMap[d.studentId].due += d.amount;
-    }
-  });
+      if (defMap[d.studentId]) {
+        defMap[d.studentId].due += d.amount;
+      }
+    });
+    _top10DefaultersCache = defMap;
+  }
 
   // Cached full sorted list of fee defaulters for current session
   cachedTopDefaulters = Object.values(defMap).filter(d => d.due > 0).sort((a, b) => b.due - a.due);
@@ -1908,7 +2071,7 @@ function openTopDefaultersModal() {
   
   // Re-verify defaulters if not already computed
   if (!cachedTopDefaulters || cachedTopDefaulters.length === 0) {
-    const activeStudents = (DB.students || []).filter(s => s.status !== 'Inactive' && s.status !== 'Left School' && s.status !== 'Alumni');
+    const activeStudents = getActiveStudents();
     const sessionDues = getPendingFeesDueList({ sessMode: 'current', dueType: 'all', month: '' });
     let defMap = {};
     sessionDues.forEach(d => {
@@ -2099,33 +2262,43 @@ document.addEventListener('keydown', (e) => {
     const defM = document.getElementById('modalTopDefaulters');
     if (defM && defM.classList.contains('show')) {
       closeTopDefaultersModal();
+      return;
+    }
+    const openModals = Array.from(document.querySelectorAll('.mo.show'));
+    if (openModals.length > 0) {
+      const topM = openModals[openModals.length - 1];
+      if (topM && topM.id) {
+        closeM(topM.id);
+      }
     }
   }
 });
 
 
-// Collected Details Modal
+// Collected Details Modal & Multi-Filter Logic
 function getValidPaymentTransactions() {
+  if (!_indicesDirty && _cachedValidTransactions) {
+    return _cachedValidTransactions;
+  }
+  ensurePerformanceIndices();
   const transactions = [];
   const handledReceipts = new Set();
 
   // 1. Primary source: DB.payments
   (DB.payments || []).forEach(p => {
-    // Strictly exclude reversed / voided receipts from valid collections
     if (p.reversed === true || p.status === 'Void' || p.status === 'Reversed') return;
 
     const rNo = p.receiptNo || '–';
     if (rNo !== '–') handledReceipts.add(rNo);
 
-    const s = (DB.students || []).find(st => st.id === p.studentId) || {};
+    const s = _idxStudentById.get(p.studentId) || {};
     let items = Array.isArray(p.items) && p.items.length > 0 ? p.items : [];
 
-    // Fallback if payment record does not have items array: recover from DB.fees matching receiptNo
+    // Fallback if payment record does not have items array: recover from indexed fees
     if (items.length === 0 && rNo !== '–') {
-      Object.entries(DB.fees || {}).forEach(([key, arr]) => {
-        if (!Array.isArray(arr)) return;
+      const stFees = _idxFeesByStudent.get(p.studentId) || [];
+      stFees.forEach(({ key, arr }) => {
         const parts = key.split('_');
-        if (p.studentId && parseInt(parts[0]) !== p.studentId) return;
         const mo = parts[1], yr = parts[2];
         arr.forEach(f => {
           if (f.paid && f.receiptNo === rNo) {
@@ -2141,6 +2314,16 @@ function getValidPaymentTransactions() {
       });
     }
 
+    const groupedAllocations = groupFeeItemsByPeriod(items);
+    const summaryPeriod = getTransactionSummaryPeriod(p, groupedAllocations);
+
+    const monthSet = new Set();
+    items.forEach(it => { if (it.month) monthSet.add(it.month); });
+    const periodText = (p.period || '') + ' ' + summaryPeriod;
+    MONTHS_LIST.forEach(m => {
+      if (periodText.includes(m)) monthSet.add(m);
+    });
+
     transactions.push({
       receiptNo: rNo,
       studentId: p.studentId,
@@ -2155,29 +2338,38 @@ function getValidPaymentTransactions() {
       category: p.category || '',
       period: p.period || '',
       items: items,
-      reversed: false
+      reversed: false,
+      _summaryPeriod: summaryPeriod,
+      _groupedAllocations: groupedAllocations,
+      _monthSet: monthSet,
+      _normCls: String(p.cls || s.cls || '').trim(),
+      _normSession: String(p.session || '').trim(),
+      _normMode: String(p.mode || 'Cash').trim()
     });
   });
 
-  // 2. Fallback: Group any legacy paid fee items from DB.fees that lack an entry in DB.payments
+  // 2. Fallback: Single pass O(K) over DB.fees for legacy paid fee items
   const feeReceiptMap = {};
-  (DB.students || []).forEach(s => {
-    Object.entries(DB.fees || {}).forEach(([key, arr]) => {
+  if (DB.fees && typeof DB.fees === 'object') {
+    Object.entries(DB.fees).forEach(([key, arr]) => {
+      if (!Array.isArray(arr)) return;
       const parts = key.split('_');
-      if (parseInt(parts[0]) !== s.id || !Array.isArray(arr)) return;
+      const sid = parseInt(parts[0]);
       const mo = parts[1], yr = parts[2];
+      const s = _idxStudentById.get(sid) || {};
+
       arr.filter(f => f.enabled !== false && f.paid).forEach(f => {
         const rNo = f.receiptNo || '–';
-        if (rNo !== '–' && handledReceipts.has(rNo)) return; // already handled above
+        if (rNo !== '–' && handledReceipts.has(rNo)) return;
 
-        const grpKey = rNo !== '–' ? rNo : `NO_REC_${s.id}_${f.date || 'nodate'}`;
+        const grpKey = rNo !== '–' ? rNo : `NO_REC_${sid}_${f.date || 'nodate'}`;
         if (!feeReceiptMap[grpKey]) {
           feeReceiptMap[grpKey] = {
             receiptNo: rNo,
-            studentId: s.id,
-            studentName: s.name,
-            admno: s.admno,
-            cls: s.cls,
+            studentId: sid,
+            studentName: s.name || 'Student',
+            admno: s.admno || '–',
+            cls: s.cls || '–',
             section: s.section || 'A',
             amount: 0,
             mode: f.mode || 'Cash',
@@ -2202,9 +2394,25 @@ function getValidPaymentTransactions() {
         });
       });
     });
-  });
+  }
 
   Object.values(feeReceiptMap).forEach(synthTx => {
+    const groupedAllocations = groupFeeItemsByPeriod(synthTx.items);
+    const summaryPeriod = getTransactionSummaryPeriod(synthTx, groupedAllocations);
+    const monthSet = new Set();
+    synthTx.items.forEach(it => { if (it.month) monthSet.add(it.month); });
+    const periodText = (synthTx.period || '') + ' ' + summaryPeriod;
+    MONTHS_LIST.forEach(m => {
+      if (periodText.includes(m)) monthSet.add(m);
+    });
+
+    synthTx._summaryPeriod = summaryPeriod;
+    synthTx._groupedAllocations = groupedAllocations;
+    synthTx._monthSet = monthSet;
+    synthTx._normCls = String(synthTx.cls || '').trim();
+    synthTx._normSession = String(synthTx.session || '').trim();
+    synthTx._normMode = String(synthTx.mode || 'Cash').trim();
+
     transactions.push(synthTx);
   });
 
@@ -2216,12 +2424,379 @@ function getValidPaymentTransactions() {
     return (b.receiptNo || '').localeCompare(a.receiptNo || '');
   });
 
+  _cachedValidTransactions = transactions;
+  if (typeof window !== 'undefined') window._cachedValidTransactions = transactions;
   return transactions;
 }
 
-function togglePaymentBreakdown(idx) {
-  const row = document.getElementById(`row_bkd_${idx}`);
-  const btn = document.getElementById(`btn_bkd_${idx}`);
+function initCollectedFilters() {
+  const clsSel = document.getElementById('col_f_cls');
+  if (clsSel && (!clsSel.options || clsSel.options.length <= 1)) {
+    clsSel.innerHTML = '<option value="">All Classes</option>' + (CLASSES || []).map(c => `<option value="${c}">${clL(c)}</option>`).join('');
+  }
+
+  const sessSel = document.getElementById('col_f_sess');
+  if (sessSel && (!sessSel.options || sessSel.options.length <= 1)) {
+    const curSess = (DB.settings && DB.settings.currentSession) || '2026–27';
+    const allSess = new Set();
+    allSess.add(curSess);
+    (DB.sessions || []).forEach(x => { if (x.name) allSess.add(x.name); });
+    (DB.payments || []).forEach(p => { if (p.session) allSess.add(p.session); });
+
+    let opts = `<option value="current">Current Session (${curSess})</option>`;
+    opts += `<option value="all">All Sessions</option>`;
+    Array.from(allSess).forEach(s => {
+      if (s !== curSess) {
+        opts += `<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`;
+      }
+    });
+    sessSel.innerHTML = opts;
+    sessSel.value = 'current';
+  }
+
+  const modeSel = document.getElementById('col_f_mode');
+  if (modeSel && !modeSel.value) modeSel.value = '';
+
+  const datePresetSel = document.getElementById('col_f_date_preset');
+  if (datePresetSel && !datePresetSel.value) datePresetSel.value = 'all';
+
+  const moSel = document.getElementById('col_f_mo');
+  if (moSel && !moSel.value) moSel.value = '';
+}
+
+function onCollectedDatePresetChange() {
+  const preset = document.getElementById('col_f_date_preset')?.value || 'all';
+  const customRow = document.getElementById('col_custom_date_row');
+  if (customRow) {
+    if (preset === 'custom') {
+      customRow.style.display = 'flex';
+    } else {
+      customRow.style.display = 'none';
+      const fromEl = document.getElementById('col_f_date_from');
+      const toEl = document.getElementById('col_f_date_to');
+      if (fromEl) fromEl.value = '';
+      if (toEl) toEl.value = '';
+    }
+  }
+  applyCollectedFilters();
+}
+
+function resetCollectedFilters() {
+  const clsSel = document.getElementById('col_f_cls');
+  if (clsSel) clsSel.value = '';
+
+  const sessSel = document.getElementById('col_f_sess');
+  if (sessSel) sessSel.value = 'current';
+
+  const modeSel = document.getElementById('col_f_mode');
+  if (modeSel) modeSel.value = '';
+
+  const datePresetSel = document.getElementById('col_f_date_preset');
+  if (datePresetSel) datePresetSel.value = 'all';
+
+  const customRow = document.getElementById('col_custom_date_row');
+  if (customRow) customRow.style.display = 'none';
+
+  const fromEl = document.getElementById('col_f_date_from');
+  if (fromEl) fromEl.value = '';
+
+  const toEl = document.getElementById('col_f_date_to');
+  if (toEl) toEl.value = '';
+
+  const moSel = document.getElementById('col_f_mo');
+  if (moSel) moSel.value = '';
+
+  _colCurrentPage = 1;
+  applyCollectedFilters();
+}
+
+function applyCollectedFilters() {
+  const allTx = getValidPaymentTransactions();
+  const curSess = (DB.settings && DB.settings.currentSession) || '2026–27';
+
+  const selCls = document.getElementById('col_f_cls')?.value || '';
+  const selSess = document.getElementById('col_f_sess')?.value || 'current';
+  const selMode = document.getElementById('col_f_mode')?.value || '';
+  const selDatePreset = document.getElementById('col_f_date_preset')?.value || 'all';
+  const selDateFrom = document.getElementById('col_f_date_from')?.value || '';
+  const selDateTo = document.getElementById('col_f_date_to')?.value || '';
+  const selMo = document.getElementById('col_f_mo')?.value || '';
+
+  const today = new Date();
+  const todayY = today.getFullYear();
+  const todayM = String(today.getMonth() + 1).padStart(2, '0');
+  const todayD = String(today.getDate()).padStart(2, '0');
+  const todayStr = `${todayY}-${todayM}-${todayD}`;
+  const thisMonthPrefix = `${todayY}-${todayM}`;
+
+  const normCurSess = curSess.replace(/[-–]/g, '-');
+
+  const filtered = allTx.filter(tx => {
+    // 1. Class filter
+    if (selCls && tx.cls !== selCls) return false;
+
+    // 2. Session filter
+    if (selSess === 'current') {
+      const txSessNorm = (tx.session || '').replace(/[-–]/g, '-');
+      if (txSessNorm) {
+        if (txSessNorm !== normCurSess) return false;
+      } else {
+        // Fallback for unlabelled legacy sessions: check if date falls in session
+        if (tx.date && tx.date !== '–') {
+          const [sY, eY] = parseSessionYears(curSess);
+          const txY = parseInt(tx.date.split('-')[0]);
+          if (txY < sY || txY > eY) return false;
+        }
+      }
+    } else if (selSess !== 'all' && selSess !== '') {
+      const txSessNorm = (tx.session || '').replace(/[-–]/g, '-');
+      const targetSessNorm = selSess.replace(/[-–]/g, '-');
+      if (txSessNorm !== targetSessNorm) return false;
+    }
+
+    // 3. Payment Mode filter
+    if (selMode) {
+      const txMode = tx.mode || 'Cash';
+      if (selMode === 'Online / UPI') {
+        if (!txMode.includes('UPI') && !txMode.includes('Online')) return false;
+      } else {
+        if (txMode.toLowerCase() !== selMode.toLowerCase()) return false;
+      }
+    }
+
+    // 4. Payment Date filter
+    if (selDatePreset === 'today') {
+      if (tx.date !== todayStr) return false;
+    } else if (selDatePreset === 'this_month') {
+      if (!tx.date || !tx.date.startsWith(thisMonthPrefix)) return false;
+    } else if (selDatePreset === 'custom') {
+      if (selDateFrom && tx.date < selDateFrom) return false;
+      if (selDateTo && tx.date > selDateTo) return false;
+    }
+
+    // 5. Billing Month filter
+    if (selMo) {
+      if (!tx._monthSet || !tx._monthSet.has(selMo)) return false;
+    }
+
+    return true;
+  });
+
+  _cachedFilteredTransactions = filtered;
+  if (typeof window !== 'undefined') window._cachedFilteredTransactions = filtered;
+  _colCurrentPage = 1;
+  renderCollectedTable();
+}
+
+function showCollectedDetail() {
+  // 1. Open modal immediately for instant UI feedback
+  openM('collectedM');
+
+  // 2. Initialize filter controls
+  initCollectedFilters();
+
+  const body = document.getElementById('collectedBody');
+  if (!body) return;
+
+  // 3. If cached and valid, render immediately (<2ms)
+  if (_cachedValidTransactions && !_indicesDirty) {
+    applyCollectedFilters();
+    return;
+  }
+
+  // 4. Otherwise show loading skeleton and prepare asynchronously
+  body.innerHTML = `
+    <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:240px;color:var(--txt2);gap:12px">
+      <div class="spin" style="width:32px;height:32px;border:3px solid var(--bdr);border-top-color:var(--grn);border-radius:50%"></div>
+      <div style="font-size:13px;font-weight:600">Loading collection transactions...</div>
+    </div>
+  `;
+
+  setTimeout(() => {
+    applyCollectedFilters();
+  }, 10);
+}
+
+function renderCollectedTable() {
+  const body = document.getElementById('collectedBody');
+  if (!body) return;
+
+  const transactions = _cachedFilteredTransactions || [];
+  const totalColl = transactions.reduce((a, r) => a + r.amount, 0);
+
+  if (!transactions.length) {
+    body.innerHTML = `
+      <div style="background:var(--gl);border-radius:8px;padding:12px 16px;margin-bottom:12px;display:flex;justify-content:space-between;align-items:center;border:1px solid #a9dfbf;flex-shrink:0">
+        <div>
+          <div style="font-size:11px;color:var(--grn);font-weight:600">Total Valid Fee Collections</div>
+          <div style="font-size:22px;font-weight:700;color:var(--grn)">₹0</div>
+        </div>
+        <div style="text-align:right">
+          <div style="font-size:12px;font-weight:700;color:var(--grn)">0 receipt transaction(s)</div>
+          <div style="font-size:10.5px;color:var(--txt2)">Grouped by original payment receipt</div>
+        </div>
+      </div>
+      <div class="empty" style="padding:48px 0;text-align:center;color:var(--txt2)">
+        <div style="font-size:28px;margin-bottom:8px">🔍</div>
+        <div style="font-size:14px;font-weight:600">No collection transactions match the selected filters.</div>
+        <div style="font-size:12px;color:var(--txt3);margin-top:4px">Try adjusting or clicking '↺ Reset Filters' above.</div>
+      </div>
+    `;
+    return;
+  }
+
+  const totalRows = transactions.length;
+  const pageSize = _colPageSize || 50;
+  const totalPages = Math.max(1, Math.ceil(totalRows / pageSize));
+  if (_colCurrentPage > totalPages) _colCurrentPage = totalPages;
+  if (_colCurrentPage < 1) _colCurrentPage = 1;
+  const curPage = _colCurrentPage;
+
+  const startIdx = (curPage - 1) * pageSize;
+  const endIdx = Math.min(totalRows, startIdx + pageSize);
+  const pageRows = transactions.slice(startIdx, endIdx);
+
+  const rowsHtml = pageRows.map((tx, idx) => {
+    const rowId = `${curPage}_${idx}_${tx.receiptNo ? tx.receiptNo.replace(/[^a-zA-Z0-9]/g, '_') : idx}`;
+    const groupedAllocations = tx._groupedAllocations || groupFeeItemsByPeriod(tx.items);
+    const summaryPeriod = tx._summaryPeriod || getTransactionSummaryPeriod(tx, groupedAllocations);
+
+    let periodLinesHtml = '';
+    if (groupedAllocations.length > 0) {
+      periodLinesHtml = groupedAllocations.map(g => `
+        <div style="margin-bottom:2px;font-size:11px;line-height:1.35">
+          <span style="font-weight:600;color:var(--txt)">${escapeHtml(g.type)}:</span> <span style="color:var(--txt2);font-weight:500">${escapeHtml(g.period)}</span>
+        </div>
+      `).join('');
+    } else {
+      periodLinesHtml = `<div style="font-size:11.5px;line-height:1.4;font-weight:600;color:var(--txt)">${escapeHtml(summaryPeriod)}</div>`;
+    }
+
+    return `
+      <tr style="border-bottom:1px solid var(--bdr)">
+        <td style="padding:8px 12px"><strong style="color:var(--blu);font-family:monospace;font-size:12.5px">${escapeHtml(tx.receiptNo)}</strong></td>
+        <td style="padding:8px 12px;word-break:break-word"><strong>${escapeHtml(tx.studentName)}</strong> <span class="chip cb2" style="font-size:10px;margin-left:4px">${escapeHtml(tx.admno)}</span></td>
+        <td style="padding:8px 6px;text-align:center"><span class="chip cr" style="font-size:11px">${clL(tx.cls)}${tx.section ? ' (' + escapeHtml(tx.section) + ')' : ''}</span></td>
+        <td style="padding:8px 12px;vertical-align:top">${periodLinesHtml}</td>
+        <td style="padding:8px 8px;text-align:center;font-size:11.5px">${escapeHtml(tx.date || '–')}</td>
+        <td style="padding:8px 8px;text-align:center"><span class="chip cg" style="font-size:11px">${escapeHtml(tx.mode || 'Cash')}</span></td>
+        <td style="padding:8px 12px;font-weight:700;color:var(--grn);text-align:right;font-size:13px;white-space:nowrap">₹${tx.amount.toLocaleString('en-IN')}</td>
+        <td style="padding:8px 6px;text-align:center;box-sizing:border-box">
+          <button class="btn bo bsm" id="btn_bkd_${rowId}" onclick="togglePaymentBreakdown('${rowId}')" style="font-size:10.5px;padding:3px 7px;white-space:nowrap;cursor:pointer">👁 View Breakdown</button>
+        </td>
+      </tr>
+      <tr id="row_bkd_${rowId}" style="display:none;background:var(--sub-row-bg, #fafbfc)">
+        <td colspan="8" style="padding:8px 14px;border-top:none;border-bottom:1.5px solid var(--bdr)">
+          <div style="font-size:10.5px;font-weight:700;color:var(--txt2);text-transform:uppercase;margin-bottom:4px">Allocations Included in Receipt ${escapeHtml(tx.receiptNo)}:</div>
+          <table style="width:100%;font-size:11.5px;background:#ffffff;border:1px solid var(--bdr);border-radius:4px;overflow:hidden">
+            <thead>
+              <tr style="background:#f1f4f8">
+                <th style="padding:4px 8px;font-size:10.5px;text-align:left;width:30px">#</th>
+                <th style="padding:4px 8px;font-size:10.5px;text-align:left">Period</th>
+                <th style="padding:4px 8px;font-size:10.5px;text-align:left">Category</th>
+                <th style="padding:4px 8px;font-size:10.5px;text-align:right">Allocated Amount</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${groupedAllocations.length > 0 ? groupedAllocations.map((it, itemIdx) => `
+                <tr style="border-top:1px solid #f1f4f8">
+                  <td style="padding:4px 8px;color:var(--txt2)">${itemIdx + 1}</td>
+                  <td style="padding:4px 8px;font-weight:600">${escapeHtml(it.period)}</td>
+                  <td style="padding:4px 8px"><span class="chip cb2" style="font-size:10px">${escapeHtml(it.type || 'Fee')}</span></td>
+                  <td style="padding:4px 8px;text-align:right;font-weight:700;color:var(--grn)">₹${it.amount.toLocaleString('en-IN')}</td>
+                </tr>
+              `).join('') : `
+                <tr>
+                  <td colspan="4" style="padding:6px 8px;color:var(--txt2);text-align:center">Direct payment transaction of ₹${tx.amount.toLocaleString('en-IN')}</td>
+                </tr>
+              `}
+            </tbody>
+          </table>
+        </td>
+      </tr>
+    `;
+  }).join('');
+
+  body.innerHTML = `
+    <div style="background:var(--gl);border-radius:8px;padding:12px 16px;margin-bottom:12px;display:flex;justify-content:space-between;align-items:center;border:1px solid #a9dfbf;flex-shrink:0">
+      <div>
+        <div style="font-size:11px;color:var(--grn);font-weight:600">Total Valid Fee Collections</div>
+        <div style="font-size:22px;font-weight:700;color:var(--grn)">₹${totalColl.toLocaleString('en-IN')}</div>
+      </div>
+      <div style="text-align:right">
+        <div style="font-size:12px;font-weight:700;color:var(--grn)">${totalRows.toLocaleString('en-IN')} receipt transaction(s)</div>
+        <div style="font-size:10.5px;color:var(--txt2)">Grouped by original payment receipt</div>
+      </div>
+    </div>
+    <div id="collectedTableContainer" style="flex:1;min-height:0;overflow-y:auto;overflow-x:hidden;width:100%;border:1px solid var(--bdr);border-radius:6px;background:var(--card-bg)">
+      <table style="width:100%;font-size:12px;border-collapse:collapse;table-layout:fixed">
+        <colgroup>
+          <col style="width:130px">
+          <col style="width:18%">
+          <col style="width:95px">
+          <col style="width:18%">
+          <col style="width:90px">
+          <col style="width:85px">
+          <col style="width:120px">
+          <col style="width:135px">
+        </colgroup>
+        <thead style="position:sticky;top:0;background:var(--bg);z-index:2">
+          <tr>
+            <th style="padding:10px 12px;text-align:left">Receipt #</th>
+            <th style="padding:10px 12px;text-align:left">Student</th>
+            <th style="padding:10px 6px;text-align:center">Class</th>
+            <th style="padding:10px 12px;text-align:left">Period</th>
+            <th style="padding:10px 8px;text-align:center">Date</th>
+            <th style="padding:10px 8px;text-align:center">Mode</th>
+            <th style="padding:10px 12px;text-align:right">Amount Received</th>
+            <th style="padding:10px 6px;text-align:center">Breakdown</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${rowsHtml}
+        </tbody>
+      </table>
+    </div>
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 4px 0 4px;font-size:12px;color:var(--txt2);flex-shrink:0">
+      <div style="display:flex;align-items:center;gap:12px">
+        <span>Showing <strong>${startIdx + 1}</strong>–<strong>${endIdx}</strong> of <strong>${totalRows}</strong> records</span>
+        <div style="display:flex;align-items:center;gap:6px">
+          <label style="font-size:11.5px">Rows per page:</label>
+          <select onchange="changeCollectedPageSize(this.value)" style="padding:2px 6px;font-size:11.5px;border:1px solid var(--bdr);border-radius:4px;background:var(--input-bg);color:var(--txt)">
+            <option value="25" ${pageSize === 25 ? 'selected' : ''}>25</option>
+            <option value="50" ${pageSize === 50 ? 'selected' : ''}>50</option>
+            <option value="100" ${pageSize === 100 ? 'selected' : ''}>100</option>
+            <option value="200" ${pageSize === 200 ? 'selected' : ''}>200</option>
+          </select>
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;gap:6px">
+        <button class="btn bo bsm" onclick="goToCollectedPage(1)" ${curPage === 1 ? 'disabled style="opacity:0.4;cursor:not-allowed"' : ''} title="First Page">⏮ First</button>
+        <button class="btn bo bsm" onclick="goToCollectedPage(${curPage - 1})" ${curPage === 1 ? 'disabled style="opacity:0.4;cursor:not-allowed"' : ''} title="Previous Page">◀ Prev</button>
+        <span style="font-weight:600;padding:0 6px">Page ${curPage} of ${totalPages}</span>
+        <button class="btn bo bsm" onclick="goToCollectedPage(${curPage + 1})" ${curPage === totalPages ? 'disabled style="opacity:0.4;cursor:not-allowed"' : ''} title="Next Page">Next ▶</button>
+        <button class="btn bo bsm" onclick="goToCollectedPage(${totalPages})" ${curPage === totalPages ? 'disabled style="opacity:0.4;cursor:not-allowed"' : ''} title="Last Page">Last ⏭</button>
+      </div>
+    </div>
+  `;
+}
+
+function goToCollectedPage(page) {
+  _colCurrentPage = page;
+  renderCollectedTable();
+  const c = document.getElementById('collectedTableContainer');
+  if (c) c.scrollTop = 0;
+}
+
+function changeCollectedPageSize(val) {
+  _colPageSize = parseInt(val) || 50;
+  _colCurrentPage = 1;
+  renderCollectedTable();
+}
+
+function togglePaymentBreakdown(rowId) {
+  const row = document.getElementById(`row_bkd_${rowId}`);
+  const btn = document.getElementById(`btn_bkd_${rowId}`);
   if (!row) return;
   if (row.style.display === 'none' || !row.style.display) {
     row.style.display = 'table-row';
@@ -2232,162 +2807,106 @@ function togglePaymentBreakdown(idx) {
   }
 }
 
-function showCollectedDetail() {
-  const transactions = getValidPaymentTransactions();
-  const body = document.getElementById('collectedBody');
-  if (!body) return;
-
+function exportCollectedCSV() {
+  const transactions = _cachedFilteredTransactions || [];
   if (!transactions.length) {
-    body.innerHTML = '<div class="empty" style="padding:24px 0">No fee payments collected yet.</div>';
-    openM('collectedM');
+    toast('No collected payment records to export for current filter!', 'warning');
     return;
   }
 
-  const totalColl = transactions.reduce((a, r) => a + r.amount, 0);
+  let csv = 'Receipt No,Admission No,Student Name,Class,Section,Billing Period,Payment Date,Payment Mode,Amount Received\n';
+  transactions.forEach(tx => {
+    const rNo = (tx.receiptNo || '').replace(/"/g, '""');
+    const adm = (tx.admno || '').replace(/"/g, '""');
+    const sName = (tx.studentName || '').replace(/"/g, '""');
+    const cls = (tx.cls || '').replace(/"/g, '""');
+    const sec = (tx.section || '').replace(/"/g, '""');
+    const period = (tx._summaryPeriod || tx.period || '').replace(/"/g, '""');
+    const dt = (tx.date || '').replace(/"/g, '""');
+    const mode = (tx.mode || 'Cash').replace(/"/g, '""');
+    const amt = Number(tx.amount) || 0;
+    csv += `"${rNo}","${adm}","${sName}","${cls}","${sec}","${period}","${dt}","${mode}",${amt}\n`;
+  });
 
-  body.innerHTML = `
-    <div style="background:var(--gl);border-radius:8px;padding:12px 16px;margin-bottom:12px;display:flex;justify-content:space-between;align-items:center;border:1px solid #a9dfbf;flex-shrink:0">
-      <div>
-        <div style="font-size:11px;color:var(--grn);font-weight:600">Total Valid Fee Collections</div>
-        <div style="font-size:22px;font-weight:700;color:var(--grn)">₹${totalColl.toLocaleString('en-IN')}</div>
-      </div>
-      <div style="text-align:right">
-        <div style="font-size:12px;font-weight:700;color:var(--grn)">${transactions.length} receipt transaction(s)</div>
-        <div style="font-size:10.5px;color:var(--txt2)">Grouped by original payment receipt</div>
-      </div>
-    </div>
-    <div style="flex:1;min-height:0;overflow-y:auto;overflow-x:hidden;width:100%;border:1px solid var(--bdr);border-radius:6px">
-      <table style="width:100%;font-size:12px;border-collapse:collapse;table-layout:fixed">
-        <colgroup>
-          <col style="width:135px">
-          <col style="width:18%">
-          <col style="width:95px">
-          <col style="width:17%">
-          <col style="width:90px">
-          <col style="width:70px">
-          <col style="width:120px">
-          <col style="width:145px">
-        </colgroup>
-        <thead style="position:sticky;top:0;background:var(--bg);z-index:2">
-          <tr>
-            <th>Receipt #</th>
-            <th>Student</th>
-            <th>Class</th>
-            <th>Period</th>
-            <th>Date</th>
-            <th>Mode</th>
-            <th style="text-align:right">Amount Received</th>
-            <th style="text-align:center">Breakdown</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${transactions.map((tx, idx) => {
-            const summaryPeriod = getTransactionSummaryPeriod(tx);
-            const groupedAllocations = groupFeeItemsByPeriod(tx.items);
-            let periodLinesHtml = '';
-            if (groupedAllocations.length > 0) {
-              periodLinesHtml = groupedAllocations.map(g => `
-                <div style="margin-bottom:3px;font-size:11.5px;line-height:1.4">
-                  <span style="font-weight:600;color:var(--txt)">${escapeHtml(g.type)}:</span> <span style="color:var(--txt2);font-weight:500">${escapeHtml(g.period)}</span>
-                </div>
-              `).join('');
-            } else {
-              periodLinesHtml = `<div style="font-size:11.5px;line-height:1.4;font-weight:600;color:var(--txt)">${escapeHtml(summaryPeriod)}</div>`;
-            }
-            return `
-            <tr>
-              <td style="padding:10px 12px"><strong style="color:var(--blu);font-family:monospace;font-size:12.5px">${escapeHtml(tx.receiptNo)}</strong></td>
-              <td style="padding:10px 12px;word-break:break-word"><strong>${escapeHtml(tx.studentName)}</strong> <span class="chip cb2" style="font-size:10px;margin-left:4px">${escapeHtml(tx.admno)}</span></td>
-              <td style="padding:10px 6px;text-align:center"><span class="chip cr" style="font-size:11px">${clL(tx.cls)}${tx.section ? ' (' + escapeHtml(tx.section) + ')' : ''}</span></td>
-              <td style="padding:10px 12px;vertical-align:top">${periodLinesHtml}</td>
-              <td style="padding:10px 8px;text-align:center">${escapeHtml(tx.date || '–')}</td>
-              <td style="padding:10px 8px;text-align:center"><span class="chip cg" style="font-size:11px">${escapeHtml(tx.mode || 'Cash')}</span></td>
-              <td style="padding:10px 12px;font-weight:700;color:var(--grn);text-align:right;font-size:13.5px;white-space:nowrap">₹${tx.amount.toLocaleString('en-IN')}</td>
-              <td style="padding:8px 6px;text-align:center;box-sizing:border-box">
-                <button class="btn bo bsm" id="btn_bkd_${idx}" onclick="togglePaymentBreakdown(${idx})" style="font-size:11px;padding:4px 8px;white-space:nowrap;cursor:pointer;display:inline-flex;align-items:center;justify-content:center">👁 View Breakdown</button>
-              </td>
-            </tr>
-            <tr id="row_bkd_${idx}" style="display:none;background:#fafbfc">
-              <td colspan="8" style="padding:10px 16px;border-top:none;border-bottom:1.5px solid var(--bdr)">
-                <div style="font-size:11px;font-weight:700;color:var(--txt2);text-transform:uppercase;margin-bottom:6px">Allocations Included in Receipt ${escapeHtml(tx.receiptNo)}:</div>
-                <table style="width:100%;font-size:12px;background:#ffffff;border:1px solid var(--bdr);border-radius:6px;overflow:hidden">
-                  <thead>
-                    <tr style="background:#f1f4f8">
-                      <th style="padding:6px 10px;font-size:11px;text-align:left">#</th>
-                      <th style="padding:6px 10px;font-size:11px;text-align:left">Period</th>
-                      <th style="padding:6px 10px;font-size:11px;text-align:left">Category</th>
-                      <th style="padding:6px 10px;font-size:11px;text-align:right">Allocated Amount</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    ${groupedAllocations.length > 0 ? groupedAllocations.map((it, itemIdx) => {
-                      return `
-                        <tr>
-                          <td style="padding:5px 10px;color:var(--txt2);width:30px">${itemIdx + 1}</td>
-                          <td style="padding:5px 10px;font-weight:600">${escapeHtml(it.period)}</td>
-                          <td style="padding:5px 10px"><span class="chip cb2" style="font-size:10.5px">${escapeHtml(it.type || 'Fee')}</span></td>
-                          <td style="padding:5px 10px;text-align:right;font-weight:700;color:var(--grn)">₹${it.amount.toLocaleString('en-IN')}</td>
-                        </tr>
-                      `;
-                    }).join('') : `
-                      <tr>
-                        <td colspan="4" style="padding:8px 10px;color:var(--txt2);text-align:center">Direct payment transaction of ₹${tx.amount.toLocaleString('en-IN')}</td>
-                      </tr>
-                    `}
-                  </tbody>
-                </table>
-              </td>
-            </tr>
-          `;
-          }).join('')}
-        </tbody>
-      </table>
-    </div>
-  `;
-  openM('collectedM');
+  expCSV('fee_collection_report.csv', csv);
 }
 
 function printCollected() {
-  const transactions = getValidPaymentTransactions();
+  const transactions = _cachedFilteredTransactions || [];
+  if (!transactions.length) {
+    toast('No collected payment records to print for current filter!', 'warning');
+    return;
+  }
+
   const s = DB.settings || {};
   const totalColl = transactions.reduce((a, r) => a + r.amount, 0);
 
+  const selCls = document.getElementById('col_f_cls')?.value || '';
+  const selSess = document.getElementById('col_f_sess')?.value || 'current';
+  const selMode = document.getElementById('col_f_mode')?.value || '';
+  const selDatePreset = document.getElementById('col_f_date_preset')?.value || 'all';
+  const selDateFrom = document.getElementById('col_f_date_from')?.value || '';
+  const selDateTo = document.getElementById('col_f_date_to')?.value || '';
+  const selMo = document.getElementById('col_f_mo')?.value || '';
+
+  const filterParts = [];
+  if (selCls) filterParts.push(`Class: ${clL(selCls)}`);
+  if (selSess && selSess !== 'all') filterParts.push(`Session: ${selSess === 'current' ? ((DB.settings && DB.settings.currentSession) || '2026–27') : selSess}`);
+  if (selMode) filterParts.push(`Mode: ${selMode}`);
+  if (selDatePreset === 'today') filterParts.push('Date: Today');
+  else if (selDatePreset === 'this_month') filterParts.push('Date: This Month');
+  else if (selDatePreset === 'custom') {
+    if (selDateFrom || selDateTo) filterParts.push(`Date: ${selDateFrom || 'Start'} to ${selDateTo || 'End'}`);
+  }
+  if (selMo) filterParts.push(`Month: ${selMo}`);
+
+  const filterSummary = filterParts.length > 0 ? filterParts.join(' | ') : 'All Records (No active filters)';
+
   const html = `<!DOCTYPE html><html><head><title>Fee Collection Report</title>
   <style>
-    body{font-family:Arial,sans-serif;margin:20px;font-size:12px}
+    body{font-family:Arial,sans-serif;margin:20px;font-size:12px;color:#111}
     table{width:100%;border-collapse:collapse;margin-top:10px}
     th{background:#27ae60;color:#fff;padding:7px 10px;text-align:left;font-size:11px}
-    td{padding:6px 10px;border-bottom:1px solid #eee}
+    td{padding:6px 10px;border-bottom:1px solid #eee;font-size:11px}
     tr:nth-child(even){background:#fafafa}
     .hdr{text-align:center;margin-bottom:14px;border-bottom:2px solid #27ae60;padding-bottom:10px}
     @media print{body{margin:0}}
   </style>
   </head><body>
   <div class="hdr">
-    <div style="font-size:16px;font-weight:700;color:#27ae60">${escapeHtml(s.schoolName || 'School Management System')}</div>
+    <div style="font-size:16px;font-weight:700;color:#27ae60">${escapeHtml(s.schoolName || 'MD Convent Public School')}</div>
     <div style="font-size:11px;color:#666">${escapeHtml(s.schoolAddr || '')} | Phone: ${escapeHtml(s.schoolPhone || '')}</div>
     <div style="font-size:13px;font-weight:600;margin-top:5px">Fee Collection Ledger Report (Receipt Summary)</div>
-    <div style="font-size:11px;color:#666">Generated: ${new Date().toLocaleDateString('en-IN')}</div>
+    <div style="font-size:10.5px;color:#555;margin-top:3px;font-style:italic">${escapeHtml(filterSummary)}</div>
+    <div style="font-size:11px;color:#666;margin-top:2px">Generated: ${new Date().toLocaleDateString('en-IN')}</div>
   </div>
   <div style="background:#e8f8f5;border:1px solid #a9dfbf;padding:10px 14px;margin-bottom:12px;display:flex;justify-content:space-between">
     <div><strong>Total Collections:</strong> ₹${totalColl.toLocaleString('en-IN')}</div>
-    <div><strong>Total Receipts:</strong> ${transactions.length}</div>
+    <div><strong>Total Receipts:</strong> ${transactions.length.toLocaleString('en-IN')}</div>
   </div>
   <table>
     <thead>
-      <tr><th>Receipt #</th><th>Student</th><th>Class</th><th>Period</th><th>Date</th><th>Mode</th><th style="text-align:right">Amount</th></tr>
+      <tr>
+        <th style="width:110px">Receipt #</th>
+        <th>Student</th>
+        <th style="width:75px">Class</th>
+        <th>Billing Period</th>
+        <th style="width:85px;text-align:center">Date</th>
+        <th style="width:80px;text-align:center">Mode</th>
+        <th style="text-align:right;width:110px">Amount Received</th>
+      </tr>
     </thead>
     <tbody>
       ${transactions.map(tx => {
-        const summaryPeriod = getTransactionSummaryPeriod(tx);
+        const summaryPeriod = tx._summaryPeriod || getTransactionSummaryPeriod(tx);
         return `
         <tr>
-          <td><strong>${escapeHtml(tx.receiptNo)}</strong></td>
+          <td><strong style="font-family:monospace">${escapeHtml(tx.receiptNo)}</strong></td>
           <td>${escapeHtml(tx.studentName)} (${escapeHtml(tx.admno)})</td>
-          <td>${clL(tx.cls)} Sec ${escapeHtml(tx.section)}</td>
+          <td>${clL(tx.cls)}${tx.section ? ' (' + escapeHtml(tx.section) + ')' : ''}</td>
           <td>${escapeHtml(summaryPeriod)}</td>
-          <td>${escapeHtml(tx.date || '–')}</td>
-          <td>${escapeHtml(tx.mode || 'Cash')}</td>
+          <td style="text-align:center">${escapeHtml(tx.date || '–')}</td>
+          <td style="text-align:center">${escapeHtml(tx.mode || 'Cash')}</td>
           <td style="text-align:right;font-weight:700;color:#27ae60">₹${tx.amount.toLocaleString('en-IN')}</td>
         </tr>
       `;
@@ -2424,7 +2943,7 @@ function getPendingFeesDueList(options = {}) {
   const selYear = options.year ? parseInt(options.year) : null;
 
   let rows = [];
-  const activeStudents = (DB.students || []).filter(s => s.status !== 'Inactive' && s.status !== 'Left School' && s.status !== 'Alumni');
+  const activeStudents = getActiveStudents();
   const targetStudents = selCls ? activeStudents.filter(s => s.cls === selCls) : activeStudents;
 
   targetStudents.forEach(s => {
@@ -2491,9 +3010,10 @@ function getPendingFeesDueList(options = {}) {
             const schoolAmt = (cfg.customTuition !== null && cfg.customTuition !== undefined && cfg.customTuition !== '' && !isNaN(Number(cfg.customTuition)))
               ? Number(cfg.customTuition) : struct.tuition;
             let paidAmt = 0;
-            if (Array.isArray(DB.payments)) {
-              DB.payments.forEach(p => {
-                if (!p.reversed && p.studentId === s.id && Array.isArray(p.items)) {
+            const stPayments = _idxPaymentsByStudent.get(s.id);
+            if (stPayments && stPayments.length > 0) {
+              stPayments.forEach(p => {
+                if (Array.isArray(p.items)) {
                   p.items.forEach(it => {
                     if (it.month === m && Number(it.year) === Number(y) && (it.type === 'School Fee' || it.type === 'Tuition')) {
                       paidAmt += (Number(it.paidAmount !== undefined ? it.paidAmount : (it.baseAmount || it.amount)) || 0);
@@ -2764,8 +3284,15 @@ function printPendingList() {
 // ============================================================
 // 2. STUDENT MANAGEMENT
 // ============================================================
+let stCurrentPage = 1;
+let stPageSize = 50;
+let stTotalFiltered = 0;
+let stTotalPages = 1;
+
 function renderSt() {
   fillDDs();
+  ensurePerformanceIndices();
+
   const cls = document.getElementById('fCls')?.value || '';
   const gen = document.getElementById('fGen')?.value || '';
   const stat = document.getElementById('fStat')?.value || '';
@@ -2776,13 +3303,27 @@ function renderSt() {
   if (gen) list = list.filter(s => s.gender === gen);
   if (stat) list = list.filter(s => (s.status || 'Active') === stat);
   if (q) {
-    list = list.filter(s =>
+    list = list.filter(s => s._searchStr ? s._searchStr.includes(q) : (
       (s.name && s.name.toLowerCase().includes(q)) ||
       (s.father && s.father.toLowerCase().includes(q)) ||
       String(s.admno).toLowerCase().includes(q) ||
       (s.srNo && String(s.srNo).toLowerCase().includes(q))
-    );
+    ));
   }
+
+  stTotalFiltered = list.length;
+  window.stTotalFiltered = stTotalFiltered;
+
+  const pageSize = (stPageSize === 'all') ? (list.length || 1) : parseInt(stPageSize) || 50;
+  stTotalPages = Math.max(1, Math.ceil(list.length / pageSize));
+  if (stCurrentPage > stTotalPages) stCurrentPage = stTotalPages;
+  if (stCurrentPage < 1) stCurrentPage = 1;
+
+  const startIdx = (stCurrentPage - 1) * pageSize;
+  const endIdx = (stPageSize === 'all') ? list.length : Math.min(startIdx + pageSize, list.length);
+  const pagedList = list.slice(startIdx, endIdx);
+
+  updateStudentsPaginationUI(startIdx, endIdx, list.length);
 
   const tb = document.getElementById('sTb');
   if (!tb) return;
@@ -2791,7 +3332,7 @@ function renderSt() {
     return;
   }
 
-  tb.innerHTML = list.map(s => {
+  tb.innerHTML = pagedList.map(s => {
     const isLeft = s.status === 'Left School' || s.status === 'School Left';
     const stClass = s.status === 'Active' ? 'cg' : s.status === 'Inactive' ? 'cy' : isLeft ? 'cgr' : 'cb2';
     const srChip = s.srNo ? `<span class="chip" style="background:var(--card);border:1px solid var(--bdr);font-size:11px">${escapeHtml(s.srNo)}</span>` : '<span style="color:var(--txt2);font-size:11px">–</span>';
@@ -2823,7 +3364,7 @@ function renderSt() {
     </tr>`;
   }).join('');
 
-  // Asynchronously populate visible student avatar images
+  // Asynchronously populate visible student avatar images (only for current page)
   const avatarWraps = tb.querySelectorAll('.st-avatar-wrap[data-photo]');
   avatarWraps.forEach(wrap => {
     const photoFile = wrap.getAttribute('data-photo');
@@ -2839,6 +3380,43 @@ function renderSt() {
       }
     });
   });
+}
+
+function updateStudentsPaginationUI(startIdx, endIdx, total) {
+  const infoEl = document.getElementById('stPageInfo');
+  const labelEl = document.getElementById('stPageNumberLabel');
+  const btnFirst = document.getElementById('stBtnFirst');
+  const btnPrev = document.getElementById('stBtnPrev');
+  const btnNext = document.getElementById('stBtnNext');
+  const btnLast = document.getElementById('stBtnLast');
+  const selEl = document.getElementById('stPageSizeSel');
+
+  if (infoEl) {
+    if (total === 0) infoEl.textContent = 'No records found';
+    else infoEl.textContent = `Showing ${startIdx + 1}–${endIdx} of ${total} students`;
+  }
+  if (labelEl) {
+    labelEl.textContent = `Page ${stCurrentPage} of ${stTotalPages}`;
+  }
+  if (btnFirst) btnFirst.disabled = (stCurrentPage <= 1);
+  if (btnPrev) btnPrev.disabled = (stCurrentPage <= 1);
+  if (btnNext) btnNext.disabled = (stCurrentPage >= stTotalPages);
+  if (btnLast) btnLast.disabled = (stCurrentPage >= stTotalPages);
+  if (selEl && String(selEl.value) !== String(stPageSize)) selEl.value = stPageSize;
+}
+
+function goToStudentsPage(p) {
+  const targetPage = Math.max(1, Math.min(parseInt(p) || 1, stTotalPages));
+  if (targetPage !== stCurrentPage) {
+    stCurrentPage = targetPage;
+    renderSt();
+  }
+}
+
+function changeStudentsPageSize(size) {
+  stPageSize = (size === 'all') ? 'all' : parseInt(size) || 50;
+  stCurrentPage = 1;
+  renderSt();
 }
 
 // Helper: Get local date formatted as YYYY-MM-DD
@@ -3361,7 +3939,7 @@ function resetForm() {
 }
 
 function editSt(id) {
-  const s = DB.students.find(x => x.id === id);
+  const s = getStudentById(id) || DB.students.find(x => x.id === id);
   if (!s) return;
   showPage('addstudent', null);
   fillDDs();
@@ -3454,7 +4032,7 @@ function editSt(id) {
 }
 
 function delSt(id) {
-  const s = DB.students.find(x => x.id === id);
+  const s = getStudentById(id) || DB.students.find(x => x.id === id);
   if (!s) return;
 
   // Check if financial history exists
@@ -3494,7 +4072,7 @@ function delSt(id) {
 
 function openFeeLedgerForStudent(studentId) {
   closeM('profM');
-  const s = (DB.students || []).find(x => x.id === Number(studentId));
+  const s = getStudentById(studentId) || (DB.students || []).find(x => x.id === Number(studentId));
   if (!s) {
     toast('Student record could not be found.', 'error');
     return;
@@ -3540,20 +4118,20 @@ function openFeeLedgerForStudent(studentId) {
 }
 
 function viewProf(id) {
-  const s = DB.students.find(x => x.id === id);
+  const s = getStudentById(id) || DB.students.find(x => x.id === id);
   if (!s) return;
 
-  // Financial summary for student
+  // Financial summary for student using O(1) indexed fees
+  ensurePerformanceIndices();
   let totFees = 0, totPaid = 0;
-  Object.entries(DB.fees || {}).forEach(([k, arr]) => {
-    if (k.startsWith(s.id + '_') && Array.isArray(arr)) {
-      arr.forEach(f => {
-        if (f.enabled !== false) {
-          totFees += (Number(f.amount) || 0);
-          if (f.paid) totPaid += (Number(f.amount) || 0);
-        }
-      });
-    }
+  const studentFeeEntries = _idxFeesByStudent.get(s.id) || [];
+  studentFeeEntries.forEach(({ arr }) => {
+    arr.forEach(f => {
+      if (f.enabled !== false) {
+        totFees += (Number(f.amount) || 0);
+        if (f.paid) totPaid += (Number(f.amount) || 0);
+      }
+    });
   });
   const outstandingDue = Math.max(0, totFees - totPaid);
 
@@ -4694,16 +5272,16 @@ function numberToWordsINR(amount) {
   const num = Math.round(Number(amount) || 0);
   if (num === 0) return 'Zero Rupees Only';
   const a = ['','One ','Two ','Three ','Four ','Five ','Six ','Seven ','Eight ','Nine ','Ten ','Eleven ','Twelve ','Thirteen ','Fourteen ','Fifteen ','Sixteen ','Seventeen ','Eighteen ','Nineteen '];
-  const b = ['', '', 'Twenty','Thirty','Forty','Fifty','Sixty','Seventy','Eighty','Ninety'];
+  const b = ['', '', 'Twenty ','Thirty ','Forty ','Fifty ','Sixty ','Seventy ','Eighty ','Ninety '];
   function inWords(n) {
     if (n < 20) return a[n];
-    if (n < 100) return b[Math.floor(n / 10)] + ((n % 10 !== 0) ? ' ' + a[n % 10] : '');
+    if (n < 100) return b[Math.floor(n / 10)] + ((n % 10 !== 0) ? a[n % 10] : '');
     if (n < 1000) return a[Math.floor(n / 100)] + 'Hundred ' + ((n % 100 !== 0) ? inWords(n % 100) : '');
     if (n < 100000) return inWords(Math.floor(n / 1000)) + 'Thousand ' + ((n % 1000 !== 0) ? inWords(n % 1000) : '');
     if (n < 10000000) return inWords(Math.floor(n / 100000)) + 'Lakh ' + ((n % 100000 !== 0) ? inWords(n % 100000) : '');
     return inWords(Math.floor(n / 10000000)) + 'Crore ' + ((n % 10000000 !== 0) ? inWords(n % 10000000) : '');
   }
-  return 'Rupees ' + inWords(num).trim() + ' Only';
+  return 'Rupees ' + inWords(num).replace(/\s+/g, ' ').trim() + ' Only';
 }
 
 // Student-wise Fee Configuration Helpers
@@ -4766,11 +5344,12 @@ function getStudentPreviousArrearsBreakdown(s, curSess = null) {
   enrollments.forEach(e => { if (e.session) studentPastSessions.push(e.session); });
   let feeRecordSum = 0;
 
-  // 1. Group previous session fee records by category and consecutive period ranges
+  // 1. Group previous session fee records by category using O(1) indexed fees
   const pastRecordsByCategory = {};
+  ensurePerformanceIndices();
+  const stFees = _idxFeesByStudent.get(s.id) || [];
 
-  Object.entries(DB.fees || {}).forEach(([k, arr]) => {
-    if (!k.startsWith(s.id + '_') || !Array.isArray(arr)) return;
+  stFees.forEach(({ key: k, arr }) => {
     const parts = k.split('_');
     const mo = parts[1], yr = parseInt(parts[2]);
     const mIdx = MONTHS_LIST.indexOf(mo);
@@ -8074,24 +8653,16 @@ function buildReceiptHTML(receiptNo, mode = 'preview') {
   const payMode = paymentRecord?.mode || matchingItems[0]?.mode || 'Cash';
   const grandTotal = paymentRecord ? Number(paymentRecord.amount) : matchingItems.reduce((a, it) => a + it.amount, 0);
   const isVoid = paymentRecord?.reversed === true;
+  const inWords = numberToWordsINR(grandTotal);
 
   // Determine badge and banner
   let badgeText = '';
-  let badgeBg = 'var(--gl)';
-  let badgeColor = 'var(--grn)';
-
   if (isVoid) {
     badgeText = 'VOID / CANCELLED';
-    badgeBg = 'var(--rl)';
-    badgeColor = 'var(--red)';
   } else if (paymentRecord?.paymentStatus === 'PARTIAL PAYMENT' || (paymentRecord?.totalRemainingDue > 0)) {
     badgeText = 'PARTIAL PAYMENT';
-    badgeBg = '#fff7ed';
-    badgeColor = '#c2410c';
   } else if (paymentRecord?.paymentStatus === 'FEE WAIVED' || (grandTotal === 0 && paymentRecord?.discountAmt > 0)) {
     badgeText = 'FEE WAIVED';
-    badgeBg = '#e0f2fe';
-    badgeColor = '#0284c7';
   }
 
   const receiptDesc = paymentRecord?.receiptDescription || (
@@ -8102,81 +8673,108 @@ function buildReceiptHTML(receiptNo, mode = 'preview') {
   );
 
   const logoHtml = settings.schoolLogo
-    ? `<img src="${settings.schoolLogo}" style="width:50px;height:50px;border-radius:50%;object-fit:cover;margin-bottom:4px" onerror="this.style.display='none'">`
+    ? `<img src="${settings.schoolLogo}" style="width:48px;height:48px;border-radius:50%;object-fit:cover;margin-bottom:4px" onerror="this.style.display='none'">`
     : '';
 
   // Itemized breakdown rows (with consecutive month grouping)
   const displayItems = groupReceiptItems(matchingItems);
-  let breakdownRowsHtml = '';
-  if (displayItems.length > 0) {
-    breakdownRowsHtml = displayItems.map((it, idx) => `
-      <div style="display:grid;grid-template-columns:1.8fr 1fr 1fr 1.1fr 1.1fr;gap:4px;padding:4px 0;font-size:11.5px;border-bottom:1px solid #f0f0f0;align-items:center">
-        <span>${idx + 1}. <strong>${it.type}</strong> <span style="font-size:10.5px;color:var(--txt2)">(${it.period})</span>${it.discount > 0 && it.discountReason ? `<div style="font-size:10px;color:var(--grn);font-weight:normal">Reason: ${escapeHtml(it.discountReason)}</div>` : ''}</span>
-        <span style="text-align:right">₹${(it.baseAmount || it.amount).toLocaleString('en-IN')}</span>
-        <span style="text-align:right;color:var(--grn)">${it.discount > 0 ? `-₹${it.discount.toLocaleString('en-IN')}` : '–'}</span>
-        <span style="text-align:right;font-weight:700">₹${(it.paidAmount !== undefined ? it.paidAmount : it.amount).toLocaleString('en-IN')}</span>
-        <span style="text-align:right;color:${it.remainingDue > 0 ? 'var(--red)' : 'var(--txt2)'};font-weight:${it.remainingDue > 0 ? '700' : 'normal'}">${it.remainingDue > 0 ? `₹${it.remainingDue.toLocaleString('en-IN')}` : '₹0'}</span>
-      </div>`).join('');
-  } else if (paymentRecord) {
-    breakdownRowsHtml = `
-      <div style="display:flex;justify-content:space-between;padding:4px 0;font-size:12px">
-        <span>${paymentRecord.category} (${paymentRecord.period})</span>
-        <span style="font-weight:600">₹${grandTotal.toLocaleString('en-IN')}</span>
-      </div>`;
-  }
 
   return `
-    <div style="position:relative;border:2px solid ${isVoid ? 'var(--red)' : 'var(--bdr)'};border-radius:10px;padding:16px;background:#fff">
-      ${isVoid ? `<div style="background:var(--rl);color:var(--red);border:1.5px solid var(--red);border-radius:6px;padding:6px;text-align:center;font-weight:700;font-size:12px;margin-bottom:10px">
+    <div style="position:relative;border:1.5px solid ${isVoid ? '#555' : '#222'};border-radius:4px;padding:16px 18px;background:#fff;color:#111;font-family:Arial,-apple-system,sans-serif;box-sizing:border-box">
+      ${isVoid ? `<div style="border:1.5px solid #222;background:#fbfbfb;border-radius:4px;padding:6px 10px;text-align:center;font-weight:700;font-size:11.5px;margin-bottom:10px;color:#111">
         *** VOID / CANCELLED RECEIPT ***<br>
-        <span style="font-size:11px;font-weight:500">Void Date: ${paymentRecord.voidDate || '–'} | Reason: ${paymentRecord.voidReason || '–'}</span>
+        <span style="font-size:10.5px;font-weight:normal;color:#444">Cancellation Date: ${escapeHtml(paymentRecord.voidDate || '–')} | Reason: ${escapeHtml(paymentRecord.voidReason || '–')}</span>
       </div>` : ''}
 
-      <div style="text-align:center;border-bottom:1px dashed var(--bdr);padding-bottom:10px;margin-bottom:10px">
+      <div style="text-align:center;border-bottom:1.5px solid #222;padding-bottom:10px;margin-bottom:12px">
         ${logoHtml}
-        <div style="font-weight:700;font-size:15px;color:var(--red)">${settings.schoolName || 'MD Convent Public School'}</div>
-        <div style="font-size:11px;color:var(--txt2)">${settings.schoolAddr || ''} | Phone: ${settings.schoolPhone || ''}</div>
-        <div style="margin-top:6px;display:flex;justify-content:center;gap:6px">
-          <span style="background:${isVoid ? 'var(--rl)' : 'var(--gl)'};color:${isVoid ? 'var(--red)' : 'var(--grn)'};padding:2px 12px;border-radius:20px;font-size:11px;font-weight:700">FEE PAYMENT RECEIPT</span>
-          ${badgeText ? `<span style="background:${badgeBg};color:${badgeColor};border:1px solid ${badgeColor};padding:2px 10px;border-radius:20px;font-size:10.5px;font-weight:700">${badgeText}</span>` : ''}
+        <div style="font-weight:700;font-size:17px;color:#111;letter-spacing:0.3px">${escapeHtml(settings.schoolName || 'MD Convent Public School')}</div>
+        <div style="font-size:11px;color:#555;margin-top:2px">${escapeHtml(settings.schoolAddr || '')}${settings.schoolPhone ? ` | Contact: ${escapeHtml(settings.schoolPhone)}` : ''}</div>
+        <div style="margin-top:8px;display:flex;justify-content:center;gap:6px;align-items:center">
+          <span style="display:inline-block;padding:2px 10px;border:1px solid #333;font-size:10.5px;font-weight:700;letter-spacing:0.8px;text-transform:uppercase;color:#111;border-radius:3px">OFFICIAL FEE RECEIPT</span>
+          ${badgeText ? `<span style="display:inline-block;padding:2px 8px;border:1px solid #555;font-size:10px;font-weight:700;letter-spacing:0.5px;color:#222;border-radius:3px;text-transform:uppercase">${escapeHtml(badgeText)}</span>` : ''}
         </div>
       </div>
 
-      <div class="rr"><span style="color:var(--txt2)">Receipt #</span><strong style="color:var(--blu)">${receiptNo}</strong></div>
-      <div class="rr"><span style="color:var(--txt2)">Date</span><span>${payDate}</span></div>
-      <div class="rr"><span style="color:var(--txt2)">Student Name</span><strong>${s.name}</strong></div>
-      <div class="rr"><span style="color:var(--txt2)">Admission No</span><span>${s.admno}</span></div>
-      <div class="rr"><span style="color:var(--txt2)">Class & Section</span><span>${clL(s.cls)} (Sec ${s.section || 'A'})</span></div>
-      <div class="rr"><span style="color:var(--txt2)">Payment Method</span><strong>${payMode}</strong></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;column-gap:14px;row-gap:2px;margin-bottom:10px;font-size:11.5px">
+        <div>
+          <div style="display:flex;justify-content:space-between;padding:2.5px 0;border-bottom:1px solid #e8e8e8"><span style="color:#555">Receipt Number</span><strong style="color:#111">${escapeHtml(receiptNo)}</strong></div>
+          <div style="display:flex;justify-content:space-between;padding:2.5px 0;border-bottom:1px solid #e8e8e8"><span style="color:#555">Student Name</span><strong style="color:#111">${escapeHtml(s.name)}</strong></div>
+          <div style="display:flex;justify-content:space-between;padding:2.5px 0;border-bottom:1px solid #e8e8e8"><span style="color:#555">Admission No</span><span style="color:#111">${escapeHtml(s.admno)}</span></div>
+          <div style="display:flex;justify-content:space-between;padding:2.5px 0;border-bottom:1px solid #e8e8e8"><span style="color:#555">Father Name</span><span style="color:#111">${escapeHtml(s.father || '–')}</span></div>
+        </div>
+        <div>
+          <div style="display:flex;justify-content:space-between;padding:2.5px 0;border-bottom:1px solid #e8e8e8"><span style="color:#555">Date</span><span style="color:#111">${escapeHtml(payDate)}</span></div>
+          <div style="display:flex;justify-content:space-between;padding:2.5px 0;border-bottom:1px solid #e8e8e8"><span style="color:#555">Academic Session</span><span style="color:#111">${escapeHtml(paymentRecord?.session || settings.currentSession || '2026–27')}</span></div>
+          <div style="display:flex;justify-content:space-between;padding:2.5px 0;border-bottom:1px solid #e8e8e8"><span style="color:#555">Class &amp; Section</span><span style="color:#111">${escapeHtml(clL(s.cls))} (Sec ${escapeHtml(s.section || 'A')})</span></div>
+          <div style="display:flex;justify-content:space-between;padding:2.5px 0;border-bottom:1px solid #e8e8e8"><span style="color:#555">Payment Mode</span><strong style="color:#111">${escapeHtml(payMode)}</strong></div>
+        </div>
+      </div>
 
       ${badgeText ? `
-      <!-- Receipt Description & Balance Note (partial, void, or waived) -->
-      <div style="background:${badgeText === 'PARTIAL PAYMENT' ? '#fff7ed' : '#f0fdf4'};border:1px solid ${badgeText === 'PARTIAL PAYMENT' ? '#fdba74' : '#bbf7d0'};border-radius:6px;padding:7px 10px;margin:10px 0;font-size:11.5px;color:${badgeText === 'PARTIAL PAYMENT' ? '#9a3412' : '#166534'};font-weight:600">
-        📌 <strong>Receipt Note:</strong> ${receiptDesc}
+      <div style="border:1px solid #ccc;background:#fafafa;border-radius:4px;padding:6px 10px;margin:8px 0;font-size:11px;color:#222;line-height:1.4">
+        <strong>Receipt Note:</strong> ${escapeHtml(receiptDesc)}
       </div>` : ''}
 
-      <div style="margin-top:10px;margin-bottom:4px;font-size:11px;font-weight:700;color:var(--txt2);text-transform:uppercase">Itemized Breakdown</div>
-      <div style="background:var(--bg);border-radius:6px;padding:6px 10px;margin-bottom:8px">
-        <div style="display:grid;grid-template-columns:1.8fr 1fr 1fr 1.1fr 1.1fr;gap:4px;font-size:10.5px;font-weight:700;color:var(--txt2);border-bottom:1px solid var(--bdr);padding-bottom:3px;margin-bottom:4px">
-          <span>Particulars</span>
-          <span style="text-align:right">Original</span>
-          <span style="text-align:right">Discount</span>
-          <span style="text-align:right">Paid</span>
-          <span style="text-align:right">Balance Due</span>
+      <table style="width:100%;border-collapse:collapse;margin:10px 0;table-layout:fixed;box-sizing:border-box">
+        <thead>
+          <tr style="background:#f2f2f2">
+            <th style="width:5%;border:1px solid #ccc;padding:5px 6px;text-align:center;font-size:10.5px;font-weight:700;color:#111">#</th>
+            <th style="width:18%;border:1px solid #ccc;padding:5px 6px;text-align:left;font-size:10.5px;font-weight:700;color:#111">Billing Period</th>
+            <th style="width:24%;border:1px solid #ccc;padding:5px 6px;text-align:left;font-size:10.5px;font-weight:700;color:#111">Category</th>
+            <th style="width:13%;border:1px solid #ccc;padding:5px 6px;text-align:right;font-size:10.5px;font-weight:700;color:#111">Original Fee</th>
+            <th style="width:11%;border:1px solid #ccc;padding:5px 6px;text-align:right;font-size:10.5px;font-weight:700;color:#111">Discount</th>
+            <th style="width:15%;border:1px solid #ccc;padding:5px 6px;text-align:right;font-size:10.5px;font-weight:700;color:#111">Amount Paid</th>
+            <th style="width:14%;border:1px solid #ccc;padding:5px 6px;text-align:right;font-size:10.5px;font-weight:700;color:#111">Balance Due</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${displayItems.length > 0 ? displayItems.map((it, idx) => `
+            <tr>
+              <td style="border:1px solid #ddd;padding:5px 6px;text-align:center;font-size:11px">${idx + 1}</td>
+              <td style="border:1px solid #ddd;padding:5px 6px;text-align:left;font-size:11px;word-break:break-word">${escapeHtml(it.period)}</td>
+              <td style="border:1px solid #ddd;padding:5px 6px;text-align:left;font-size:11px;word-break:break-word"><strong>${escapeHtml(it.type)}</strong>${it.discount > 0 && it.discountReason ? `<div style="font-size:9.5px;color:#555;font-weight:normal;margin-top:1px">Reason: ${escapeHtml(it.discountReason)}</div>` : ''}</td>
+              <td style="border:1px solid #ddd;padding:5px 6px;text-align:right;font-size:11px">₹${(it.baseAmount || it.amount).toLocaleString('en-IN')}</td>
+              <td style="border:1px solid #ddd;padding:5px 6px;text-align:right;font-size:11px">${it.discount > 0 ? `-₹${it.discount.toLocaleString('en-IN')}` : '–'}</td>
+              <td style="border:1px solid #ddd;padding:5px 6px;text-align:right;font-size:11px;font-weight:700">₹${(it.paidAmount !== undefined ? it.paidAmount : it.amount).toLocaleString('en-IN')}</td>
+              <td style="border:1px solid #ddd;padding:5px 6px;text-align:right;font-size:11px;color:${it.remainingDue > 0 ? '#111' : '#666'};font-weight:${it.remainingDue > 0 ? '700' : 'normal'}">${it.remainingDue > 0 ? `₹${it.remainingDue.toLocaleString('en-IN')}` : '₹0'}</td>
+            </tr>`).join('') : `
+            <tr>
+              <td style="border:1px solid #ddd;padding:5px 6px;text-align:center;font-size:11px">1</td>
+              <td style="border:1px solid #ddd;padding:5px 6px;text-align:left;font-size:11px">${escapeHtml(paymentRecord?.period || '–')}</td>
+              <td style="border:1px solid #ddd;padding:5px 6px;text-align:left;font-size:11px"><strong>${escapeHtml(paymentRecord?.category || 'School Fee')}</strong></td>
+              <td style="border:1px solid #ddd;padding:5px 6px;text-align:right;font-size:11px">₹${grandTotal.toLocaleString('en-IN')}</td>
+              <td style="border:1px solid #ddd;padding:5px 6px;text-align:right;font-size:11px">–</td>
+              <td style="border:1px solid #ddd;padding:5px 6px;text-align:right;font-size:11px;font-weight:700">₹${grandTotal.toLocaleString('en-IN')}</td>
+              <td style="border:1px solid #ddd;padding:5px 6px;text-align:right;font-size:11px">₹0</td>
+            </tr>`}
+        </tbody>
+      </table>
+
+      <div style="margin-top:8px;display:flex;justify-content:flex-end">
+        <div style="width:260px;font-size:11.5px">
+          ${paymentRecord?.lateFee > 0 ? `<div style="display:flex;justify-content:space-between;padding:2px 0;color:#222"><span>Late Fee</span><span>+₹${paymentRecord.lateFee.toLocaleString('en-IN')}</span></div>` : ''}
+          ${paymentRecord?.discountAmt > 0 ? `<div style="display:flex;justify-content:space-between;padding:2px 0;color:#222"><span>Total Discount ${paymentRecord.discountReason ? `(${escapeHtml(paymentRecord.discountReason)})` : ''}</span><span>-₹${paymentRecord.discountAmt.toLocaleString('en-IN')}</span></div>` : ''}
+          <div style="display:flex;justify-content:space-between;align-items:center;font-weight:700;font-size:13.5px;border-top:1.5px solid #222;border-bottom:1.5px solid #222;padding:4px 0;margin-top:2px;color:#111">
+            <span>Grand Total Paid</span>
+            <span style="${isVoid ? 'text-decoration:line-through;color:#777' : 'color:#111'}">₹${grandTotal.toLocaleString('en-IN')}</span>
+          </div>
         </div>
-        ${breakdownRowsHtml}
       </div>
 
-      ${paymentRecord?.discountAmt > 0 ? `<div class="rr" style="color:var(--grn)"><span>Total Discount ${paymentRecord.discountReason ? `(${escapeHtml(paymentRecord.discountReason)})` : ''}</span><span>-₹${Number(paymentRecord.discountAmt).toLocaleString('en-IN')}</span></div>` : ''}
-      ${paymentRecord?.lateFee > 0 ? `<div class="rr" style="color:#d35400"><span>Late Fee</span><span>+₹${Number(paymentRecord.lateFee).toLocaleString('en-IN')}</span></div>` : ''}
-
-      <div class="rt" style="font-size:15px">
-        <span>Grand Total Paid</span>
-        <span style="color:${isVoid ? 'var(--txt2)' : 'var(--grn)'};${isVoid ? 'text-decoration:line-through' : ''}">₹${grandTotal.toLocaleString('en-IN')}</span>
+      <div style="margin-top:8px;font-size:11px;color:#222;border-top:1px solid #e8e8e8;padding-top:6px">
+        <strong>Amount in Words:</strong> ${escapeHtml(inWords)}
       </div>
 
-      <div style="margin-top:14px;text-align:center;font-size:10px;color:var(--txt2);border-top:1px dashed var(--bdr);padding-top:8px">
-        Computer Generated Receipt · Authorized Signatory: ${settings.principalName || 'Tanmay Soni'}
+      <div style="margin-top:18px;display:flex;justify-content:space-between;align-items:flex-end;border-top:1px solid #ccc;padding-top:8px;font-size:10px;color:#555">
+        <div>
+          <div>Computer Generated Receipt</div>
+          <div style="margin-top:2px;color:#222">Authorized Signatory: <strong>${escapeHtml(settings.principalName || 'Tanmay Soni')}</strong></div>
+        </div>
+        <div style="text-align:center;min-width:130px">
+          <div style="height:28px;border-bottom:1px solid #333;margin-bottom:3px"></div>
+          <div style="font-size:9.5px;color:#222;font-weight:600">Principal / Authorized Signature</div>
+        </div>
       </div>
     </div>`;
 }
@@ -8259,25 +8857,13 @@ function printReceiptByNumber(receiptNo, format = 'a4') {
 
   // Determine badge and banner
   let badgeText = '';
-  let badgeBorder = '#27ae60';
-  let badgeBg = '#eafaf1';
-  let badgeColor = '#27ae60';
 
   if (isVoid) {
     badgeText = 'VOID / CANCELLED';
-    badgeBorder = '#c0392b';
-    badgeBg = '#fdecea';
-    badgeColor = '#c0392b';
   } else if (paymentRecord?.paymentStatus === 'PARTIAL PAYMENT' || (paymentRecord?.totalRemainingDue > 0)) {
     badgeText = 'PARTIAL PAYMENT';
-    badgeBorder = '#c2410c';
-    badgeBg = '#fff7ed';
-    badgeColor = '#c2410c';
   } else if (paymentRecord?.paymentStatus === 'FEE WAIVED' || (grandTotal === 0 && paymentRecord?.discountAmt > 0)) {
     badgeText = 'FEE WAIVED';
-    badgeBorder = '#0284c7';
-    badgeBg = '#e0f2fe';
-    badgeColor = '#0284c7';
   }
 
   const receiptDesc = paymentRecord?.receiptDescription || (
@@ -8355,109 +8941,115 @@ function printReceiptByNumber(receiptNo, format = 'a4') {
     </body></html>`;
   } else {
     // Formal A4 Printable School Receipt Layout
-    html = `<!DOCTYPE html><html><head><title>Receipt - ${receiptNo}</title>
+    html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Receipt - ${escapeHtml(receiptNo)}</title>
     <style>
-      @page { size: A4; margin: 12mm; }
-      body { margin: 0; font-family: Arial, sans-serif; font-size: 12.5px; color: #222; background: #fff; }
-      .rc-box { max-width: 720px; margin: 10px auto; border: 2px solid ${isVoid ? '#c0392b' : '#333'}; border-radius: 8px; padding: 20px; position: relative; }
-      .hdr { text-align: center; border-bottom: 2px solid #2E236C; padding-bottom: 10px; margin-bottom: 12px; }
-      .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-      .rw { display: flex; justify-content: space-between; padding: 3px 0; border-bottom: 1px solid #f0f0f0; }
-      table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-      th { background: #f5f5f5; border: 1px solid #ddd; padding: 8px 10px; text-align: left; font-size: 11px; }
-      td { border: 1px solid #ddd; padding: 7px 10px; font-size: 12px; }
+      @page { size: A4 portrait; margin: 10mm; }
+      *, *::before, *::after { box-sizing: border-box; }
+      html, body { margin: 0; padding: 0; font-family: Arial, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, sans-serif; font-size: 12px; color: #111; background: #fff; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      .rc-box { width: 100%; max-width: 680px; margin: 0 auto; border: 1.5px solid ${isVoid ? '#555' : '#222'}; border-radius: 4px; padding: 18px 20px; position: relative; background: #fff; box-sizing: border-box; page-break-inside: avoid; break-inside: avoid; }
+      .hdr { text-align: center; border-bottom: 1.5px solid #222; padding-bottom: 10px; margin-bottom: 12px; }
+      .grid2 { display: grid; grid-template-columns: 1fr 1fr; column-gap: 16px; row-gap: 2px; margin-bottom: 10px; }
+      .rw { display: flex; justify-content: space-between; align-items: baseline; padding: 3px 0; border-bottom: 1px solid #e8e8e8; font-size: 11.5px; }
+      .rw .lbl { color: #555; }
+      .rw .val { color: #111; font-weight: 600; text-align: right; word-break: break-word; max-width: 60%; }
+      table { width: 100%; border-collapse: collapse; margin-top: 10px; table-layout: fixed; box-sizing: border-box; }
+      th { background: #f2f2f2; border: 1px solid #ccc; padding: 6px 8px; font-size: 11px; font-weight: 700; color: #111; vertical-align: middle; box-sizing: border-box; }
+      td { border: 1px solid #ddd; padding: 6px 8px; font-size: 11.5px; color: #222; vertical-align: top; word-wrap: break-word; overflow-wrap: break-word; word-break: break-word; box-sizing: border-box; }
     </style></head><body>
       <div class="rc-box">
-        ${isVoid ? `<div style="background:#fdecea;color:#c0392b;border:1.5px solid #c0392b;border-radius:6px;padding:8px;text-align:center;font-weight:bold;font-size:12.5px;margin-bottom:12px">
+        ${isVoid ? `<div style="border:1.5px solid #222;background:#fbfbfb;border-radius:4px;padding:6px 10px;text-align:center;font-weight:700;font-size:12px;margin-bottom:10px;color:#111">
           *** THIS RECEIPT HAS BEEN VOIDED / CANCELLED ***<br>
-          <span style="font-size:11px;font-weight:normal">Cancellation Date: ${paymentRecord.voidDate || ''} | Reason: ${paymentRecord.voidReason || ''}</span>
+          <span style="font-size:10.5px;font-weight:normal;color:#444">Cancellation Date: ${escapeHtml(paymentRecord.voidDate || '–')} | Reason: ${escapeHtml(paymentRecord.voidReason || '–')}</span>
         </div>` : ''}
 
         <div class="hdr">
           ${logoHtml}
-          <div style="font-weight:bold;font-size:18px;color:#2E236C">${settings.schoolName || 'MD Convent Public School'}</div>
-          <div style="font-size:11px;color:#555">${settings.schoolAddr || ''} | Contact: ${settings.schoolPhone || ''}</div>
-          <div style="margin-top:6px;display:flex;justify-content:center;gap:8px">
-            <span style="background:${isVoid ? '#fdecea' : '#eafaf1'};color:${isVoid ? '#c0392b' : '#27ae60'};padding:3px 16px;border-radius:20px;font-weight:bold;font-size:11.5px;border:1px solid ${isVoid ? '#f5b7b1' : '#a9dfbf'}">OFFICIAL FEE RECEIPT</span>
-            ${badgeText ? `<span style="background:${badgeBg};color:${badgeColor};padding:3px 14px;border-radius:20px;font-weight:bold;font-size:11.5px;border:1px solid ${badgeBorder}">${badgeText}</span>` : ''}
+          <div style="font-weight:700;font-size:18px;color:#111;letter-spacing:0.3px">${escapeHtml(settings.schoolName || 'MD Convent Public School')}</div>
+          <div style="font-size:11px;color:#555;margin-top:2px">${escapeHtml(settings.schoolAddr || '')}${settings.schoolPhone ? ` | Contact: ${escapeHtml(settings.schoolPhone)}` : ''}</div>
+          <div style="margin-top:8px;display:flex;justify-content:center;gap:8px;align-items:center">
+            <span style="display:inline-block;padding:2px 12px;border:1px solid #333;font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:#111;border-radius:3px">OFFICIAL FEE RECEIPT</span>
+            ${badgeText ? `<span style="display:inline-block;padding:2px 10px;border:1px solid #555;font-size:10.5px;font-weight:700;letter-spacing:0.5px;color:#222;border-radius:3px;text-transform:uppercase">${escapeHtml(badgeText)}</span>` : ''}
           </div>
         </div>
 
-        <div class="grid2" style="margin-bottom:10px">
+        <div class="grid2">
           <div>
-            <div class="rw"><span style="color:#666">Receipt Number</span><strong>${receiptNo}</strong></div>
-            <div class="rw"><span style="color:#666">Student Name</span><strong>${s.name}</strong></div>
-            <div class="rw"><span style="color:#666">Admission No</span><span>${s.admno}</span></div>
-            <div class="rw"><span style="color:#666">Father Name</span><span>${s.father || '–'}</span></div>
+            <div class="rw"><span class="lbl">Receipt Number</span><strong class="val">${escapeHtml(receiptNo)}</strong></div>
+            <div class="rw"><span class="lbl">Student Name</span><strong class="val">${escapeHtml(s.name)}</strong></div>
+            <div class="rw"><span class="lbl">Admission No</span><span class="val">${escapeHtml(s.admno)}</span></div>
+            <div class="rw"><span class="lbl">Father Name</span><span class="val">${escapeHtml(s.father || '–')}</span></div>
           </div>
           <div>
-            <div class="rw"><span style="color:#666">Date</span><span>${payDate}</span></div>
-            <div class="rw"><span style="color:#666">Academic Session</span><span>${paymentRecord?.session || settings.currentSession || '2026–27'}</span></div>
-            <div class="rw"><span style="color:#666">Class & Section</span><span>${clL(s.cls)} (Sec ${s.section || 'A'})</span></div>
-            <div class="rw"><span style="color:#666">Payment Mode</span><strong>${payMode}</strong></div>
+            <div class="rw"><span class="lbl">Date</span><span class="val">${escapeHtml(payDate)}</span></div>
+            <div class="rw"><span class="lbl">Academic Session</span><span class="val">${escapeHtml(paymentRecord?.session || settings.currentSession || '2026–27')}</span></div>
+            <div class="rw"><span class="lbl">Class &amp; Section</span><span class="val">${escapeHtml(clL(s.cls))} (Sec ${escapeHtml(s.section || 'A')})</span></div>
+            <div class="rw"><span class="lbl">Payment Mode</span><strong class="val">${escapeHtml(payMode)}</strong></div>
           </div>
         </div>
 
         ${badgeText ? `
-        <div style="background:${badgeText === 'PARTIAL PAYMENT' ? '#fff7ed' : '#f0fdf4'};border:1px solid ${badgeText === 'PARTIAL PAYMENT' ? '#fed7aa' : '#bbf7d0'};border-radius:6px;padding:8px 12px;margin:10px 0;font-size:12px;color:${badgeText === 'PARTIAL PAYMENT' ? '#9a3412' : '#166534'}">
-          <strong>Receipt Note:</strong> ${receiptDesc}
+        <div style="border:1px solid #ccc;background:#fafafa;border-radius:4px;padding:6px 10px;margin:8px 0;font-size:11px;color:#222;line-height:1.4">
+          <strong>Receipt Note:</strong> ${escapeHtml(receiptDesc)}
         </div>` : ''}
 
         <table>
           <thead>
             <tr>
-              <th style="width:30px">#</th>
-              <th>Billing Period</th>
-              <th>Category</th>
-              <th style="width:90px;text-align:right">Original Fee</th>
-              <th style="width:80px;text-align:right">Discount</th>
-              <th style="width:95px;text-align:right">Amount Paid</th>
-              <th style="width:90px;text-align:right">Balance Due</th>
+              <th style="width:5%;text-align:center">#</th>
+              <th style="width:18%;text-align:left">Billing Period</th>
+              <th style="width:24%;text-align:left">Category</th>
+              <th style="width:13%;text-align:right">Original Fee</th>
+              <th style="width:11%;text-align:right">Discount</th>
+              <th style="width:15%;text-align:right">Amount Paid</th>
+              <th style="width:14%;text-align:right">Balance Due</th>
             </tr>
           </thead>
           <tbody>
             ${displayItems.length > 0 ? displayItems.map((it, idx) => `
               <tr>
-                <td>${idx + 1}</td>
-                <td>${it.period}</td>
-                <td><strong>${it.type}</strong>${it.discount > 0 && it.discountReason ? `<div style="font-size:10.5px;color:#27ae60;font-weight:normal">Reason: ${escapeHtml(it.discountReason)}</div>` : ''}</td>
+                <td style="text-align:center">${idx + 1}</td>
+                <td>${escapeHtml(it.period)}</td>
+                <td><strong>${escapeHtml(it.type)}</strong>${it.discount > 0 && it.discountReason ? `<div style="font-size:10px;color:#555;font-weight:normal;margin-top:2px">Reason: ${escapeHtml(it.discountReason)}</div>` : ''}</td>
                 <td style="text-align:right">₹${(it.baseAmount || it.amount).toLocaleString('en-IN')}</td>
-                <td style="text-align:right;color:#27ae60">${it.discount > 0 ? `-₹${it.discount.toLocaleString('en-IN')}` : '–'}</td>
-                <td style="text-align:right;font-weight:bold">₹${(it.paidAmount !== undefined ? it.paidAmount : it.amount).toLocaleString('en-IN')}</td>
-                <td style="text-align:right;color:${it.remainingDue > 0 ? '#c0392b' : '#666'};font-weight:${it.remainingDue > 0 ? 'bold' : 'normal'}">${it.remainingDue > 0 ? `₹${it.remainingDue.toLocaleString('en-IN')}` : '₹0'}</td>
+                <td style="text-align:right">${it.discount > 0 ? `-₹${it.discount.toLocaleString('en-IN')}` : '–'}</td>
+                <td style="text-align:right;font-weight:700">₹${(it.paidAmount !== undefined ? it.paidAmount : it.amount).toLocaleString('en-IN')}</td>
+                <td style="text-align:right;color:${it.remainingDue > 0 ? '#111' : '#666'};font-weight:${it.remainingDue > 0 ? '700' : 'normal'}">${it.remainingDue > 0 ? `₹${it.remainingDue.toLocaleString('en-IN')}` : '₹0'}</td>
               </tr>`).join('') : `
               <tr>
-                <td>1</td>
-                <td>${paymentRecord?.period || '–'}</td>
-                <td><strong>${paymentRecord?.category || 'School Fee'}</strong></td>
+                <td style="text-align:center">1</td>
+                <td>${escapeHtml(paymentRecord?.period || '–')}</td>
+                <td><strong>${escapeHtml(paymentRecord?.category || 'School Fee')}</strong></td>
                 <td style="text-align:right">₹${grandTotal.toLocaleString('en-IN')}</td>
                 <td style="text-align:right">–</td>
-                <td style="text-align:right;font-weight:bold">₹${grandTotal.toLocaleString('en-IN')}</td>
+                <td style="text-align:right;font-weight:700">₹${grandTotal.toLocaleString('en-IN')}</td>
                 <td style="text-align:right">₹0</td>
               </tr>`}
           </tbody>
         </table>
 
         <div style="margin-top:10px;display:flex;justify-content:flex-end">
-          <div style="width:280px;font-size:12.5px">
-            ${paymentRecord?.lateFee > 0 ? `<div style="display:flex;justify-content:space-between;padding:2px 0;color:#d35400"><span>Late Fee</span><span>+₹${paymentRecord.lateFee.toLocaleString('en-IN')}</span></div>` : ''}
-            ${paymentRecord?.discountAmt > 0 ? `<div style="display:flex;justify-content:space-between;padding:2px 0;color:#27ae60"><span>Total Discount ${paymentRecord.discountReason ? `(${escapeHtml(paymentRecord.discountReason)})` : ''}</span><span>-₹${paymentRecord.discountAmt.toLocaleString('en-IN')}</span></div>` : ''}
-            <div style="display:flex;justify-content:space-between;font-weight:bold;font-size:14px;border-top:2px solid #333;padding-top:4px">
+          <div style="width:280px;font-size:11.5px">
+            ${paymentRecord?.lateFee > 0 ? `<div style="display:flex;justify-content:space-between;padding:2px 0;color:#222"><span>Late Fee</span><span>+₹${paymentRecord.lateFee.toLocaleString('en-IN')}</span></div>` : ''}
+            ${paymentRecord?.discountAmt > 0 ? `<div style="display:flex;justify-content:space-between;padding:2px 0;color:#222"><span>Total Discount ${paymentRecord.discountReason ? `(${escapeHtml(paymentRecord.discountReason)})` : ''}</span><span>-₹${paymentRecord.discountAmt.toLocaleString('en-IN')}</span></div>` : ''}
+            <div style="display:flex;justify-content:space-between;align-items:center;font-weight:700;font-size:13.5px;border-top:1.5px solid #222;border-bottom:1.5px solid #222;padding:5px 0;margin-top:3px;color:#111">
               <span>Grand Total Paid</span>
-              <span style="color:${isVoid ? '#666' : '#27ae60'};${isVoid ? 'text-decoration:line-through' : ''}">₹${grandTotal.toLocaleString('en-IN')}</span>
+              <span style="${isVoid ? 'text-decoration:line-through;color:#777' : 'color:#111'}">₹${grandTotal.toLocaleString('en-IN')}</span>
             </div>
           </div>
         </div>
 
-        <div style="margin-top:6px;font-size:11.5px;color:#444"><strong>In Words:</strong> ${inWords}</div>
+        <div style="margin-top:8px;font-size:11px;color:#222;border-top:1px solid #e8e8e8;padding-top:6px">
+          <strong>Amount in Words:</strong> ${escapeHtml(inWords)}
+        </div>
 
-        <div style="margin-top:24px;display:flex;justify-content:space-between;align-items:flex-end;border-top:1px dashed #ccc;padding-top:12px;font-size:11px;color:#666">
+        <div style="margin-top:22px;display:flex;justify-content:space-between;align-items:flex-end;border-top:1px solid #ccc;padding-top:10px;font-size:10.5px;color:#555">
           <div>
-            Computer Generated Receipt<br>
-            Authorized Signatory: <strong>${settings.principalName || 'Tanmay Soni'}</strong>
+            <div style="font-size:10px;color:#666">Computer Generated Receipt</div>
+            <div style="margin-top:2px;color:#222">Authorized Signatory: <strong>${escapeHtml(settings.principalName || 'Tanmay Soni')}</strong></div>
           </div>
-          <div style="text-align:center;width:130px;height:45px;border:1px dashed #bbb;border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:10px;color:#666">
-            Principal Signature
+          <div style="text-align:center;min-width:140px">
+            <div style="height:32px;border-bottom:1px solid #333;margin-bottom:4px"></div>
+            <div style="font-size:10px;color:#222;font-weight:600">Principal / Authorized Signature</div>
           </div>
         </div>
       </div>
@@ -8708,7 +9300,7 @@ function renderMonthWiseSummary() {
     selYr = parseInt(parts[1]);
   }
 
-  const activeStudents = (DB.students || []).filter(s => s.status !== 'Inactive' && s.status !== 'Left School' && s.status !== 'Alumni');
+  const activeStudents = getActiveStudents();
 
   // Filter months list: Show ONLY the selected month in the summary table
   const monthsToRender = MONTHS_LIST
@@ -8743,12 +9335,8 @@ function renderMonthWiseSummary() {
         if (cfg.tuition !== false) expected += struct.tuition;
         // Admission fee is only expected in April (start of session) if not already paid
         if (mIdx === 0 && cfg.admission !== false) {
-          let admPaid = false;
-          Object.entries(DB.fees || {}).forEach(([k, arr]) => {
-            if (k.startsWith(st.id + '_') && Array.isArray(arr) && arr.some(f => f.type === 'Admission Fee' && f.paid)) {
-              admPaid = true;
-            }
-          });
+          const stFees = _idxFeesByStudent.get(st.id) || [];
+          const admPaid = stFees.some(({ arr }) => Array.isArray(arr) && arr.some(f => f.type === 'Admission Fee' && f.paid));
           if (!admPaid) expected += struct.admission;
         }
 
@@ -8756,10 +9344,8 @@ function renderMonthWiseSummary() {
         if (isFeeRecordCurrentlyDue(mo, yr, curSess)) {
           if (cfg.tuition !== false) outstanding += struct.tuition;
           if (mIdx === 0 && cfg.admission !== false) {
-            let admPaid = false;
-            Object.entries(DB.fees || {}).forEach(([k, arr]) => {
-              if (k.startsWith(st.id + '_') && Array.isArray(arr) && arr.some(f => f.type === 'Admission Fee' && f.paid)) admPaid = true;
-            });
+            const stFees = _idxFeesByStudent.get(st.id) || [];
+            const admPaid = stFees.some(({ arr }) => Array.isArray(arr) && arr.some(f => f.type === 'Admission Fee' && f.paid));
             if (!admPaid) outstanding += struct.admission;
           }
         }
@@ -8773,7 +9359,9 @@ function renderMonthWiseSummary() {
         arr.forEach(f => {
           if (f.enabled !== false && f.paid) {
             const sid = parseInt(parts[0]);
-            if (!activeStudents.some(st => st.id === sid)) {
+            const st = _idxStudentById.get(sid);
+            const isAct = st && st.status !== 'Inactive' && st.status !== 'Left School' && st.status !== 'Alumni';
+            if (!isAct) {
               collected += (Number(f.amount) || 0);
               expected += (Number(f.amount) || 0);
             }
@@ -10839,18 +11427,22 @@ async function expSt() {
 
 async function expFe() {
   let csv = 'Receipt No,Admission No,SR No,Student Name,Class,Section,Billing Period,Fee Category,Amount,Paid Status,Payment Date,Payment Mode\n';
-  (DB.students || []).forEach(s => {
-    Object.entries(DB.fees || {}).forEach(([k, arr]) => {
-      if (!k.startsWith(s.id + '_') || !Array.isArray(arr)) return;
+  ensurePerformanceIndices();
+  if (DB.fees && typeof DB.fees === 'object') {
+    Object.entries(DB.fees).forEach(([k, arr]) => {
+      if (!Array.isArray(arr) || arr.length === 0) return;
       const parts = k.split('_');
+      const sid = parseInt(parts[0]);
+      const s = getStudentById(sid);
+      if (!s) return;
       const period = parts[1] + ' ' + parts[2];
+      const cName = (s.name || '').replace(/"/g, '""');
+      const cSrNo = (s.srNo || '').replace(/"/g, '""');
       arr.filter(f => f.enabled !== false).forEach(f => {
-        const cName = (s.name || '').replace(/"/g, '""');
-        const cSrNo = (s.srNo || '').replace(/"/g, '""');
         csv += `"${f.receiptNo || ''}","${s.admno}","${cSrNo}","${cName}","${s.cls}","${s.section || 'A'}","${period}","${f.type}",${f.amount},"${f.paid ? 'Paid' : 'Due'}","${f.date || ''}","${f.mode || ''}"\n`;
       });
     });
-  });
+  }
   await expCSV('fee_collection_master_report.csv', csv);
 }
 
@@ -11198,16 +11790,22 @@ function performGlobalSearch(query) {
     return;
   }
 
+  ensurePerformanceIndices();
   const students = DB.students || [];
-  gSearchResults = students.filter(s => {
-    const name = (s.name || '').toLowerCase();
-    const adm = (s.admno || '').toString().toLowerCase();
-    const sr = (s.srNo || '').toString().toLowerCase();
-    const fName = (s.father || '').toLowerCase();
-    const mName = (s.mother || '').toLowerCase();
-    const phone = (s.phone || '').toString().toLowerCase();
-    return name.includes(q) || adm.includes(q) || sr.includes(q) || fName.includes(q) || mName.includes(q) || phone.includes(q);
-  }).slice(0, 10); // top 10 matches
+  gSearchResults = [];
+  for (let i = 0; i < students.length; i++) {
+    const s = students[i];
+    if (s._searchStr ? s._searchStr.includes(q) : (
+      (s.name && s.name.toLowerCase().includes(q)) ||
+      (s.father && s.father.toLowerCase().includes(q)) ||
+      String(s.admno).toLowerCase().includes(q) ||
+      (s.srNo && String(s.srNo).toLowerCase().includes(q)) ||
+      (s.phone && String(s.phone).toLowerCase().includes(q))
+    )) {
+      gSearchResults.push(s);
+      if (gSearchResults.length >= 10) break;
+    }
+  }
 
   gSearchActiveIdx = -1;
 
@@ -11480,7 +12078,10 @@ function isMonthInAssignmentPeriod(targetMonth, effectiveFrom, stoppedAt, isActi
 // Get all active students from DB.students
 function getActiveTransportStudents() {
   if (!DB || !Array.isArray(DB.students)) return [];
-  return DB.students.filter(s => s && s.status === 'Active');
+  if (!_activeTransportStudentsCache) {
+    _activeTransportStudentsCache = DB.students.filter(s => s && s.status === 'Active');
+  }
+  return _activeTransportStudentsCache;
 }
 
 // Calculate total paid and discount for a student in a specific month
@@ -11490,9 +12091,10 @@ function getStudentMonthTransportAccounting(studentId, monthStrOrKey) {
   const targetKey = displayToMonthKey(monthStrOrKey);
   const targetDisplay = monthKeyToDisplay(monthStrOrKey);
 
-  const payments = (DB.transport && Array.isArray(DB.transport.payments)) ? DB.transport.payments : [];
+  ensurePerformanceIndices();
+  const payments = _idxTransportPaymentsByStudent.get(studentId) || [];
   payments.forEach(p => {
-    if (p.studentId === studentId && !p.reversed && isValidTransportPayment(p)) {
+    if (!p.reversed && isValidTransportPayment(p)) {
       if (Array.isArray(p.allocations)) {
         p.allocations.forEach(al => {
           const alKey = displayToMonthKey(al.month);
@@ -13725,6 +14327,8 @@ function viewTransportReceiptByNo(receiptNo) {
 // ============================================================
 async function init() {
   await loadDB();
+  invalidatePerformanceIndices();
+  ensurePerformanceIndices();
   fillDDs();
   renderDB();
 }
