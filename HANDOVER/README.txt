@@ -1,6 +1,6 @@
 ================================================================================
 MD CONVENT PUBLIC SCHOOL — SCHOOL MANAGEMENT SYSTEM (SMS)
-Official Standalone Windows Desktop Application | Version 2.0.0
+Official Standalone Windows Desktop Application | Version 2.2.0
 ================================================================================
 
 1. OVERVIEW
@@ -36,7 +36,7 @@ school operations, including:
 3. QUICK START (3 SIMPLE STEPS)
 --------------------------------------------------------------------------------
   STEP 1: Open the "Installer" folder.
-  STEP 2: Double-click "MD_Convent_SMS_Setup_v2.0.exe".
+  STEP 2: Double-click "MD_Convent_SMS_Setup_v2.2.exe".
   STEP 3: Follow the setup wizard (keep "Create Desktop Shortcut" checked)
           and click Finish.
 

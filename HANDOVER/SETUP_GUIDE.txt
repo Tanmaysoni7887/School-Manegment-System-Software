@@ -7,7 +7,7 @@ Installation & First-Time Setup Guide
 --------------------------------------------------------------------------------
 1. Connect the USB drive or open the "MDConvent_Handover" folder on your PC.
 2. Open the "Installer" subfolder.
-3. Double-click "MD_Convent_SMS_Setup_v2.0.exe".
+3. Double-click "MD_Convent_SMS_Setup_v2.2.exe".
 4. The Inno Setup wizard will start:
    - Installation Location: By default, installs to:
      C:\Program Files\MD Convent SMS

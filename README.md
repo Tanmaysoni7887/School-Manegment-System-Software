@@ -1,11 +1,11 @@
 # MD Convent School Management System (SMS)
 ### Offline Desktop Application for Windows (Electron + JavaScript)
 
-[![Release](https://img.shields.io/badge/Release-v2.0.0-blue.svg)](https://github.com/Tanmaysoni7887/School-Manegment-System-Software/releases/tag/v2.0.0)
-[![Download Installer](https://img.shields.io/badge/Download-Windows%20Setup%20(505%20MB)-green.svg)](https://github.com/Tanmaysoni7887/School-Manegment-System-Software/releases/download/v2.0.0/MD_Convent_SMS_Setup_v2.0.exe)
+[![Release](https://img.shields.io/badge/Release-v2.2.0-blue.svg)](https://github.com/Tanmaysoni7887/School-Manegment-System-Software/releases/tag/v2.2.0)
+[![Download Installer](https://img.shields.io/badge/Download-Windows%20Setup%20(73.6%20MB)-green.svg)](https://github.com/Tanmaysoni7887/School-Manegment-System-Software/releases/download/v2.2.0/MD_Convent_SMS_Setup_v2.2.exe)
 
-> 📥 **[Download Latest Windows Installer (`MD_Convent_SMS_Setup_v2.0.exe`)](https://github.com/Tanmaysoni7887/School-Manegment-System-Software/releases/download/v2.0.0/MD_Convent_SMS_Setup_v2.0.exe)**  
-> **Direct Release Page**: [https://github.com/Tanmaysoni7887/School-Manegment-System-Software/releases/tag/v2.0.0](https://github.com/Tanmaysoni7887/School-Manegment-System-Software/releases/tag/v2.0.0)
+> 📥 **[Download Latest Windows Installer (`MD_Convent_SMS_Setup_v2.2.exe`)](https://github.com/Tanmaysoni7887/School-Manegment-System-Software/releases/download/v2.2.0/MD_Convent_SMS_Setup_v2.2.exe)**  
+> **Direct Release Page**: [https://github.com/Tanmaysoni7887/School-Manegment-System-Software/releases/tag/v2.2.0](https://github.com/Tanmaysoni7887/School-Manegment-System-Software/releases/tag/v2.2.0)
 
 This repository contains the complete offline school management system developed for **MD Convent Public School, Amanpur (Kasganj)**.
 
@@ -17,7 +17,7 @@ This repository contains the complete offline school management system developed
 MDConvent_FINAL/
 ├── HANDOVER/                               # Client Distribution & Handover Package
 │   ├── Installer/
-│   │   └── MD_Convent_SMS_Setup_v2.0.exe   # Standalone Windows x64 Installer (Inno Setup)
+│   │   └── MD_Convent_SMS_Setup_v2.2.exe   # Standalone Windows x64 Installer (Inno Setup)
 │   ├── README.txt                          # System overview, requirements & quick start
 │   ├── SETUP_GUIDE.txt                     # First-run setup lifecycle & walkthrough
 │   ├── DATA_BACKUP_GUIDE.txt               # Machine migration & safety backup recovery
@@ -58,5 +58,5 @@ npm start
 
 To install the application on a school computer:
 1. Navigate to `HANDOVER/Installer/`
-2. Run `MD_Convent_SMS_Setup_v2.0.exe`
+2. Run `MD_Convent_SMS_Setup_v2.2.exe`
 3. Follow the instructions in `HANDOVER/SETUP_GUIDE.txt`

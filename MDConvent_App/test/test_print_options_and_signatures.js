@@ -6,7 +6,7 @@ console.log('=== STARTING PRINT OPTIONS & SIGNATURES VERIFICATION ===\n');
 
 // 1. Verify index.html modalQuickPrintReports
 const htmlPath = path.join(__dirname, '../src/index.html');
-const html = fs.readFileSync(htmlPath, 'utf8');
+const html = fs.readFileSync(htmlPath, 'utf8').replace(/\r\n/g, '\n');
 
 const modalQuickPrintStart = html.indexOf('id="modalQuickPrintReports"');
 assert(modalQuickPrintStart !== -1, 'modalQuickPrintReports must exist in index.html');

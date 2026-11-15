@@ -26,6 +26,7 @@ win-unpacked/
 
 # 3. Development Archives & Temporary Scratch Folders
 _dev_archive_*/
+installer_backup/
 scratch/
 test-data/
 DEMO_TEST_KIT/demo_data/
@@ -47,6 +48,9 @@ safety_backups/
 test_school_data_*
 corrupted_*.json
 *.db
+Student_Photos/
+photos/
+student_photos/
 
 # 5. Logs & Debugging Artifacts
 logs/
