@@ -5,14 +5,14 @@
 [Setup]
 AppId={{5E97D4B6-61D3-4702-8DF6-1A25B4C723D4}
 AppName=MD Convent SMS
-AppVersion=2.1.0
+AppVersion=2.2.0
 AppPublisher=Tanmay Soni
 AppPublisherURL=tel:9528371785
 DefaultDirName={autopf}\MD Convent SMS
 DefaultGroupName=MD Convent SMS
 AllowNoIcons=yes
 OutputDir=dist-installer
-OutputBaseFilename=MD_Convent_SMS_Setup_v2.1
+OutputBaseFilename=MD_Convent_SMS_Setup_v2.2
 SetupIconFile=icon.ico
 Compression=lzma2/ultra64
 SolidCompression=yes

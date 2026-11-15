@@ -513,6 +513,42 @@ ipcMain.handle('export-csv', async (e, { filename, content }) => {
   }
 });
 
+// Export PDF - converts HTML payload to genuine vector PDF
+ipcMain.handle('export-pdf', async (e, { filename, html, landscape = false }) => {
+  const safeFilename = path.basename(String(filename || 'document.pdf')).replace(/[<>:"/\\|?*]/g, '_');
+  const win = (mainWindow && !mainWindow.isDestroyed()) ? mainWindow : null;
+  const { canceled, filePath } = await dialog.showSaveDialog(win, {
+    title: 'Save PDF Report',
+    defaultPath: path.join(app.getPath('desktop'), safeFilename),
+    filters: [{ name: 'PDF Document', extensions: ['pdf'] }]
+  });
+  if (canceled || !filePath) return { success: false, canceled: true };
+  let pdfWin = null;
+  try {
+    pdfWin = new BrowserWindow({
+      show: false,
+      webPreferences: {
+        nodeIntegration: false,
+        contextIsolation: true
+      }
+    });
+    await pdfWin.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(html));
+    const pdfBuffer = await pdfWin.webContents.printToPDF({
+      pageSize: 'A4',
+      landscape: !!landscape,
+      printBackground: true,
+      margins: { marginType: 'custom', top: 0.4, bottom: 0.4, left: 0.4, right: 0.4 }
+    });
+    fs.writeFileSync(filePath, pdfBuffer);
+    pdfWin.close();
+    pdfWin = null;
+    return { success: true, filePath };
+  } catch(err) {
+    if (pdfWin && !pdfWin.isDestroyed()) pdfWin.close();
+    return { success: false, error: err.message };
+  }
+});
+
 // PRINT - write temp HTML file and open in default browser for printing
 ipcMain.handle('print-content', async (e, html) => {
   if (typeof html !== 'string') return { success: false, error: 'Invalid HTML payload' };

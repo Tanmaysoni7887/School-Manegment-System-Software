@@ -11,6 +11,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   createAutomaticBackup: (opts)              => ipcRenderer.invoke('create-automatic-backup', opts),
   selectLogo:            ()                  => ipcRenderer.invoke('select-logo'),
   exportCSV:             (filename, content) => ipcRenderer.invoke('export-csv', { filename, content }),
+  exportPDF:             (opts)              => ipcRenderer.invoke('export-pdf', opts),
   printContent:          (html)              => ipcRenderer.invoke('print-content', html),
   getDataPath:           ()                  => ipcRenderer.invoke('get-data-path'),
   selectStudentPhoto:    ()                  => ipcRenderer.invoke('select-student-photo'),

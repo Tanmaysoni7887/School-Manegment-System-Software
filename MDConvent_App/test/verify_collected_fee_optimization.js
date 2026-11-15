@@ -7,8 +7,13 @@ console.log('VERIFYING DASHBOARD FEE COLLECTED OPTIMIZATION & FILTERS');
 console.log('============================================================\n');
 
 // 1. Load large demo dataset
-const dataPath = path.resolve(__dirname, '../DEMO_TEST_KIT/demo_school_data_large.json');
-assert.ok(fs.existsSync(dataPath), 'demo_school_data_large.json must exist');
+const dataCandidates = [
+  path.resolve(__dirname, '../../DEMO_TEST_KIT/demo_school_data_large.json'),
+  path.resolve(__dirname, '../DEMO_TEST_KIT/demo_school_data_large.json'),
+  path.resolve(__dirname, 'benchmark_datasets/dataset_C_1476.json')
+];
+const dataPath = dataCandidates.find(p => fs.existsSync(p));
+assert.ok(dataPath, 'demo_school_data_large.json must exist');
 const DB = JSON.parse(fs.readFileSync(dataPath, 'utf8'));
 
 console.log(`[PASS] Loaded demo dataset: ${DB.students.length} students, ${DB.payments.length} payments, ${Object.keys(DB.fees || {}).length} fee keys.\n`);
@@ -90,15 +95,21 @@ createMockElement('collectedBody', 'div');
 createMockElement('collectedTableContainer', 'div');
 
 // Load app.js functions in isolated context
-const appJsPath = path.resolve(__dirname, '../MDConvent_App/src/app.js');
-const appCode = fs.readFileSync(appJsPath, 'utf8');
+const appCandidates = [
+  path.resolve(__dirname, '../src/app.js'),
+  path.resolve(__dirname, '../MDConvent_App/src/app.js'),
+  path.resolve(__dirname, 'src/app.js')
+];
+const appJsPath = appCandidates.find(p => fs.existsSync(p));
+assert.ok(appJsPath, 'app.js must exist');
+const appCode = fs.readFileSync(appJsPath, 'utf8').replace(/\binit\(\);?\s*$/, '// init();');
 
 // Evaluate app.js
 const vm = require('vm');
 const context = vm.createContext(global);
 vm.runInContext(appCode, context);
-context.DB = DB;
-context.invalidatePerformanceIndices();
+context._testDb = DB;
+vm.runInContext('DB = _testDb; invalidatePerformanceIndices();', context);
 
 console.log('--- TEST 1: Performance Benchmark & Cache Functionality ---');
 // Step 1: Cold start performance

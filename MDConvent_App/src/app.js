@@ -107,6 +107,7 @@ function invalidatePerformanceIndices() {
   _indicesDirty = true;
   _dashboardMetricsCache = null;
   _top10DefaultersCache = null;
+  _finPageMetricsCache = null;
   _activeStudentsCache = null;
   _activeTransportStudentsCache = null;
   _cachedValidTransactions = null;
@@ -123,12 +124,76 @@ function getStudentById(id) {
   return _idxStudentById.get(Number(id)) || null;
 }
 
-function getActiveStudents() {
+/**
+ * Evaluates whether a student is currently active and eligible.
+ * Excludes Inactive, Left School, School Left, Alumni, Deleted, Archived, Transferred, Void, Promoted.
+ */
+function isStudentActive(s) {
+  if (!s || typeof s !== 'object') return false;
+  const st = String(s.status || 'Active').trim();
+  if (st === 'Inactive' || 
+      st === 'Left School' || 
+      st === 'School Left' || 
+      st === 'Alumni' || 
+      st === 'Deleted' || 
+      st === 'Archived' || 
+      st === 'Transferred' || 
+      st === 'Void' ||
+      st === 'Promoted') {
+    return false;
+  }
+  return true;
+}
+
+/**
+ * Helper to normalize session string (handles en-dash, em-dash, hyphens uniformly)
+ */
+function normalizeSessionName(str) {
+  if (!str) return '';
+  return String(str).trim().replace(/[\u2010\u2011\u2012\u2013\u2014\u2015\u2212]/g, '-');
+}
+
+/**
+ * Checks if a student belongs to a specific academic session.
+ * If targetSession is null/undefined or 'all', returns true.
+ * Defaults student session to currentSession if s.session is omitted.
+ */
+function isStudentInSession(s, targetSession) {
+  if (!s || typeof s !== 'object') return false;
+  if (!targetSession || targetSession === 'all') return true;
+  const curSess = (DB.settings && DB.settings.currentSession) || '2026–27';
+  const studentSession = s.session || curSess;
+  return normalizeSessionName(studentSession) === normalizeSessionName(targetSession);
+}
+
+/**
+ * Shared, reliable single source of truth for active eligible students.
+ * @param {string} [targetSession] - Optional academic session name (e.g. '2026–27'). If omitted or 'all', returns all active students.
+ */
+function getActiveStudents(targetSession = null) {
   ensurePerformanceIndices();
   if (!_activeStudentsCache) {
-    _activeStudentsCache = (DB.students || []).filter(s => s.status !== 'Inactive' && s.status !== 'Left School' && s.status !== 'Alumni');
+    _activeStudentsCache = (DB.students || []).filter(s => isStudentActive(s));
   }
-  return _activeStudentsCache;
+  if (!targetSession || targetSession === 'all') {
+    return _activeStudentsCache;
+  }
+  return _activeStudentsCache.filter(s => isStudentInSession(s, targetSession));
+}
+
+/**
+ * Shared, reliable student count function for Dashboard, Academic Sessions, etc.
+ * @param {string} [targetSession] - Optional academic session name (e.g. '2026–27').
+ */
+function getActiveStudentCount(targetSession = null) {
+  return getActiveStudents(targetSession).length;
+}
+
+if (typeof window !== 'undefined') {
+  window.isStudentActive = isStudentActive;
+  window.isStudentInSession = isStudentInSession;
+  window.getActiveStudents = getActiveStudents;
+  window.getActiveStudentCount = getActiveStudentCount;
 }
 
 // Helper: Parse session string (e.g. "2026–27" or "2026-27") into [startYear, endYear]
@@ -1277,7 +1342,12 @@ function ensureDefaultState() {
   } else if (maxIssued > 0 && parseInt(DB.nextAdm, 10) <= maxIssued) {
     DB.nextAdm = maxIssued + 1;
   }
-  if (!DB.nextReceiptSeq) DB.nextReceiptSeq = 1;
+  const maxReceiptIssued = typeof getMaxIssuedReceiptNumber === 'function' ? getMaxIssuedReceiptNumber() : 0;
+  if (!DB.nextReceiptSeq || isNaN(parseInt(DB.nextReceiptSeq, 10))) {
+    DB.nextReceiptSeq = (maxReceiptIssued > 0) ? (maxReceiptIssued + 1) : 1;
+  } else if (maxReceiptIssued > 0 && parseInt(DB.nextReceiptSeq, 10) <= maxReceiptIssued) {
+    DB.nextReceiptSeq = maxReceiptIssued + 1;
+  }
   if (!DB.nextId) DB.nextId = (DB.students.length ? Math.max(...DB.students.map(s => s.id || 0)) + 1 : 1);
 
   (DB.students || []).forEach(s => {
@@ -1616,11 +1686,21 @@ function showPage(id, btn) {
       ca.style.overflowY = 'hidden';
       ca.style.padding = '4px 14px';
       document.body.classList.add('is-dashboard');
+    } else if (id === 'financial-reports') {
+      ca.style.overflowY = 'auto';
+      ca.style.padding = '8px 16px';
+      document.body.classList.remove('is-dashboard');
+      document.body.classList.add('is-financial-reports');
     } else {
       ca.style.overflowY = 'auto';
       ca.style.padding = '16px 22px';
       document.body.classList.remove('is-dashboard');
     }
+  }
+
+  const topbar = document.querySelector('.topbar');
+  if (topbar) {
+    topbar.style.display = (id === 'financial-reports') ? 'none' : 'flex';
   }
 
   document.querySelectorAll('.nb').forEach(b => b.classList.remove('active'));
@@ -1691,6 +1771,9 @@ function showPage(id, btn) {
   else if (id === 'transport') {
     initTransportPage();
   }
+  else if (id === 'financial-reports') {
+    renderFinancialReportsPage();
+  }
   else if (id === 'history') renderHistory();
   else if (id === 'settings') loadSettingsForm();
 }
@@ -1707,6 +1790,7 @@ function autoSetCurrentMonth(moId, yrId, forceLive = false) {
 function openM(id) {
   const el = document.getElementById(id);
   if (el) {
+    el.style.display = '';
     el.classList.remove('closing');
     el.classList.add('show');
     if (typeof updateModalBackdropState === 'function') updateModalBackdropState();
@@ -1737,12 +1821,63 @@ function clL(c) {
   return c === 'NC' ? 'Nursery (NC)' : (c === 'LKG' || c === 'UKG') ? c : 'Class ' + c;
 }
 
+// Helper: Extract highest previously issued numeric receipt number across all payments & fees
+function getMaxIssuedReceiptNumber() {
+  let maxIssued = 0;
+  const scan = (rNo) => {
+    if (!rNo || typeof rNo !== 'string') return;
+    const m = rNo.trim().match(/(\d+)$/);
+    if (m) {
+      const n = parseInt(m[1], 10);
+      if (!isNaN(n) && n > maxIssued) maxIssued = n;
+    }
+  };
+  if (DB && Array.isArray(DB.payments)) {
+    DB.payments.forEach(p => scan(p.receiptNo));
+  }
+  if (DB && DB.fees && typeof DB.fees === 'object') {
+    Object.values(DB.fees).forEach(arr => {
+      if (Array.isArray(arr)) arr.forEach(f => scan(f.receiptNo));
+    });
+  }
+  return maxIssued;
+}
+
 function getNextReceiptNumber() {
   const prefix = (DB.settings && DB.settings.receiptPrefix) ? DB.settings.receiptPrefix : 'REC-';
   const curSess = (DB.settings && DB.settings.currentSession) ? DB.settings.currentSession.replace(/[^a-zA-Z0-9]/g, '') : '202627';
-  const seq = String(DB.nextReceiptSeq || 1).padStart(4, '0');
-  DB.nextReceiptSeq = (DB.nextReceiptSeq || 1) + 1;
-  return `${prefix}${curSess}-${seq}`;
+
+  // Safeguard 1: Collect existing receipts set to prevent collisions across legacy & modern formats
+  const existingSet = new Set();
+  if (DB && Array.isArray(DB.payments)) {
+    DB.payments.forEach(p => { if (p.receiptNo) existingSet.add(String(p.receiptNo).trim()); });
+  }
+  if (DB && DB.fees && typeof DB.fees === 'object') {
+    Object.values(DB.fees).forEach(arr => {
+      if (Array.isArray(arr)) arr.forEach(f => { if (f.receiptNo) existingSet.add(String(f.receiptNo).trim()); });
+    });
+  }
+
+  // Safeguard 2: Guarantee sequence strictly surpasses highest issued receipt in database
+  const maxIssued = getMaxIssuedReceiptNumber();
+  const configured = parseInt(DB.nextReceiptSeq, 10);
+  let startSeq = 1;
+  if (maxIssued === 0) {
+    startSeq = (configured && configured > 0) ? configured : 1;
+  } else {
+    startSeq = (configured && configured > maxIssued) ? configured : (maxIssued + 1);
+  }
+
+  // Safeguard 3: Step forward if collision candidate exists
+  let seq = startSeq;
+  let candidate = `${prefix}${curSess}-${String(seq).padStart(4, '0')}`;
+  while (existingSet.has(candidate) || existingSet.has(`${prefix}${seq}`)) {
+    seq++;
+    candidate = `${prefix}${curSess}-${String(seq).padStart(4, '0')}`;
+  }
+
+  DB.nextReceiptSeq = seq + 1;
+  return candidate;
 }
 
 function fillDDs() {
@@ -1882,9 +2017,8 @@ function getDashboardFinancialMetrics(periodMode = 'current_month', targetMonth 
 }
 
 function renderDB() {
-  const students = DB.students || [];
   const curSess = (DB.settings && DB.settings.currentSession) || '2026–27';
-  const activeStudents = students.filter(s => s.status !== 'Inactive' && s.status !== 'Left School' && s.status !== 'Alumni');
+  const activeStudents = getActiveStudents(curSess);
 
   document.getElementById('dt').textContent = activeStudents.length;
   document.getElementById('db').textContent = activeStudents.filter(s => s.gender === 'Male').length;
@@ -1923,22 +2057,22 @@ function renderDB() {
 
   const dcLbl = document.getElementById('dc_lbl');
   if (dcLbl) {
-    dcLbl.innerHTML = `<span class="sl-title">Fee Collected</span><span class="sl-sub">(${metrics.label})</span>`;
+    dcLbl.textContent = `(${metrics.label})`;
     dcLbl.title = `Fee Collected (${metrics.label} - Session ${curSess}) — Click to view collected payments ledger`;
   }
   const ddLbl = document.getElementById('dd_lbl');
   if (ddLbl) {
-    ddLbl.innerHTML = `<span class="sl-title">Fee Pending</span><span class="sl-sub">(${metrics.label})</span>`;
+    ddLbl.textContent = `(${metrics.label})`;
     ddLbl.title = `Fee Pending (${metrics.label} - Session ${curSess}) — Click to view pending fee dues report`;
   }
   const expLbl = document.getElementById('db-exp-lbl');
   if (expLbl) {
-    expLbl.innerHTML = `<span class="sl-title">Total Expected</span><span class="sl-sub">(${metrics.label})</span>`;
+    expLbl.textContent = `(${metrics.label})`;
     expLbl.title = `Total Expected (${metrics.label} - Session ${curSess})`;
   }
   const rateLbl = document.getElementById('db-rate-lbl');
   if (rateLbl) {
-    rateLbl.innerHTML = `<span class="sl-title">Collection Rate</span><span class="sl-sub">(${metrics.label})</span>`;
+    rateLbl.textContent = `(${metrics.label})`;
     rateLbl.title = `Collection Rate (${metrics.label} - Session ${curSess})`;
   }
   const qaSess = document.getElementById('qaSessVal');
@@ -2864,58 +2998,69 @@ function printCollected() {
 
   const html = `<!DOCTYPE html><html><head><title>Fee Collection Report</title>
   <style>
-    body{font-family:Arial,sans-serif;margin:20px;font-size:12px;color:#111}
-    table{width:100%;border-collapse:collapse;margin-top:10px}
-    th{background:#27ae60;color:#fff;padding:7px 10px;text-align:left;font-size:11px}
-    td{padding:6px 10px;border-bottom:1px solid #eee;font-size:11px}
-    tr:nth-child(even){background:#fafafa}
-    .hdr{text-align:center;margin-bottom:14px;border-bottom:2px solid #27ae60;padding-bottom:10px}
-    @media print{body{margin:0}}
+    @page { size: A4 portrait; margin: 12mm 10mm; }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; margin: 0; padding: 0; }
+    body { font-family: Arial, sans-serif; font-size: 11px; color: #111; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .page-container { min-height: 100%; display: flex; flex-direction: column; }
+    .content-wrap { flex: 1 0 auto; }
+    table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 10px; }
+    thead { display: table-header-group; }
+    tr { page-break-inside: avoid; }
+    th { background: #27ae60; color: #fff; padding: 6px 8px; text-align: left; font-size: 10.5px; border: 1px solid #219653; }
+    td { padding: 5px 8px; border-bottom: 1px solid #eee; font-size: 10px; }
+    tr:nth-child(even) { background: #fafafa; }
+    .hdr { text-align: center; margin-bottom: 12px; border-bottom: 2px solid #27ae60; padding-bottom: 8px; }
+    .footer { margin-top: auto; padding-top: 16px; padding-bottom: 4px; display: flex; justify-content: space-between; font-size: 10.5px; color: #555; border-top: 1px solid #eee; page-break-inside: avoid; break-inside: avoid; }
   </style>
   </head><body>
-  <div class="hdr">
-    <div style="font-size:16px;font-weight:700;color:#27ae60">${escapeHtml(s.schoolName || 'MD Convent Public School')}</div>
-    <div style="font-size:11px;color:#666">${escapeHtml(s.schoolAddr || '')} | Phone: ${escapeHtml(s.schoolPhone || '')}</div>
-    <div style="font-size:13px;font-weight:600;margin-top:5px">Fee Collection Ledger Report (Receipt Summary)</div>
-    <div style="font-size:10.5px;color:#555;margin-top:3px;font-style:italic">${escapeHtml(filterSummary)}</div>
-    <div style="font-size:11px;color:#666;margin-top:2px">Generated: ${new Date().toLocaleDateString('en-IN')}</div>
-  </div>
-  <div style="background:#e8f8f5;border:1px solid #a9dfbf;padding:10px 14px;margin-bottom:12px;display:flex;justify-content:space-between">
-    <div><strong>Total Collections:</strong> ₹${totalColl.toLocaleString('en-IN')}</div>
-    <div><strong>Total Receipts:</strong> ${transactions.length.toLocaleString('en-IN')}</div>
-  </div>
-  <table>
-    <thead>
-      <tr>
-        <th style="width:110px">Receipt #</th>
-        <th>Student</th>
-        <th style="width:75px">Class</th>
-        <th>Billing Period</th>
-        <th style="width:85px;text-align:center">Date</th>
-        <th style="width:80px;text-align:center">Mode</th>
-        <th style="text-align:right;width:110px">Amount Received</th>
-      </tr>
-    </thead>
-    <tbody>
-      ${transactions.map(tx => {
-        const summaryPeriod = tx._summaryPeriod || getTransactionSummaryPeriod(tx);
-        return `
-        <tr>
-          <td><strong style="font-family:monospace">${escapeHtml(tx.receiptNo)}</strong></td>
-          <td>${escapeHtml(tx.studentName)} (${escapeHtml(tx.admno)})</td>
-          <td>${clL(tx.cls)}${tx.section ? ' (' + escapeHtml(tx.section) + ')' : ''}</td>
-          <td>${escapeHtml(summaryPeriod)}</td>
-          <td style="text-align:center">${escapeHtml(tx.date || '–')}</td>
-          <td style="text-align:center">${escapeHtml(tx.mode || 'Cash')}</td>
-          <td style="text-align:right;font-weight:700;color:#27ae60">₹${tx.amount.toLocaleString('en-IN')}</td>
-        </tr>
-      `;
-      }).join('')}
-    </tbody>
-  </table>
-  <div style="margin-top:20px;display:flex;justify-content:space-between;font-size:11px;color:#666;border-top:1px solid #eee;padding-top:8px">
-    <span>Authorized Signatory: ${escapeHtml(s.principalName || '')}</span>
-    <span>Printed on: ${new Date().toLocaleString('en-IN')}</span>
+  <div class="page-container">
+    <div class="content-wrap">
+      <div class="hdr">
+        <div style="font-size:16px;font-weight:700;color:#27ae60">${escapeHtml(s.schoolName || 'MD Convent Public School')}</div>
+        <div style="font-size:11px;color:#666">${escapeHtml(s.schoolAddr || '')} | Phone: ${escapeHtml(s.schoolPhone || '')}</div>
+        <div style="font-size:13px;font-weight:600;margin-top:5px">Fee Collection Ledger Report (Receipt Summary)</div>
+        <div style="font-size:10.5px;color:#555;margin-top:3px;font-style:italic">${escapeHtml(filterSummary)}</div>
+        <div style="font-size:11px;color:#666;margin-top:2px">Generated: ${new Date().toLocaleDateString('en-IN')}</div>
+      </div>
+      <div style="background:#e8f8f5;border:1px solid #a9dfbf;padding:10px 14px;margin-bottom:12px;display:flex;justify-content:space-between">
+        <div><strong>Total Collections:</strong> ₹${totalColl.toLocaleString('en-IN')}</div>
+        <div><strong>Total Receipts:</strong> ${transactions.length.toLocaleString('en-IN')}</div>
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th style="width:110px">Receipt #</th>
+            <th>Student</th>
+            <th style="width:75px">Class</th>
+            <th>Billing Period</th>
+            <th style="width:85px;text-align:center">Date</th>
+            <th style="width:80px;text-align:center">Mode</th>
+            <th style="text-align:right;width:110px">Amount Received</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${transactions.map(tx => {
+            const summaryPeriod = tx._summaryPeriod || getTransactionSummaryPeriod(tx);
+            return `
+            <tr>
+              <td><strong style="font-family:monospace">${escapeHtml(tx.receiptNo)}</strong></td>
+              <td>${escapeHtml(tx.studentName)} (${escapeHtml(tx.admno)})</td>
+              <td>${clL(tx.cls)}${tx.section ? ' (' + escapeHtml(tx.section) + ')' : ''}</td>
+              <td>${escapeHtml(summaryPeriod)}</td>
+              <td style="text-align:center">${escapeHtml(tx.date || '–')}</td>
+              <td style="text-align:center">${escapeHtml(tx.mode || 'Cash')}</td>
+              <td style="text-align:right;font-weight:700;color:#27ae60">₹${tx.amount.toLocaleString('en-IN')}</td>
+            </tr>
+          `;
+          }).join('')}
+        </tbody>
+      </table>
+    </div>
+    <div class="footer">
+      <span>Authorized Signatory: <strong>${escapeHtml(s.principalName || 'Principal')}</strong></span>
+      <span>Printed on: ${new Date().toLocaleString('en-IN')}</span>
+    </div>
   </div>
   </body></html>`;
 
@@ -3256,18 +3401,37 @@ function printPendingList() {
   if (!body) return;
   const s = DB.settings || {};
   const html = `<!DOCTYPE html><html><head><title>Pending Fee Report</title>
-  <style>body{font-family:Arial,sans-serif;margin:20px;font-size:12px}table{width:100%;border-collapse:collapse}th{background:#c0392b;color:#fff;padding:7px 10px;text-align:left;font-size:11px}td{padding:6px 10px;border-bottom:1px solid #eee;vertical-align:top}tr:nth-child(even){background:#fafafa}.hdr{text-align:center;margin-bottom:14px;border-bottom:2px solid #c0392b;padding-bottom:10px}@media print{body{margin:0}}</style>
+  <style>
+    @page { size: A4 portrait; margin: 12mm 10mm; }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; margin: 0; padding: 0; }
+    body { font-family: Arial, sans-serif; font-size: 11px; color: #111; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .page-container { min-height: 100%; display: flex; flex-direction: column; }
+    .content-wrap { flex: 1 0 auto; }
+    table { width: 100%; border-collapse: collapse; font-size: 10px; }
+    thead { display: table-header-group; }
+    tr { page-break-inside: avoid; }
+    th { background: #c0392b; color: #fff; padding: 6px 8px; text-align: left; font-size: 10.5px; }
+    td { padding: 5px 8px; border-bottom: 1px solid #eee; vertical-align: top; font-size: 10px; }
+    tr:nth-child(even) { background: #fafafa; }
+    .hdr { text-align: center; margin-bottom: 12px; border-bottom: 2px solid #c0392b; padding-bottom: 8px; }
+    .footer { margin-top: auto; padding-top: 16px; padding-bottom: 4px; display: flex; justify-content: space-between; font-size: 10.5px; color: #555; border-top: 1px solid #eee; page-break-inside: avoid; break-inside: avoid; }
+  </style>
   </head><body>
-  <div class="hdr">
-    <div style="font-size:16px;font-weight:700;color:#c0392b">${escapeHtml(s.schoolName || 'School Management System')}</div>
-    <div style="font-size:11px;color:#666">${escapeHtml(s.schoolAddr || '')} | Phone: ${escapeHtml(s.schoolPhone || '')}</div>
-    <div style="font-size:13px;font-weight:600;margin-top:5px">Pending Fees Summary Report</div>
-    <div style="font-size:11px;color:#666">Generated: ${new Date().toLocaleDateString('en-IN')}</div>
-  </div>
-  ${body.innerHTML}
-  <div style="margin-top:20px;display:flex;justify-content:space-between;font-size:11px;color:#666;border-top:1px solid #eee;padding-top:8px">
-    <span>Authorized Signatory: ${escapeHtml(s.principalName || '')}</span>
-    <span>Printed on: ${new Date().toLocaleString('en-IN')}</span>
+  <div class="page-container">
+    <div class="content-wrap">
+      <div class="hdr">
+        <div style="font-size:16px;font-weight:700;color:#c0392b">${escapeHtml(s.schoolName || 'MD Convent Public School')}</div>
+        <div style="font-size:11px;color:#666">${escapeHtml(s.schoolAddr || '')} | Phone: ${escapeHtml(s.schoolPhone || '')}</div>
+        <div style="font-size:13px;font-weight:600;margin-top:5px">Pending Fees Summary Report</div>
+        <div style="font-size:11px;color:#666">Generated: ${new Date().toLocaleDateString('en-IN')}</div>
+      </div>
+      ${body.innerHTML}
+    </div>
+    <div class="footer">
+      <span>Authorized Signatory: <strong>${escapeHtml(s.principalName || 'Principal')}</strong></span>
+      <span>Printed on: ${new Date().toLocaleString('en-IN')}</span>
+    </div>
   </div>
   </body></html>`;
   if (isEl && window.electronAPI && window.electronAPI.printContent) {
@@ -4351,8 +4515,10 @@ function renderClasses() {
   const list = document.getElementById('clsList');
   if (!list) return;
   list.innerHTML = '';
+  const curSess = (DB.settings && DB.settings.currentSession) || '2026–27';
+  const activeStudents = getActiveStudents(curSess);
   CLASSES.forEach(c => {
-    const studentCount = (DB.students || []).filter(s => s.cls === c && s.status !== 'Inactive' && s.status !== 'Left School' && s.status !== 'Alumni').length;
+    const studentCount = activeStudents.filter(s => s.cls === c).length;
     const btn = document.createElement('button');
     btn.className = 'btn ' + (selClassForSections === c ? 'bp' : 'bo');
     btn.style.cssText = 'width:100%;justify-content:space-between;font-size:12.5px;margin-bottom:3px';
@@ -4373,7 +4539,8 @@ function renderClassSectionsDetail() {
   if (title) title.textContent = clL(c) + ' - Sections & Record';
 
   const sections = (DB.classSections && DB.classSections[c]) ? DB.classSections[c] : [];
-  const classStudents = (DB.students || []).filter(s => s.cls === c && s.status !== 'Inactive' && s.status !== 'Left School' && s.status !== 'Alumni');
+  const curSess = (DB.settings && DB.settings.currentSession) || '2026–27';
+  const classStudents = getActiveStudents(curSess).filter(s => s.cls === c);
   const body = document.getElementById('classDetailBody');
   if (!body) return;
 
@@ -4704,7 +4871,7 @@ function renderSessions() {
     const { startDate, endDate } = getSessionDates(sess);
     const isCur = (sess.name === activeSessionName);
     const status = isCur ? 'Current' : getSessionStatus(sess, todayStr);
-    const count = (DB.students || []).filter(s => s.session === sess.name).length;
+    const count = getActiveStudentCount(sess.name);
 
     let chipClass = 'cgr';
     if (status === 'Current') chipClass = 'cg';
@@ -4819,7 +4986,7 @@ function renderPromotionStudents() {
   const nextCls = getNextClass(fromCls);
 
   tb.innerHTML = students.map(s => {
-    const isLeft = (s.status === 'Left School' || s.status === 'School Left' || s.status === 'Inactive' || s.status === 'Alumni');
+    const isLeft = !isStudentActive(s);
     const isAlreadyTargetSess = nextSess && (s.session === nextSess);
     const isEligible = !isLeft && !isAlreadyTargetSess;
 
@@ -4920,7 +5087,7 @@ function executeBulkAction(actionType) {
   const ineligibleStudents = [];
 
   selectedStudents.forEach(s => {
-    const isLeft = (s.status === 'Left School' || s.status === 'School Left' || s.status === 'Inactive' || s.status === 'Alumni');
+    const isLeft = !isStudentActive(s);
     if (actionType === 'promote' || actionType === 'repeat') {
       if (isLeft) {
         ineligibleStudents.push({ student: s, reason: `Status is '${s.status}'` });
@@ -11182,14 +11349,2629 @@ function printReminders() {
 // 10. REPORTS & EXPORTS
 // ============================================================
 
+// ============================================================
+// 10. FINANCIAL & COLLECTION REPORTS MODULE (REFINED & FULLY FUNCTIONAL)
+// ============================================================
+
+let _finActiveSession = null;
+let _finChartMode = 'session';
+let _finCachedTransactions = null;
+
+function renderFinancialReportsPage(targetSession = null) {
+  ensurePerformanceIndices();
+  const s = DB.settings || {};
+  const curSess = targetSession || _finActiveSession || (DB.settings && DB.settings.currentSession) || '2026–27';
+  _finActiveSession = curSess;
+
+  // 1. Session Dropdown in header
+  const sessSel = document.getElementById('fin_sess_select');
+  if (sessSel) {
+    const allSess = (DB.sessions || []).map(x => x.name || x);
+    if (!allSess.includes(curSess)) allSess.unshift(curSess);
+    sessSel.innerHTML = allSess.map(sn => `<option value="${sn}" ${sn === curSess ? 'selected' : ''}>Session ${sn} ▾</option>`).join('');
+  }
+
+  // 2. Principal Tag
+  const princTag = document.getElementById('fin_principal_tag');
+  if (princTag) {
+    princTag.textContent = `Principal: ${s.principalName || 'Tanmay Soni'}`;
+  }
+
+  // 3. Compute Financial Totals
+  const allTx = getValidPaymentTransactions();
+  const sessionTx = allTx.filter(tx => {
+    if (!tx.session && !tx._normSession) return true;
+    return tx.session === curSess || tx._normSession === curSess;
+  });
+
+  // A. Collected Amount
+  let collectedAmt = 0;
+  sessionTx.forEach(tx => {
+    collectedAmt += Number(tx.amount) || 0;
+  });
+
+  // B. Pending Dues
+  const pendingRows = getPendingFeesDueList({ sessMode: 'current', dueType: 'all', month: '' });
+  const pendingAmt = pendingRows.reduce((sum, r) => sum + r.amount, 0);
+
+  // C. Total Expected
+  const totalExpected = collectedAmt + pendingAmt;
+
+  // D. Discount Given
+  let discountGiven = 0;
+  let discountReceiptsCount = 0;
+  sessionTx.forEach(tx => {
+    let d = Number(tx.discountAmt || tx.discount || 0);
+    if (Array.isArray(tx.items)) {
+      tx.items.forEach(it => { if (it.discount) d += Number(it.discount) || 0; });
+    }
+    if (d > 0) {
+      discountGiven += d;
+      discountReceiptsCount++;
+    }
+  });
+
+  // E. Collection Rate
+  const collectionRate = totalExpected > 0
+    ? (collectedAmt / totalExpected * 100).toFixed(1)
+    : (collectedAmt > 0 ? '100.0' : '0.0');
+
+  // Update 5 KPI Cards DOM with clean, accurate, non-misleading labels
+  const elCol = document.getElementById('fin_kpi_val_collected');
+  if (elCol) elCol.textContent = '₹' + collectedAmt.toLocaleString('en-IN');
+  const elSubCol = document.getElementById('fin_kpi_sub_collected');
+  if (elSubCol) {
+    elSubCol.textContent = sessionTx.length > 0
+      ? `Total valid collections (${sessionTx.length.toLocaleString('en-IN')} receipts)`
+      : 'Total valid collections';
+  }
+
+  const elPen = document.getElementById('fin_kpi_val_pending');
+  if (elPen) elPen.textContent = '₹' + pendingAmt.toLocaleString('en-IN');
+  const elSubPen = document.getElementById('fin_kpi_sub_pending');
+  if (elSubPen) {
+    elSubPen.textContent = 'Outstanding balance';
+  }
+
+  const elExp = document.getElementById('fin_kpi_val_expected');
+  if (elExp) elExp.textContent = '₹' + totalExpected.toLocaleString('en-IN');
+  const elSubExp = document.getElementById('fin_kpi_sub_expected');
+  if (elSubExp) elSubExp.textContent = `Current Academic Session (${curSess})`;
+
+  const elDisc = document.getElementById('fin_kpi_val_discount');
+  if (elDisc) elDisc.textContent = '₹' + discountGiven.toLocaleString('en-IN');
+  const elSubDisc = document.getElementById('fin_kpi_sub_discount');
+  if (elSubDisc) {
+    elSubDisc.textContent = discountReceiptsCount > 0
+      ? `Approved across ${discountReceiptsCount.toLocaleString('en-IN')} receipts`
+      : 'Approved discounts';
+  }
+
+  const elRate = document.getElementById('fin_kpi_val_rate');
+  if (elRate) elRate.textContent = `${collectionRate}%`;
+  const elSubRate = document.getElementById('fin_kpi_sub_rate');
+  if (elSubRate) {
+    elSubRate.textContent = 'Realized vs expected';
+  }
+
+  // 4. Render Middle Row Charts
+  renderFinBarChart(curSess, _finChartMode, sessionTx);
+  renderFinDonutChart(collectedAmt, pendingAmt, totalExpected, collectionRate);
+
+  // 5. Render Bottom Row
+  renderFinRecentCollections(sessionTx);
+  renderFinTopClasses(curSess, pendingRows);
+}
+
+function changeFinSession(newSess) {
+  _finActiveSession = newSess;
+  renderFinancialReportsPage(newSess);
+}
+
+function renderFinBarChartMode(mode) {
+  _finChartMode = mode;
+  const curSess = _finActiveSession || (DB.settings && DB.settings.currentSession) || '2026–27';
+  renderFinBarChart(curSess, mode);
+}
+
+// ------------------------------------------------------------
+// PROBLEM 1: DYNAMIC SCALE & ACCURATE RUPEE MONTHLY BAR CHART
+// ------------------------------------------------------------
+function renderFinBarChart(curSess, mode = 'session', precomputedTx = null) {
+  const container = document.getElementById('fin_bar_chart_container');
+  if (!container) return;
+
+  const titleEl = document.getElementById('fin_chart_title');
+  if (titleEl) {
+    titleEl.textContent = mode === 'all'
+      ? 'Monthly Collection (Full History)'
+      : `Monthly Collection (Session ${curSess})`;
+  }
+
+  const ACADEMIC_MONTHS = ['April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December', 'January', 'February', 'March'];
+  const shortMonths = ['Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec', 'Jan', 'Feb', 'Mar'];
+
+  const monthlyData = {};
+  ACADEMIC_MONTHS.forEach(m => { monthlyData[m] = { amount: 0, count: 0 }; });
+
+  const allTx = getValidPaymentTransactions();
+  const txToUse = mode === 'all'
+    ? allTx
+    : (precomputedTx || allTx.filter(tx => !tx.session || tx.session === curSess || tx._normSession === curSess));
+
+  txToUse.forEach(tx => {
+    const amt = Number(tx.amount) || 0;
+    let targetMonth = null;
+    if (Array.isArray(tx.items) && tx.items.length > 0) {
+      targetMonth = tx.items[0].month;
+    }
+    if (!targetMonth && tx.period) {
+      ACADEMIC_MONTHS.forEach(m => { if (tx.period.includes(m)) targetMonth = m; });
+    }
+    if (!targetMonth && tx.date) {
+      const parts = tx.date.split('-');
+      if (parts.length >= 2) {
+        const mNum = parseInt(parts[1], 10);
+        if (!isNaN(mNum) && mNum >= 1 && mNum <= 12) {
+          targetMonth = SYS_MONTHS[mNum - 1];
+        }
+      }
+    }
+    if (targetMonth && monthlyData[targetMonth]) {
+      monthlyData[targetMonth].amount += amt;
+      monthlyData[targetMonth].count++;
+    }
+  });
+
+  // Calculate dynamic readable scale based on actual peak data
+  let maxMonthly = 0;
+  ACADEMIC_MONTHS.forEach(m => {
+    if (monthlyData[m].amount > maxMonthly) maxMonthly = monthlyData[m].amount;
+  });
+
+  let scaleMax = 10000;
+  let numTicks = 5;
+
+  if (maxMonthly <= 0) {
+    scaleMax = 10000;
+    numTicks = 5;
+  } else if (maxMonthly <= 10000) {
+    scaleMax = Math.max(2000, Math.ceil(maxMonthly / 2000) * 2000);
+    numTicks = Math.min(5, Math.max(2, Math.round(scaleMax / 2000)));
+  } else if (maxMonthly <= 25000) {
+    scaleMax = Math.ceil(maxMonthly / 5000) * 5000;
+    numTicks = 5;
+  } else if (maxMonthly <= 50000) {
+    scaleMax = Math.ceil(maxMonthly / 10000) * 10000;
+    numTicks = 5;
+  } else if (maxMonthly <= 100000) {
+    scaleMax = Math.ceil(maxMonthly / 20000) * 20000;
+    numTicks = 5;
+  } else if (maxMonthly <= 250000) {
+    scaleMax = Math.ceil(maxMonthly / 50000) * 50000;
+    numTicks = 5;
+  } else if (maxMonthly <= 500000) {
+    scaleMax = Math.ceil(maxMonthly / 100000) * 100000;
+    numTicks = 5;
+  } else {
+    scaleMax = Math.ceil(maxMonthly / 100000) * 100000;
+    numTicks = 5;
+  }
+
+  // Format axis tick labels in Indian currency
+  const tickStep = scaleMax / numTicks;
+  const lakhHasDec = (tickStep >= 100000 && (tickStep % 100000 !== 0));
+  const kHasDec = (tickStep < 100000 && tickStep >= 1000 && (tickStep % 1000 !== 0));
+
+  function formatAxisTick(val) {
+    if (val === 0) return '₹0';
+    if (val >= 100000) {
+      const l = val / 100000;
+      return (lakhHasDec || !Number.isInteger(l)) ? `₹${l.toFixed(1)}L` : `₹${l}L`;
+    }
+    if (val >= 1000) {
+      const k = val / 1000;
+      return (kHasDec || !Number.isInteger(k)) ? `₹${k.toFixed(1)}k` : `₹${k}k`;
+    }
+    return `₹${val}`;
+  }
+
+  // Format bar value labels displayed directly above bars
+  function formatBarTopLabel(amt) {
+    if (!amt || amt <= 0) return '₹0';
+    if (amt >= 100000) {
+      const l = amt / 100000;
+      return `₹${l.toFixed(2)}L`;
+    }
+    if (amt >= 1000) {
+      const k = amt / 1000;
+      return `₹${k.toFixed(1)}k`;
+    }
+    return `₹${amt.toLocaleString('en-IN')}`;
+  }
+
+  // SVG Chart Geometry
+  const contW = (container && container.clientWidth) ? container.clientWidth : 0;
+  const svgW = contW > 320 ? contW : 560;
+  const svgH = 185;
+  const padL = 44;
+  const padR = 12;
+  const padT = 18;
+  const padB = 22;
+  const chartW = svgW - padL - padR;
+  const chartH = svgH - padT - padB;
+
+  let svg = `<svg viewBox="0 0 ${svgW} ${svgH}" width="100%" height="100%" style="overflow:visible;font-family:inherit">`;
+
+  // Purple gradient definitions
+  svg += `<defs>
+    <linearGradient id="finBarGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#8B5CF6" />
+      <stop offset="100%" stop-color="#6D28D9" />
+    </linearGradient>
+    <linearGradient id="finBarGradientHover" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#A78BFA" />
+      <stop offset="100%" stop-color="#7C3AED" />
+    </linearGradient>
+  </defs>`;
+
+  // Vertical Y-Axis Line
+  svg += `<line x1="${padL}" y1="${padT}" x2="${padL}" y2="${padT + chartH}" stroke="#CBD5E1" stroke-width="1" shape-rendering="crispEdges" />`;
+
+  // Horizontal Grid Lines & Y-axis labels
+  for (let i = 0; i <= numTicks; i++) {
+    const tickVal = (scaleMax / numTicks) * (numTicks - i);
+    const y = padT + (chartH / numTicks) * i;
+    const label = formatAxisTick(tickVal);
+
+    svg += `<line x1="${padL}" y1="${y}" x2="${svgW - padR}" y2="${y}" stroke="${i === numTicks ? '#CBD5E1' : '#E2DDF0'}" stroke-width="1" shape-rendering="crispEdges" />`;
+    svg += `<text x="${padL - 8}" y="${y + 3.5}" text-anchor="end" font-size="10" fill="#64748B" font-weight="600">${label}</text>`;
+  }
+
+  // 12 Vertical Bars (April - March)
+  const slotW = chartW / 12;
+  const barGap = Math.max(6, Math.min(12, Math.round(slotW * 0.18)));
+  const barW = Math.max(26, Math.min(52, Math.round(slotW - barGap)));
+
+  ACADEMIC_MONTHS.forEach((m, idx) => {
+    const d = monthlyData[m];
+    const amt = d.amount;
+    const barH = amt > 0 ? Math.max(4, (amt / scaleMax) * chartH) : 0;
+    const x = padL + idx * slotW + (slotW - barW) / 2;
+    const y = padT + (chartH - barH);
+    const shortM = shortMonths[idx];
+    const topLabel = formatBarTopLabel(amt);
+
+    // Only render actual bar rectangle when amount > 0 (prevents zero months from looking like collections)
+    if (barH > 0) {
+      svg += `<rect x="${x}" y="${y}" width="${barW}" height="${barH}" rx="5" ry="5" fill="url(#finBarGradient)" style="cursor:pointer;transition:all 0.15s ease" onmouseover="this.setAttribute('fill','url(#finBarGradientHover)');showFinTooltip(event, '${m}', ${amt}, ${d.count})" onmouseout="this.setAttribute('fill','url(#finBarGradient)');hideFinTooltip()" onclick="openFinMonthTransactions('${m}')" />`;
+    }
+
+    // Top value text (exact rupee formatting, dark text at baseline for zero-collection months)
+    const labelY = barH > 0 ? (y - 5) : (padT + chartH - 4);
+    svg += `<text x="${x + barW / 2}" y="${labelY}" text-anchor="middle" font-size="9.5" font-weight="700" fill="#0F172A">${topLabel}</text>`;
+
+    // X-axis month label
+    svg += `<text x="${x + barW / 2}" y="${svgH - 6}" text-anchor="middle" font-size="11" fill="#64748B" font-weight="600">${shortM}</text>`;
+  });
+
+  svg += `</svg>`;
+  container.innerHTML = svg;
+
+  // Responsive resize observer to re-render chart when container width expands or shrinks
+  if (typeof ResizeObserver !== 'undefined' && container && !container._hasFinResizeObs) {
+    container._hasFinResizeObs = true;
+    let lastW = contW;
+    const ro = new ResizeObserver(entries => {
+      for (const entry of entries) {
+        const curW = Math.round(entry.contentRect.width);
+        if (curW > 320 && Math.abs(curW - lastW) > 10) {
+          lastW = curW;
+          renderFinBarChart(curSess, mode, precomputedTx);
+        }
+      }
+    });
+    ro.observe(container);
+  }
+}
+
+function renderFinDonutChart(collectedAmt, pendingAmt, totalExpected, collectionRate) {
+  const svgEl = document.getElementById('fin_donut_svg');
+  if (!svgEl) return;
+
+  const r = 48;
+  const circ = 2 * Math.PI * r;
+  const rateNum = parseFloat(collectionRate) || 0;
+  const dash = Math.min(circ, Math.max(0, (rateNum / 100) * circ));
+  const hasProgress = dash > 0.1;
+
+  svgEl.setAttribute('width', '130');
+  svgEl.setAttribute('height', '130');
+  svgEl.setAttribute('viewBox', '0 0 130 130');
+  svgEl.innerHTML = `
+    <circle cx="65" cy="65" r="${r}" fill="none" stroke="#DDD6FE" stroke-width="14" />
+    <circle cx="65" cy="65" r="${r}" fill="none" stroke="${hasProgress ? '#7C3AED' : 'none'}" stroke-width="14" stroke-dasharray="${dash} ${circ}" stroke-linecap="round" transform="rotate(-90 65 65)" style="transition:stroke-dasharray 0.5s ease" />
+    <text x="65" y="62" text-anchor="middle" font-size="20" font-weight="800" fill="#0F172A" font-family="inherit">${collectionRate}%</text>
+    <text x="65" y="78" text-anchor="middle" font-size="11" font-weight="600" fill="#64748B" font-family="inherit">Collected</text>
+  `;
+
+  const legCol = document.getElementById('fin_legend_collected');
+  if (legCol) legCol.textContent = '₹' + Number(collectedAmt || 0).toLocaleString('en-IN');
+
+  const legPen = document.getElementById('fin_legend_pending');
+  if (legPen) legPen.textContent = '₹' + Number(pendingAmt || 0).toLocaleString('en-IN');
+
+  const legExp = document.getElementById('fin_legend_expected');
+  if (legExp) legExp.textContent = '₹' + Number(totalExpected || 0).toLocaleString('en-IN');
+}
+
+function renderFinRecentCollections(sessionTx) {
+  const tbody = document.getElementById('fin_recent_table_body');
+  if (!tbody) return;
+
+  const allTx = getValidPaymentTransactions();
+  const listToUse = (sessionTx && sessionTx.length > 0) ? sessionTx : allTx;
+  const top3 = listToUse.slice(0, 3);
+
+  if (top3.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:16px;color:#94A3B8;font-size:11.5px">No recent transactions recorded</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = top3.map((tx, idx) => {
+    const isOnline = (tx.mode || '').includes('UPI') || (tx.mode || '').includes('Online') || (tx.mode || '').includes('Bank') || (tx.mode || '').includes('Transfer');
+    const isCash = (tx.mode || '').includes('Cash') || !tx.mode;
+    const badgeCls = isCash ? 'fin-badge-cash' : (isOnline ? 'fin-badge-online' : 'fin-badge-other');
+    const modeLabel = isOnline ? 'Online / UPI' : (isCash ? 'Cash' : (tx.mode || 'Other'));
+
+    const clsFormatted = String(tx.cls || '').startsWith('Class ') ? tx.cls : clL(tx.cls);
+    const secFormatted = tx.section ? ' (' + escapeHtml(tx.section) + ')' : '';
+
+    return `
+      <tr>
+        <td style="text-align:center;color:#64748B;font-weight:600">${idx + 1}</td>
+        <td><a href="javascript:void(0)" class="fin-receipt-link" onclick="openReceiptFromFin('${escapeHtml(tx.receiptNo)}', ${tx.studentId})">${escapeHtml(tx.receiptNo)}</a></td>
+        <td style="font-weight:600;color:var(--txt-heading, #1F2937);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escapeHtml(tx.studentName)}</td>
+        <td style="color:var(--txt, #4B5563);white-space:nowrap">${clsFormatted}${secFormatted}</td>
+        <td style="color:#64748B;white-space:nowrap">${escapeHtml(tx.date || '–')}</td>
+        <td style="text-align:left;font-weight:700;color:var(--txt-heading, #0F172A);white-space:nowrap">₹${Number(tx.amount).toLocaleString('en-IN')}</td>
+        <td style="text-align:center"><span class="${badgeCls}">${escapeHtml(modeLabel)}</span></td>
+      </tr>
+    `;
+  }).join('');
+}
+
+// ------------------------------------------------------------
+// PROBLEM 4: TOP OUTSTANDING CLASSES & CLASS-WISE REPORT
+// ------------------------------------------------------------
+function renderFinTopClasses(curSess, precomputedPending = null) {
+  const container = document.getElementById('fin_top_classes_list');
+  if (!container) return;
+
+  const pendingRows = precomputedPending || getPendingFeesDueList({ sessMode: 'current', dueType: 'all', month: '' });
+  const classDues = {};
+
+  pendingRows.forEach(r => {
+    const c = r.cls || '–';
+    classDues[c] = (classDues[c] || 0) + (Number(r.amount) || 0);
+  });
+
+  const sorted = Object.entries(classDues).sort((a, b) => b[1] - a[1]);
+  const top5 = sorted.slice(0, 5);
+  const maxDue = top5.length > 0 ? top5[0][1] : 1;
+
+  if (top5.length === 0) {
+    container.innerHTML = '<div style="text-align:center;color:#94A3B8;padding:16px;font-size:11.5px">No outstanding class dues</div>';
+    return;
+  }
+
+  container.innerHTML = top5.map(([cls, due]) => {
+    const className = String(cls).startsWith('Class ') ? cls : clL(cls);
+    const pct = (maxDue > 0 && due > 0) ? Math.max(8, Math.min(100, Math.round((due / maxDue) * 100))) : 0;
+    return `
+      <div class="fin-class-due-row" onclick="openClassWiseCollectionModal()" title="Click to view Class-wise Collection & Dues Report">
+        <div class="fin-class-due-name">${className}</div>
+        <div class="fin-class-due-bar-wrap">
+          <div class="fin-class-due-bar-fill" style="width: ${pct}%"></div>
+        </div>
+        <div class="fin-class-due-amt">₹${due.toLocaleString('en-IN')}</div>
+      </div>
+    `;
+  }).join('');
+}
+
+let _curCodClass = '';
+let _curCodSection = '';
+let _curCodStudents = [];
+
+function openClassOutstandingModal(targetClass = null) {
+  const s = DB.settings || {};
+  const curSess = _finActiveSession || s.currentSession || '2026–27';
+  const classes = CLASSES || ['NC', 'LKG', 'UKG', '1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12'];
+
+  let selectedClass = targetClass;
+  if (!selectedClass) {
+    const pendingRows = getPendingFeesDueList({ sessMode: 'current', dueType: 'all', month: '' });
+    const classDues = {};
+    pendingRows.forEach(r => {
+      const c = r.cls || '–';
+      classDues[c] = (classDues[c] || 0) + (Number(r.amount) || 0);
+    });
+    const sorted = Object.entries(classDues).sort((a, b) => b[1] - a[1]);
+    selectedClass = (sorted.length > 0 && sorted[0][1] > 0) ? sorted[0][0] : classes[0];
+  }
+  _curCodClass = selectedClass;
+  _curCodSection = '';
+
+  const clsSel = document.getElementById('cod_class_filter');
+  if (clsSel) {
+    clsSel.innerHTML = classes.map(c => `<option value="${c}" ${c === selectedClass ? 'selected' : ''}>${clL(c)}</option>`).join('');
+  }
+
+  updateCodSectionsDropdown(selectedClass);
+  renderClassOutstandingData();
+  openM('modalClassOutstandingDues');
+}
+
+function updateCodSectionsDropdown(cls) {
+  const secSel = document.getElementById('cod_section_filter');
+  if (!secSel) return;
+
+  const students = (DB.students || []).filter(s => s.cls === cls && s.status !== 'Inactive' && s.status !== 'Left School' && s.status !== 'Alumni');
+  const sections = Array.from(new Set(students.map(s => s.section).filter(Boolean))).sort();
+
+  secSel.innerHTML = '<option value="">All Sections</option>' + sections.map(sec => `<option value="${sec}">Section ${sec}</option>`).join('');
+}
+
+function onCodClassFilterChange(cls) {
+  _curCodClass = cls;
+  _curCodSection = '';
+  updateCodSectionsDropdown(cls);
+  renderClassOutstandingData();
+}
+
+function onCodSectionFilterChange(sec) {
+  _curCodSection = sec;
+  renderClassOutstandingData();
+}
+
+function getStudentTotalDues(studentId, curSess = null) {
+  const st = typeof studentId === 'object' ? studentId : (_idxStudentById ? _idxStudentById.get(studentId) : (DB.students || []).find(x => x.id === studentId));
+  if (!st) return 0;
+  const sess = curSess || _finActiveSession || (DB.settings && DB.settings.currentSession) || '2026–27';
+  const prev = typeof calcStudentPreviousArrears === 'function' ? calcStudentPreviousArrears(st, sess) : 0;
+  const curr = typeof calcStudentCurrentSessionDue === 'function' ? calcStudentCurrentSessionDue(st, sess) : 0;
+  return Math.max(0, (Number(prev) || 0) + (Number(curr) || 0));
+}
+
+function renderClassOutstandingData() {
+  const s = DB.settings || {};
+  const curSess = _finActiveSession || s.currentSession || '2026–27';
+  const cls = _curCodClass;
+  const sec = _curCodSection;
+
+  const titleEl = document.getElementById('cod_modal_title');
+  if (titleEl) {
+    titleEl.textContent = `Class Outstanding Dues & Defaulters – ${clL(cls)} (Session ${curSess})`;
+  }
+
+  const classStudents = (DB.students || []).filter(st => {
+    if (st.cls !== cls) return false;
+    if (sec && st.section !== sec) return false;
+    return st.status !== 'Inactive' && st.status !== 'Left School' && st.status !== 'Alumni';
+  });
+
+  // Pre-index pending dues for high performance
+  const sessionPendingList = getPendingFeesDueList({ sessMode: 'current', dueType: 'all', month: '' });
+  const pendingByStudent = new Map();
+  sessionPendingList.forEach(r => {
+    if (r.studentId) {
+      pendingByStudent.set(r.studentId, (pendingByStudent.get(r.studentId) || 0) + (Number(r.amount) || 0));
+    }
+  });
+
+  const allTx = getValidPaymentTransactions();
+  const studentRows = [];
+  let totalClassExpected = 0;
+  let totalClassCollected = 0;
+  let totalClassPending = 0;
+
+  classStudents.forEach(st => {
+    const studentDues = pendingByStudent.has(st.id) ? (pendingByStudent.get(st.id) || 0) : getStudentTotalDues(st.id, curSess);
+    const paidList = _idxPaymentsByStudent ? (_idxPaymentsByStudent.get(st.id) || []) : (allTx.filter(t => t.studentId === st.id));
+    const paidAmt = paidList.reduce((sum, p) => sum + (p.reversed ? 0 : (Number(p.amount) || 0)), 0);
+    const totalFee = paidAmt + studentDues;
+
+    totalClassExpected += totalFee;
+    totalClassCollected += paidAmt;
+    totalClassPending += studentDues;
+
+    studentRows.push({
+      id: st.id,
+      admno: st.admno || '–',
+      name: st.name,
+      section: st.section || 'A',
+      fatherName: st.fatherName || '–',
+      totalFee: totalFee,
+      paidAmt: paidAmt,
+      pendingDue: studentDues
+    });
+  });
+
+  studentRows.sort((a, b) => b.pendingDue - a.pendingDue);
+  _curCodStudents = studentRows;
+
+  const dueStudentsCount = studentRows.filter(r => r.pendingDue > 0).length;
+
+  const elSumCls = document.getElementById('cod_sum_class');
+  if (elSumCls) elSumCls.textContent = clL(cls) + (sec ? ' (' + sec + ')' : '');
+
+  const elSumTot = document.getElementById('cod_sum_total_students');
+  if (elSumTot) elSumTot.textContent = classStudents.length.toString();
+
+  const elSumDue = document.getElementById('cod_sum_due_students');
+  if (elSumDue) elSumDue.textContent = dueStudentsCount.toString();
+
+  const elSumExp = document.getElementById('cod_sum_expected');
+  if (elSumExp) elSumExp.textContent = '₹' + totalClassExpected.toLocaleString('en-IN');
+
+  const elSumCol = document.getElementById('cod_sum_collected');
+  if (elSumCol) elSumCol.textContent = '₹' + totalClassCollected.toLocaleString('en-IN');
+
+  const elSumPen = document.getElementById('cod_sum_pending');
+  if (elSumPen) elSumPen.textContent = '₹' + totalClassPending.toLocaleString('en-IN');
+
+  const badge = document.getElementById('cod_badge_count');
+  if (badge) badge.textContent = `${dueStudentsCount} Students with Dues`;
+
+  const tbody = document.getElementById('cod_table_body');
+  if (tbody) {
+    if (studentRows.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:24px;color:#94A3B8">No students enrolled in this class/section</td></tr>';
+    } else {
+      tbody.innerHTML = studentRows.map((r, idx) => `
+        <tr>
+          <td style="text-align:center;color:#64748B">${idx + 1}</td>
+          <td style="text-align:center"><span class="chip cb2">${escapeHtml(r.admno)}</span></td>
+          <td style="text-align:left"><strong style="cursor:pointer;color:#7C3AED" onclick="closeM('modalClassOutstandingDues');openProfile(${r.id})" title="Click to view profile">${escapeHtml(r.name)}</strong></td>
+          <td style="text-align:center">${escapeHtml(r.section)}</td>
+          <td style="text-align:left;color:#64748B">${escapeHtml(r.fatherName)}</td>
+          <td style="text-align:center">₹${r.totalFee.toLocaleString('en-IN')}</td>
+          <td style="text-align:center;color:#16A34A;font-weight:600">₹${r.paidAmt.toLocaleString('en-IN')}</td>
+          <td style="text-align:center;font-weight:700;color:${r.pendingDue > 0 ? '#DC2626' : '#64748B'}">₹${r.pendingDue.toLocaleString('en-IN')}</td>
+        </tr>
+      `).join('');
+    }
+  }
+
+  const tfoot = document.getElementById('cod_table_foot');
+  if (tfoot) {
+    tfoot.innerHTML = `
+      <tr>
+        <td colspan="5" style="text-align:center">Class ${clL(cls)} Grand Totals</td>
+        <td style="text-align:center">₹${totalClassExpected.toLocaleString('en-IN')}</td>
+        <td style="text-align:center;color:#16A34A">₹${totalClassCollected.toLocaleString('en-IN')}</td>
+        <td style="text-align:center;color:#DC2626">₹${totalClassPending.toLocaleString('en-IN')}</td>
+      </tr>
+    `;
+  }
+}
+
+async function exportClassOutstandingCSV() {
+  if (!_curCodStudents || _curCodStudents.length === 0) {
+    toast('No class student records to export!', 'warning');
+    return;
+  }
+  const curSess = _finActiveSession || (DB.settings && DB.settings.currentSession) || '2026–27';
+  let csv = 'Admission No,Student Name,Class,Section,Father Name,Total Fee (INR),Amount Paid (INR),Pending Due (INR)\n';
+  _curCodStudents.forEach(r => {
+    csv += `"${r.admno}","${r.name}","${_curCodClass}","${r.section}","${r.fatherName}",${r.totalFee},${r.paidAmt},${r.pendingDue}\n`;
+  });
+  await expCSV(`class_${_curCodClass}_outstanding_dues_${curSess}.csv`, csv);
+}
+
+function printClassOutstandingReport() {
+  if (!_curCodStudents || _curCodStudents.length === 0) {
+    const defaultCls = _curCodClass || '12';
+    openClassOutstandingModal(defaultCls, _curCodSection || '');
+    closeM('modalClassOutstandingDues');
+  }
+  if (!_curCodStudents || _curCodStudents.length === 0) {
+    toast('No class records to print!', 'warning');
+    return;
+  }
+  const s = DB.settings || {};
+  const curSess = _finActiveSession || s.currentSession || '2026–27';
+  const cls = _curCodClass;
+  const sec = _curCodSection;
+
+  const totalExp = _curCodStudents.reduce((sum, r) => sum + r.totalFee, 0);
+  const totalPaid = _curCodStudents.reduce((sum, r) => sum + r.paidAmt, 0);
+  const totalDue = _curCodStudents.reduce((sum, r) => sum + r.pendingDue, 0);
+  const dueCount = _curCodStudents.filter(r => r.pendingDue > 0).length;
+
+  const rowsHtml = _curCodStudents.map((r, i) => `
+    <tr style="${r.pendingDue > 0 ? 'background:#fff5f5' : ''}">
+      <td style="text-align:center">${i + 1}</td>
+      <td style="text-align:center">${escapeHtml(r.admno)}</td>
+      <td><strong>${escapeHtml(r.name)}</strong></td>
+      <td style="text-align:center">${escapeHtml(r.section)}</td>
+      <td>${escapeHtml(r.fatherName)}</td>
+      <td style="text-align:center">₹${r.totalFee.toLocaleString('en-IN')}</td>
+      <td style="text-align:center">₹${r.paidAmt.toLocaleString('en-IN')}</td>
+      <td style="text-align:center;font-weight:bold;color:${r.pendingDue > 0 ? '#b91c1c' : '#333'}">₹${r.pendingDue.toLocaleString('en-IN')}</td>
+    </tr>
+  `).join('');
+
+  const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Class Outstanding Dues - ${clL(cls)}</title>
+  <style>
+    @page { size: A4 portrait; margin: 12mm 10mm; }
+    * { box-sizing: border-box; }
+    body { font-family: Arial, sans-serif; font-size: 11px; margin: 0; padding: 0; color: #111; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .hdr { text-align: center; border-bottom: 2px solid #7c3aed; padding-bottom: 8px; margin-bottom: 12px; }
+    .hdr h1 { margin: 0; font-size: 20px; color: #7c3aed; }
+    .hdr p { margin: 3px 0 0; font-size: 11px; color: #555; }
+    .summary-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 12px; }
+    .sum-box { border: 1px solid #ddd; border-radius: 6px; padding: 6px 10px; background: #fafafa; text-align: center; }
+    .sum-box-due { border-color: #fca5a5; background: #fef2f2; }
+    .sum-lbl { font-size: 10px; color: #666; font-weight: bold; }
+    .sum-val { font-size: 14px; font-weight: bold; color: #111; margin-top: 2px; }
+    table { width: 100%; border-collapse: collapse; font-size: 10.5px; }
+    thead { display: table-header-group; }
+    tr { page-break-inside: avoid; }
+    th { background: #f3e8ff; color: #4c1d95; border: 1px solid #c4b5fd; padding: 6px 8px; text-align: left; font-size: 10.5px; font-weight: bold; }
+    td { border: 1px solid #e2e8f0; padding: 5px 8px; }
+    tfoot td { background: #ede9fe; font-weight: bold; border-top: 2px solid #7c3aed; }
+    .footer { margin-top: 20px; display: flex; justify-content: space-between; border-top: 1px dashed #cbd5e1; padding-top: 10px; font-size: 10px; color: #666; page-break-inside: avoid; }
+  </style></head>
+  <body>
+    <div class="hdr">
+      <h1>${escapeHtml(s.schoolName || 'MD Convent Public School')}</h1>
+      <p>${escapeHtml(s.schoolAddress || 'Amanpur, Kasganj Road, Uttar Pradesh')} | Academic Session: ${curSess}</p>
+      <h2 style="font-size:15px;margin:6px 0 0;color:#1e1b4b">Class Outstanding Dues & Defaulter Report: ${clL(cls)}${sec ? ' (Section ' + sec + ')' : ''}</h2>
+    </div>
+
+    <div class="summary-grid">
+      <div class="sum-box"><div class="sum-lbl">Enrolled Students</div><div class="sum-val">${_curCodStudents.length}</div></div>
+      <div class="sum-box sum-box-due"><div class="sum-lbl" style="color:#b91c1c">Defaulters Count</div><div class="sum-val" style="color:#b91c1c">${dueCount}</div></div>
+      <div class="sum-box"><div class="sum-lbl">Total Expected</div><div class="sum-val">₹${totalExp.toLocaleString('en-IN')}</div></div>
+      <div class="sum-box sum-box-due"><div class="sum-lbl" style="color:#b91c1c">Total Pending Dues</div><div class="sum-val" style="color:#b91c1c">₹${totalDue.toLocaleString('en-IN')}</div></div>
+    </div>
+
+    <table>
+      <thead>
+        <tr>
+          <th style="width:35px;text-align:center">#</th>
+          <th>Adm. No.</th>
+          <th>Student Name</th>
+          <th style="width:50px;text-align:center">Sec</th>
+          <th>Father Name</th>
+          <th style="text-align:center">Total Fee (₹)</th>
+          <th style="text-align:center">Paid (₹)</th>
+          <th style="text-align:center">Due (₹)</th>
+        </tr>
+      </thead>
+      <tbody>${rowsHtml}</tbody>
+      <tfoot>
+        <tr>
+          <td colspan="5" style="text-align:center">Class ${clL(cls)} Grand Totals</td>
+          <td style="text-align:center">₹${totalExp.toLocaleString('en-IN')}</td>
+          <td style="text-align:center">₹${totalPaid.toLocaleString('en-IN')}</td>
+          <td style="text-align:center;color:#b91c1c">₹${totalDue.toLocaleString('en-IN')}</td>
+        </tr>
+      </tfoot>
+    </table>
+
+    <div class="footer">
+      <div>Class-wise Fee Accounts Summary | MD Convent SMS</div>
+      <div>Printed on: ${new Date().toLocaleString('en-IN')}</div>
+    </div>
+  </body></html>`;
+
+  if (isEl && window.electronAPI && window.electronAPI.printContent) {
+    window.electronAPI.printContent(html);
+  } else {
+    const w = window.open('', '_blank');
+    if (w) { w.document.write(html); w.document.close(); }
+  }
+}
+
+function filterPendingByClass(cls) {
+  openClassOutstandingModal(cls);
+}
+
+function openFinMonthTransactions(monthName) {
+  showCollectedDetail();
+  setTimeout(() => {
+    const moSel = document.getElementById('col_f_month');
+    if (moSel) {
+      moSel.value = monthName;
+      applyCollectedFilters();
+    }
+  }, 100);
+}
+
+function openReceiptFromFin(receiptNo, studentId) {
+  if (!receiptNo || receiptNo === '–') return;
+  const p = (DB.payments || []).find(x => x.receiptNo === receiptNo);
+  if (p) {
+    printReceipt(receiptNo);
+    return;
+  }
+  if (studentId) {
+    showPaymentHistory(studentId);
+  }
+}
+
+// Tooltip helpers
+function showFinTooltip(evt, month, amount, count) {
+  let tip = document.getElementById('fin_chart_tooltip');
+  if (!tip) {
+    tip = document.createElement('div');
+    tip.id = 'fin_chart_tooltip';
+    tip.style.cssText = 'position:fixed;background:rgba(15,23,42,0.92);color:#fff;padding:6px 10px;border-radius:6px;font-size:11.5px;pointer-events:none;z-index:99999;box-shadow:0 4px 12px rgba(0,0,0,0.15);white-space:nowrap;backdrop-filter:blur(4px);';
+    document.body.appendChild(tip);
+  }
+  tip.innerHTML = `<strong>${month}</strong>: ₹${amount.toLocaleString('en-IN')} <span style="opacity:0.8">(${count} receipts)</span>`;
+  tip.style.display = 'block';
+  tip.style.left = (evt.clientX + 10) + 'px';
+  tip.style.top = (evt.clientY - 28) + 'px';
+}
+
+function hideFinTooltip() {
+  const tip = document.getElementById('fin_chart_tooltip');
+  if (tip) tip.style.display = 'none';
+}
+
+// Global Student Search (Financial Header)
+function handleFinSearch(query) {
+  const dd = document.getElementById('fin_search_results');
+  if (!dd) return;
+
+  const q = (query || '').trim().toLowerCase();
+  if (!q) {
+    dd.style.display = 'none';
+    dd.innerHTML = '';
+    return;
+  }
+
+  const students = (DB.students || []).filter(s => s.status !== 'Inactive' && s.status !== 'Left School' && s.status !== 'Alumni');
+  const matches = students.filter(s => {
+    return (s.name && s.name.toLowerCase().includes(q)) ||
+           (s.admno && s.admno.toLowerCase().includes(q)) ||
+           (s.rollno && String(s.rollno).toLowerCase().includes(q)) ||
+           (s.fatherName && s.fatherName.toLowerCase().includes(q));
+  }).slice(0, 10);
+
+  if (matches.length === 0) {
+    dd.innerHTML = '<div class="fin-search-item" style="color:#94A3B8;cursor:default">No matching students found</div>';
+    dd.style.display = 'block';
+    return;
+  }
+
+  dd.innerHTML = matches.map(s => `
+    <div class="fin-search-item" onclick="selectFinSearchStudent(${s.id})">
+      <div style="font-weight:600;color:var(--txt-heading, #1E1B4B)">${escapeHtml(s.name)}</div>
+      <div style="font-size:11px;color:var(--txt2, #64748B)">Adm: ${escapeHtml(s.admno || '–')} | Class: ${clL(s.cls)} | Father: ${escapeHtml(s.fatherName || '–')}</div>
+    </div>
+  `).join('');
+  dd.style.display = 'block';
+}
+
+function selectFinSearchStudent(studentId) {
+  const dd = document.getElementById('fin_search_results');
+  if (dd) dd.style.display = 'none';
+  const inp = document.getElementById('fin_global_search');
+  if (inp) inp.value = '';
+  showPaymentHistory(studentId);
+}
+
+// ------------------------------------------------------------
+// 6 REORGANIZED REPORT MODALS (ZERO DUPLICATES)
+// ------------------------------------------------------------
+
+// 1. Monthly Collection Report
+let _curMonthlyReportRows = [];
+function openMonthlyCollectionModal(targetSession = null) {
+  const curSess = targetSession || _finActiveSession || (DB.settings && DB.settings.currentSession) || '2026–27';
+  const titleEl = document.getElementById('mcr_title');
+  if (titleEl) titleEl.textContent = `Monthly Collection Summary & Analytics – Session ${curSess}`;
+
+  const ACADEMIC_MONTHS = ['April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December', 'January', 'February', 'March'];
+  const monthMap = {};
+  const [startY, endY] = curSess.includes('–') ? curSess.split('–') : (curSess.includes('-') ? curSess.split('-') : ['2026', '27']);
+
+  ACADEMIC_MONTHS.forEach((m, idx) => {
+    monthMap[m] = {
+      month: m,
+      receipts: 0,
+      cash: 0,
+      upi: 0,
+      bank: 0,
+      gross: 0,
+      discount: 0,
+      net: 0
+    };
+  });
+
+  const allTx = getValidPaymentTransactions();
+  const sessionTx = allTx.filter(tx => !tx.session || tx.session === curSess || tx._normSession === curSess);
+
+  sessionTx.forEach(tx => {
+    const amt = Number(tx.amount) || 0;
+    const mode = tx.mode || 'Cash';
+    let targetM = null;
+
+    if (Array.isArray(tx.items) && tx.items.length > 0) targetM = tx.items[0].month;
+    if (!targetM && tx.period) {
+      ACADEMIC_MONTHS.forEach(m => { if (tx.period.includes(m)) targetM = m; });
+    }
+    if (!targetM && tx.date) {
+      const parts = tx.date.split('-');
+      if (parts.length >= 2) targetM = SYS_MONTHS[parseInt(parts[1], 10) - 1];
+    }
+    if (targetM && monthMap[targetM]) {
+      const row = monthMap[targetM];
+      row.receipts++;
+      if (mode === 'Cash') row.cash += amt;
+      else if (mode.includes('UPI') || mode.includes('Online')) row.upi += amt;
+      else row.bank += amt;
+      row.gross += amt;
+
+      let d = Number(tx.discountAmt || tx.discount || 0);
+      if (Array.isArray(tx.items)) tx.items.forEach(it => { if (it.discount) d += Number(it.discount) || 0; });
+      row.discount += d;
+      row.net += amt;
+    }
+  });
+
+  const rows = ACADEMIC_MONTHS.map(m => monthMap[m]);
+  _curMonthlyReportRows = rows;
+
+  const tbody = document.getElementById('mcr_table_body');
+  if (tbody) {
+    tbody.innerHTML = rows.map((r, i) => `
+      <tr>
+        <td style="text-align:center;color:#64748B">${i + 1}</td>
+        <td style="font-weight:600;color:var(--txt-heading, #1E1B4B)">${r.month} ${i < 9 ? startY : endY}</td>
+        <td style="text-align:center">${r.receipts}</td>
+        <td style="text-align:right">₹${r.cash.toLocaleString('en-IN')}</td>
+        <td style="text-align:right">₹${r.upi.toLocaleString('en-IN')}</td>
+        <td style="text-align:right">₹${r.bank.toLocaleString('en-IN')}</td>
+        <td style="text-align:right;font-weight:700">₹${r.gross.toLocaleString('en-IN')}</td>
+        <td style="text-align:right;color:#D97706">₹${r.discount.toLocaleString('en-IN')}</td>
+        <td style="text-align:right;font-weight:700;color:#16A34A">₹${r.net.toLocaleString('en-IN')}</td>
+      </tr>
+    `).join('');
+  }
+
+  // Footer Totals
+  const tFoot = document.getElementById('mcr_table_foot');
+  if (tFoot) {
+    const totRec = rows.reduce((s, r) => s + r.receipts, 0);
+    const totCash = rows.reduce((s, r) => s + r.cash, 0);
+    const totUpi = rows.reduce((s, r) => s + r.upi, 0);
+    const totBank = rows.reduce((s, r) => s + r.bank, 0);
+    const totGross = rows.reduce((s, r) => s + r.gross, 0);
+    const totDisc = rows.reduce((s, r) => s + r.discount, 0);
+    const totNet = rows.reduce((s, r) => s + r.net, 0);
+
+    tFoot.innerHTML = `
+      <tr>
+        <td colspan="2" style="text-align:center">Grand Total</td>
+        <td style="text-align:center">${totRec}</td>
+        <td style="text-align:right">₹${totCash.toLocaleString('en-IN')}</td>
+        <td style="text-align:right">₹${totUpi.toLocaleString('en-IN')}</td>
+        <td style="text-align:right">₹${totBank.toLocaleString('en-IN')}</td>
+        <td style="text-align:right">₹${totGross.toLocaleString('en-IN')}</td>
+        <td style="text-align:right;color:#D97706">₹${totDisc.toLocaleString('en-IN')}</td>
+        <td style="text-align:right;color:#16A34A">₹${totNet.toLocaleString('en-IN')}</td>
+      </tr>
+    `;
+  }
+
+  openM('modalMonthlyCollectionReport');
+}
+
+async function exportMonthlyCollectionCSV() {
+  if (!_curMonthlyReportRows || _curMonthlyReportRows.length === 0) {
+    toast('No monthly collection data to export!', 'warning');
+    return;
+  }
+  let csv = 'Month,Receipts,Cash (INR),UPI (INR),Bank (INR),Gross Total (INR),Discount (INR),Net Realized (INR)\n';
+  _curMonthlyReportRows.forEach(r => {
+    csv += `"${r.month}",${r.receipts},${r.cash},${r.upi},${r.bank},${r.gross},${r.discount},${r.net}\n`;
+  });
+  await expCSV(`monthly_collection_report_${_finActiveSession || 'active'}.csv`, csv);
+}
+
+function printMonthlyCollectionReport() {
+  const s = DB.settings || {};
+  const curSess = _finActiveSession || s.currentSession || '2026–27';
+  if (!_curMonthlyReportRows || _curMonthlyReportRows.length === 0) {
+    openMonthlyCollectionModal(curSess);
+    closeM('modalMonthlyCollectionReport');
+  }
+  if (!_curMonthlyReportRows || _curMonthlyReportRows.length === 0) {
+    toast('No monthly collection data available for ' + curSess, 'warning');
+    return;
+  }
+
+  const rowsHtml = _curMonthlyReportRows.map((r, i) => `
+    <tr>
+      <td style="text-align:center">${i + 1}</td>
+      <td><strong>${r.month}</strong></td>
+      <td style="text-align:center">${r.receipts}</td>
+      <td style="text-align:right">₹${r.cash.toLocaleString('en-IN')}</td>
+      <td style="text-align:right">₹${r.upi.toLocaleString('en-IN')}</td>
+      <td style="text-align:right">₹${r.bank.toLocaleString('en-IN')}</td>
+      <td style="text-align:right"><strong>₹${r.gross.toLocaleString('en-IN')}</strong></td>
+      <td style="text-align:right">₹${r.discount.toLocaleString('en-IN')}</td>
+      <td style="text-align:right"><strong>₹${r.net.toLocaleString('en-IN')}</strong></td>
+    </tr>
+  `).join('');
+
+  const totRec = _curMonthlyReportRows.reduce((sum, r) => sum + r.receipts, 0);
+  const totGross = _curMonthlyReportRows.reduce((sum, r) => sum + r.gross, 0);
+  const totDisc = _curMonthlyReportRows.reduce((sum, r) => sum + r.discount, 0);
+  const totNet = _curMonthlyReportRows.reduce((sum, r) => sum + r.net, 0);
+
+  const html = `
+    <!DOCTYPE html><html><head><meta charset="UTF-8"><title>Monthly Collection Report - ${curSess}</title>
+    <style>
+      @page { size: A4 portrait; margin: 12mm 10mm; }
+      * { box-sizing: border-box; }
+      html, body { height: 100%; margin: 0; padding: 0; }
+      body{font-family:Arial,sans-serif;font-size:11px;margin:0;padding:0;color:#111;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+      .page-container { min-height: 100%; display: flex; flex-direction: column; }
+      .content-wrap { flex: 1 0 auto; }
+      .hdr{text-align:center;border-bottom:2px solid #7c3aed;padding-bottom:8px;margin-bottom:12px}
+      .hdr h1{margin:0;font-size:20px;color:#7c3aed}
+      .hdr p{margin:3px 0 0;font-size:11px;color:#555}
+      table{width:100%;border-collapse:collapse;font-size:10.5px;margin-top:10px}
+      thead{display:table-header-group}
+      tr{page-break-inside:avoid}
+      th,td{border:1px solid #cbd5e1;padding:6px 8px}
+      th{background:#f3e8ff;color:#4c1d95;font-weight:bold}
+      tfoot td{background:#ede9fe;font-weight:bold;border-top:2px solid #7c3aed}
+      .sig { margin-top: auto; padding-top: 42px; padding-bottom: 6px; display: flex; justify-content: space-between; padding-left: 20px; padding-right: 20px; page-break-inside: avoid; break-inside: avoid; }
+      .sig-line { border-top: 1.5px solid #334155; width: 175px; text-align: center; padding-top: 6px; font-size: 11px; font-weight: bold; color: #1e293b; }
+      .footer{margin-top:12px;display:flex;justify-content:space-between;border-top:1px dashed #cbd5e1;padding-top:8px;font-size:10px;color:#666;page-break-inside:avoid;break-inside:avoid}
+    </style></head>
+    <body>
+      <div class="page-container">
+        <div class="content-wrap">
+          <div class="hdr">
+            <h1>${escapeHtml(s.schoolName || 'MD Convent Public School')}</h1>
+            <p>${escapeHtml(s.schoolAddress || 'Amanpur, Kasganj Road, Uttar Pradesh')} | Academic Session: ${curSess}</p>
+            <h2 style="font-size:15px;margin:6px 0 0;color:#1e293b">Monthly Fee Collection Report</h2>
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th>#</th><th>Month</th><th>Receipts</th><th>Cash</th><th>UPI / Online</th><th>Bank / Cheque</th><th>Gross Total</th><th>Discount</th><th>Net Amount</th>
+              </tr>
+            </thead>
+            <tbody>${rowsHtml}</tbody>
+            <tfoot>
+              <tr>
+                <td colspan="2" style="text-align:center">Grand Totals</td>
+                <td style="text-align:center">${totRec}</td>
+                <td colspan="3" style="text-align:center">All Payment Modes</td>
+                <td style="text-align:right">₹${totGross.toLocaleString('en-IN')}</td>
+                <td style="text-align:right">₹${totDisc.toLocaleString('en-IN')}</td>
+                <td style="text-align:right;color:#16a34a">₹${totNet.toLocaleString('en-IN')}</td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+        <div class="sig">
+          <div class="sig-line">Prepared By</div>
+          <div class="sig-line">Accountant</div>
+          <div class="sig-line">Principal</div>
+        </div>
+        <div class="footer">
+          <div>Monthly Accounts Summary | MD Convent SMS</div>
+          <div>Printed on: ${new Date().toLocaleString('en-IN')}</div>
+        </div>
+      </div>
+    </body></html>
+  `;
+
+  if (isEl && window.electronAPI && window.electronAPI.printContent) {
+    window.electronAPI.printContent(html);
+  } else {
+    const w = window.open('', '_blank');
+    if (w) { w.document.write(html); w.document.close(); }
+  }
+}
+
+// 2. Class-wise Collection Report
+let _curClassWiseReportRows = [];
+function openClassWiseCollectionModal(targetSession = null) {
+  const curSess = targetSession || _finActiveSession || (DB.settings && DB.settings.currentSession) || '2026–27';
+  const titleEl = document.getElementById('cwcr_title');
+  if (titleEl) titleEl.textContent = `Class-wise Collection & Dues Report – Session ${curSess}`;
+
+  const classes = CLASSES || ['NC', 'LKG', 'UKG', '1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12'];
+  const students = (DB.students || []).filter(s => s.status !== 'Inactive' && s.status !== 'Left School' && s.status !== 'Alumni');
+  const allTx = getValidPaymentTransactions();
+  const sessionTx = allTx.filter(tx => !tx.session || tx.session === curSess || tx._normSession === curSess);
+
+  const pendingRows = getPendingFeesDueList({ sessMode: 'current', dueType: 'all', month: '' });
+  const pendingByClass = {};
+  pendingRows.forEach(r => {
+    const c = r.cls || '–';
+    pendingByClass[c] = (pendingByClass[c] || 0) + (Number(r.amount) || 0);
+  });
+
+  const collectedByClass = {};
+  sessionTx.forEach(tx => {
+    const c = tx.cls || '–';
+    collectedByClass[c] = (collectedByClass[c] || 0) + (Number(tx.amount) || 0);
+  });
+
+  const studentsByClass = {};
+  students.forEach(s => {
+    const c = s.cls || '–';
+    studentsByClass[c] = (studentsByClass[c] || 0) + 1;
+  });
+
+  const rows = classes.map(cls => {
+    const stCount = studentsByClass[cls] || 0;
+    const col = collectedByClass[cls] || 0;
+    const due = pendingByClass[cls] || 0;
+    const exp = col + due;
+    const rate = exp > 0 ? (col / exp * 100).toFixed(1) : (col > 0 ? '100.0' : '0.0');
+
+    return {
+      cls,
+      students: stCount,
+      expected: exp,
+      collected: col,
+      pending: due,
+      rate
+    };
+  });
+
+  _curClassWiseReportRows = rows;
+
+  const tbody = document.getElementById('cwcr_table_body');
+  if (tbody) {
+    tbody.innerHTML = rows.map((r, i) => `
+      <tr>
+        <td style="text-align:center;color:#64748B">${i + 1}</td>
+        <td style="font-weight:700;color:var(--txt-heading, #1E1B4B)"><a href="javascript:void(0)" onclick="closeM('modalClassWiseCollectionReport');openClassOutstandingModal('${r.cls}')" style="color:#7C3AED;text-decoration:none">${clL(r.cls)}</a></td>
+        <td style="text-align:center">${r.students}</td>
+        <td style="text-align:center">₹${r.expected.toLocaleString('en-IN')}</td>
+        <td style="text-align:center;font-weight:700;color:#16A34A">₹${r.collected.toLocaleString('en-IN')}</td>
+        <td style="text-align:center;font-weight:700;color:${r.pending > 0 ? '#DC2626' : '#64748B'}">₹${r.pending.toLocaleString('en-IN')}</td>
+        <td style="text-align:center"><span class="chip ${parseFloat(r.rate) >= 80 ? 'cb1' : 'cb2'}">${r.rate}%</span></td>
+        <td style="text-align:center">
+          <button class="btn bo bsm" style="font-size:11px;padding:3px 8px" onclick="closeM('modalClassWiseCollectionReport');openClassOutstandingModal('${r.cls}')">Details</button>
+        </td>
+      </tr>
+    `).join('');
+  }
+
+  // Footer Totals
+  const tFoot = document.getElementById('cwcr_table_foot');
+  if (tFoot) {
+    const totStudents = rows.reduce((s, r) => s + r.students, 0);
+    const totExp = rows.reduce((s, r) => s + r.expected, 0);
+    const totCol = rows.reduce((s, r) => s + r.collected, 0);
+    const totDue = rows.reduce((s, r) => s + r.pending, 0);
+    const totRate = totExp > 0 ? (totCol / totExp * 100).toFixed(1) : '100.0';
+
+    tFoot.innerHTML = `
+      <tr>
+        <td colspan="2" style="text-align:center">Grand Total</td>
+        <td style="text-align:center">${totStudents}</td>
+        <td style="text-align:center">₹${totExp.toLocaleString('en-IN')}</td>
+        <td style="text-align:center;color:#16A34A">₹${totCol.toLocaleString('en-IN')}</td>
+        <td style="text-align:center;color:#DC2626">₹${totDue.toLocaleString('en-IN')}</td>
+        <td style="text-align:center">${totRate}%</td>
+        <td></td>
+      </tr>
+    `;
+  }
+
+  openM('modalClassWiseCollectionReport');
+}
+
+async function exportClassWiseCollectionCSV() {
+  if (!_curClassWiseReportRows || _curClassWiseReportRows.length === 0) {
+    toast('No class collection data to export!', 'warning');
+    return;
+  }
+  let csv = 'Class,Enrolled Students,Total Expected (INR),Collected (INR),Pending Dues (INR),Collection Rate (%)\n';
+  _curClassWiseReportRows.forEach(r => {
+    csv += `"${clL(r.cls)}",${r.students},${r.expected},${r.collected},${r.pending},${r.rate}\n`;
+  });
+  await expCSV(`class_wise_collection_report_${_finActiveSession || 'active'}.csv`, csv);
+}
+
+function printClassWiseCollectionReport() {
+  const s = DB.settings || {};
+  const curSess = _finActiveSession || s.currentSession || '2026–27';
+  if (!_curClassWiseReportRows || _curClassWiseReportRows.length === 0) {
+    openClassWiseCollectionModal(curSess);
+    closeM('modalClassWiseCollectionReport');
+  }
+  if (!_curClassWiseReportRows || _curClassWiseReportRows.length === 0) {
+    toast('No class-wise collection data available for ' + curSess, 'warning');
+    return;
+  }
+
+  const rowsHtml = _curClassWiseReportRows.map((r, i) => `
+    <tr>
+      <td style="text-align:center">${i + 1}</td>
+      <td><strong>${clL(r.cls)}</strong></td>
+      <td style="text-align:center">${r.students}</td>
+      <td style="text-align:center">₹${r.expected.toLocaleString('en-IN')}</td>
+      <td style="text-align:center"><strong>₹${r.collected.toLocaleString('en-IN')}</strong></td>
+      <td style="text-align:center;color:#dc2626">₹${r.pending.toLocaleString('en-IN')}</td>
+      <td style="text-align:center">${r.rate}%</td>
+    </tr>
+  `).join('');
+
+  const totExp = _curClassWiseReportRows.reduce((sum, r) => sum + r.expected, 0);
+  const totCol = _curClassWiseReportRows.reduce((sum, r) => sum + r.collected, 0);
+  const totDue = _curClassWiseReportRows.reduce((sum, r) => sum + r.pending, 0);
+  const totRate = totExp > 0 ? (totCol / totExp * 100).toFixed(1) : '100.0';
+
+  const html = `
+    <!DOCTYPE html><html><head><meta charset="UTF-8"><title>Class-wise Collection Report - ${curSess}</title>
+    <style>
+      @page { size: A4 portrait; margin: 12mm 10mm; }
+      * { box-sizing: border-box; }
+      html, body { height: 100%; margin: 0; padding: 0; }
+      body{font-family:Arial,sans-serif;font-size:11px;margin:0;padding:0;color:#111;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+      .page-container { min-height: 100%; display: flex; flex-direction: column; }
+      .content-wrap { flex: 1 0 auto; }
+      .hdr{text-align:center;border-bottom:2px solid #7c3aed;padding-bottom:8px;margin-bottom:12px}
+      .hdr h1{margin:0;font-size:20px;color:#7c3aed}
+      .hdr p{margin:3px 0 0;font-size:11px;color:#555}
+      table{width:100%;border-collapse:collapse;font-size:10.5px;margin-top:10px}
+      thead{display:table-header-group}
+      tr{page-break-inside:avoid}
+      th,td{border:1px solid #cbd5e1;padding:6px 8px}
+      th{background:#f3e8ff;color:#4c1d95;font-weight:bold}
+      tfoot td{background:#ede9fe;font-weight:bold;border-top:2px solid #7c3aed}
+      .sig { margin-top: auto; padding-top: 42px; padding-bottom: 6px; display: flex; justify-content: space-between; padding-left: 20px; padding-right: 20px; page-break-inside: avoid; break-inside: avoid; }
+      .sig-line { border-top: 1.5px solid #334155; width: 175px; text-align: center; padding-top: 6px; font-size: 11px; font-weight: bold; color: #1e293b; }
+      .footer{margin-top:12px;display:flex;justify-content:space-between;border-top:1px dashed #cbd5e1;padding-top:8px;font-size:10px;color:#666;page-break-inside:avoid;break-inside:avoid}
+    </style></head>
+    <body>
+      <div class="page-container">
+        <div class="content-wrap">
+          <div class="hdr">
+            <h1>${escapeHtml(s.schoolName || 'MD Convent Public School')}</h1>
+            <p>${escapeHtml(s.schoolAddress || 'Amanpur, Kasganj Road, Uttar Pradesh')} | Academic Session: ${curSess}</p>
+            <h2 style="font-size:15px;margin:6px 0 0;color:#1e293b">Class-wise Collection & Dues Report</h2>
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th style="text-align:center">#</th><th style="text-align:left">Class</th><th style="text-align:center">Students</th><th style="text-align:center">Total Expected</th><th style="text-align:center">Fee Collected</th><th style="text-align:center">Pending Dues</th><th style="text-align:center">Rate</th>
+              </tr>
+            </thead>
+            <tbody>${rowsHtml}</tbody>
+            <tfoot>
+              <tr>
+                <td colspan="2" style="text-align:center">Grand Totals</td>
+                <td style="text-align:center">${_curClassWiseReportRows.reduce((sum, r) => sum + r.students, 0)}</td>
+                <td style="text-align:center">₹${totExp.toLocaleString('en-IN')}</td>
+                <td style="text-align:center;color:#16a34a">₹${totCol.toLocaleString('en-IN')}</td>
+                <td style="text-align:center;color:#dc2626">₹${totDue.toLocaleString('en-IN')}</td>
+                <td style="text-align:center">${totRate}%</td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+        <div class="sig">
+          <div class="sig-line">Prepared By</div>
+          <div class="sig-line">Accountant</div>
+          <div class="sig-line">Principal</div>
+        </div>
+        <div class="footer">
+          <div>Class-wise Fee Accounts Summary | MD Convent SMS</div>
+          <div>Printed on: ${new Date().toLocaleString('en-IN')}</div>
+        </div>
+      </div>
+    </body></html>
+  `;
+
+  if (isEl && window.electronAPI && window.electronAPI.printContent) {
+    window.electronAPI.printContent(html);
+  } else {
+    const w = window.open('', '_blank');
+    if (w) { w.document.write(html); w.document.close(); }
+  }
+}
+
+// 3. Fee Concession Report
+let _curConcessionReportRows = [];
+function openFeeConcessionModal(targetSession = null) {
+  const curSess = targetSession || _finActiveSession || (DB.settings && DB.settings.currentSession) || '2026–27';
+  const titleEl = document.getElementById('fcr_title');
+  if (titleEl) titleEl.textContent = `Fee Concession & Discount Report – Session ${curSess}`;
+
+  const allTx = getValidPaymentTransactions();
+  const sessionTx = allTx.filter(tx => !tx.session || tx.session === curSess || tx._normSession === curSess);
+
+  const rows = [];
+  sessionTx.forEach(tx => {
+    let d = Number(tx.discountAmt || tx.discount || 0);
+    let reason = tx.discountReason || '';
+    if (Array.isArray(tx.items)) {
+      tx.items.forEach(it => {
+        if (it.discount) d += Number(it.discount) || 0;
+        if (it.discountReason && !reason) reason = it.discountReason;
+      });
+    }
+
+    if (d > 0) {
+      rows.push({
+        receiptNo: tx.receiptNo,
+        date: tx.date || '–',
+        studentName: tx.studentName,
+        admno: tx.admno || '–',
+        cls: tx.cls,
+        section: tx.section || 'A',
+        gross: (Number(tx.amount) || 0) + d,
+        discount: d,
+        netPaid: Number(tx.amount) || 0,
+        reason: reason || 'Authorized Concession'
+      });
+    }
+  });
+
+  _curConcessionReportRows = rows;
+
+  const tbody = document.getElementById('fcr_table_body');
+  if (tbody) {
+    if (rows.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;padding:24px;color:#94A3B8">No fee concession or discount records found for this academic session.</td></tr>';
+    } else {
+      tbody.innerHTML = rows.map((r, i) => `
+        <tr>
+          <td style="text-align:center;color:#64748B">${i + 1}</td>
+          <td><strong style="color:#7C3AED">${escapeHtml(r.receiptNo)}</strong></td>
+          <td>${escapeHtml(r.date)}</td>
+          <td><strong>${escapeHtml(r.studentName)}</strong></td>
+          <td>${clL(r.cls)}${r.section ? ' (' + escapeHtml(r.section) + ')' : ''}</td>
+          <td style="text-align:center">₹${r.gross.toLocaleString('en-IN')}</td>
+          <td style="text-align:center;font-weight:700;color:#D97706">₹${r.discount.toLocaleString('en-IN')}</td>
+          <td style="text-align:center;font-weight:700;color:#16A34A">₹${r.netPaid.toLocaleString('en-IN')}</td>
+          <td><span class="chip cb2" style="font-size:10.5px">${escapeHtml(r.reason)}</span></td>
+        </tr>
+      `).join('');
+    }
+  }
+
+  // Footer Totals
+  const tFoot = document.getElementById('fcr_table_foot');
+  if (tFoot) {
+    const totGross = rows.reduce((s, r) => s + r.gross, 0);
+    const totDisc = rows.reduce((s, r) => s + r.discount, 0);
+    const totNet = rows.reduce((s, r) => s + r.netPaid, 0);
+
+    tFoot.innerHTML = `
+      <tr>
+        <td colspan="5" style="text-align:center">Total Concessions Allowed</td>
+        <td style="text-align:center">₹${totGross.toLocaleString('en-IN')}</td>
+        <td style="text-align:center;color:#D97706">₹${totDisc.toLocaleString('en-IN')}</td>
+        <td style="text-align:center;color:#16A34A">₹${totNet.toLocaleString('en-IN')}</td>
+        <td></td>
+      </tr>
+    `;
+  }
+
+  openM('modalFeeConcessionReport');
+}
+
+async function exportFeeConcessionCSV() {
+  if (!_curConcessionReportRows || _curConcessionReportRows.length === 0) {
+    toast('No concession records to export!', 'warning');
+    return;
+  }
+  let csv = 'Receipt No,Date,Student Name,Adm No,Class,Section,Gross Amount,Discount Amount,Net Paid,Reason\n';
+  _curConcessionReportRows.forEach(r => {
+    csv += `"${r.receiptNo}","${r.date}","${r.studentName}","${r.admno}","${r.cls}","${r.section}",${r.gross},${r.discount},${r.netPaid},"${r.reason}"\n`;
+  });
+  await expCSV(`fee_concession_report_${_finActiveSession || 'active'}.csv`, csv);
+}
+
+function printFeeConcessionReport() {
+  const s = DB.settings || {};
+  const curSess = _finActiveSession || s.currentSession || '2026–27';
+  if (!_curConcessionReportRows || _curConcessionReportRows.length === 0) {
+    openFeeConcessionModal(curSess);
+    closeM('modalFeeConcessionReport');
+  }
+  if (!_curConcessionReportRows || _curConcessionReportRows.length === 0) {
+    toast('No fee concession records found for ' + curSess, 'warning');
+    return;
+  }
+
+  const rowsHtml = _curConcessionReportRows.map((r, i) => `
+    <tr>
+      <td style="text-align:center">${i + 1}</td>
+      <td><strong>${r.receiptNo}</strong></td>
+      <td>${r.date}</td>
+      <td>${r.studentName}</td>
+      <td>${clL(r.cls)} (${r.section})</td>
+      <td style="text-align:center">₹${r.gross.toLocaleString('en-IN')}</td>
+      <td style="text-align:center;color:#d97706"><strong>₹${r.discount.toLocaleString('en-IN')}</strong></td>
+      <td style="text-align:center">₹${r.netPaid.toLocaleString('en-IN')}</td>
+      <td>${r.reason}</td>
+    </tr>
+  `).join('');
+
+  const totDisc = _curConcessionReportRows.reduce((sum, r) => sum + r.discount, 0);
+
+  const html = `
+    <!DOCTYPE html><html><head><meta charset="UTF-8"><title>Fee Concession Report - ${curSess}</title>
+    <style>
+      @page { size: A4 portrait; margin: 12mm 10mm; }
+      * { box-sizing: border-box; }
+      body{font-family:Arial,sans-serif;font-size:11px;margin:0;padding:0;color:#111;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+      .hdr{text-align:center;border-bottom:2px solid #7c3aed;padding-bottom:8px;margin-bottom:12px}
+      .hdr h1{margin:0;font-size:20px;color:#7c3aed}
+      .hdr p{margin:3px 0 0;font-size:11px;color:#555}
+      table{width:100%;border-collapse:collapse;font-size:10px;margin-top:10px}
+      thead{display:table-header-group}
+      tr{page-break-inside:avoid}
+      th,td{border:1px solid #cbd5e1;padding:6px 7px}
+      th{background:#f3e8ff;color:#4c1d95;font-weight:bold}
+      tfoot td{background:#ede9fe;font-weight:bold;border-top:2px solid #7c3aed}
+      .footer{margin-top:20px;display:flex;justify-content:space-between;border-top:1px dashed #cbd5e1;padding-top:10px;font-size:10px;color:#666;page-break-inside:avoid}
+    </style></head>
+    <body>
+      <div class="hdr">
+        <h1>${escapeHtml(s.schoolName || 'MD Convent Public School')}</h1>
+        <p>${escapeHtml(s.schoolAddress || 'Amanpur, Kasganj Road, Uttar Pradesh')} | Academic Session: ${curSess}</p>
+        <h2 style="font-size:15px;margin:6px 0 0;color:#1e293b">Fee Concession & Discount Audit Report</h2>
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th style="text-align:center">#</th><th>Receipt #</th><th>Date</th><th>Student Name</th><th>Class</th><th style="text-align:center">Gross</th><th style="text-align:center">Concession</th><th style="text-align:center">Net Paid</th><th>Reason / Approval</th>
+          </tr>
+        </thead>
+        <tbody>${rowsHtml}</tbody>
+        <tfoot>
+          <tr>
+            <td colspan="6" style="text-align:center">Total Concessions Granted (${_curConcessionReportRows.length} Receipts)</td>
+            <td style="text-align:center;color:#d97706">₹${totDisc.toLocaleString('en-IN')}</td>
+            <td colspan="2"></td>
+          </tr>
+        </tfoot>
+      </table>
+      <div class="footer">
+        <div>Fee Concessions & Waivers Register | MD Convent SMS</div>
+        <div>Printed on: ${new Date().toLocaleString('en-IN')}</div>
+      </div>
+    </body></html>
+  `;
+
+  if (isEl && window.electronAPI && window.electronAPI.printContent) {
+    window.electronAPI.printContent(html);
+  } else {
+    const w = window.open('', '_blank');
+    if (w) { w.document.write(html); w.document.close(); }
+  }
+}
+
+// 4. Income Summary
+function openIncomeSummaryModal(targetSession = null) {
+  const curSess = targetSession || _finActiveSession || (DB.settings && DB.settings.currentSession) || '2026–27';
+  const titleEl = document.getElementById('is_title');
+  if (titleEl) titleEl.textContent = `Annual Financial & Income Summary – Session ${curSess}`;
+
+  const allTx = getValidPaymentTransactions();
+  const sessionTx = allTx.filter(tx => !tx.session || tx.session === curSess || tx._normSession === curSess);
+  
+  let totalCollected = 0;
+  let modeTotals = { Cash: 0, UPI: 0, Bank: 0, Cheque: 0 };
+  let totalDiscounts = 0;
+
+  sessionTx.forEach(tx => {
+    const amt = Number(tx.amount) || 0;
+    totalCollected += amt;
+    const m = tx.mode || 'Cash';
+    if (m === 'Cash') modeTotals.Cash += amt;
+    else if (m.includes('UPI') || m.includes('Online')) modeTotals.UPI += amt;
+    else if (m.includes('Cheque')) modeTotals.Cheque += amt;
+    else modeTotals.Bank += amt;
+
+    let d = Number(tx.discountAmt || tx.discount || 0);
+    if (Array.isArray(tx.items)) tx.items.forEach(it => { if (it.discount) d += Number(it.discount) || 0; });
+    totalDiscounts += d;
+  });
+
+  const pendingRows = getPendingFeesDueList({ sessMode: 'current', dueType: 'all', month: '' });
+  const pendingAmt = pendingRows.reduce((sum, r) => sum + r.amount, 0);
+  const totalExpected = totalCollected + pendingAmt;
+  const collectionRate = totalExpected > 0 ? (totalCollected / totalExpected * 100).toFixed(1) : '100.0';
+
+  const contentEl = document.getElementById('is_content');
+  if (contentEl) {
+    contentEl.innerHTML = `
+      <!-- Executive KPI Cards -->
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px">
+        <div style="background:#EBF9F1;border:1px solid #D1F2DD;border-radius:10px;padding:12px 14px">
+          <div style="font-size:11px;font-weight:600;color:#059669">Gross Realized Income</div>
+          <div style="font-size:18px;font-weight:800;color:#0F172A;margin-top:2px">₹${totalCollected.toLocaleString('en-IN')}</div>
+          <div style="font-size:10.5px;color:#16A34A;margin-top:2px">100% Verified Collections</div>
+        </div>
+        <div style="background:#EDF5FD;border:1px solid #D6E8FA;border-radius:10px;padding:12px 14px">
+          <div style="font-size:11px;font-weight:600;color:#2563EB">Total Outstanding Dues</div>
+          <div style="font-size:18px;font-weight:800;color:#0F172A;margin-top:2px">₹${pendingAmt.toLocaleString('en-IN')}</div>
+          <div style="font-size:10.5px;color:#DC2626;margin-top:2px">Active Defaulter Balance</div>
+        </div>
+        <div style="background:#FFF7EC;border:1px solid #FFE7CC;border-radius:10px;padding:12px 14px">
+          <div style="font-size:11px;font-weight:600;color:#D97706">Total Concessions Allowed</div>
+          <div style="font-size:18px;font-weight:800;color:#0F172A;margin-top:2px">₹${totalDiscounts.toLocaleString('en-IN')}</div>
+          <div style="font-size:10.5px;color:#78716C;margin-top:2px">Authorized Fee Waivers</div>
+        </div>
+        <div style="background:#FDF1F5;border:1px solid #FCDCE6;border-radius:10px;padding:12px 14px">
+          <div style="font-size:11px;font-weight:600;color:#DB2777">Collection Efficiency Rate</div>
+          <div style="font-size:18px;font-weight:800;color:#0F172A;margin-top:2px">${collectionRate}%</div>
+          <div style="font-size:10.5px;color:#16A34A;margin-top:2px">Collected vs Expected</div>
+        </div>
+      </div>
+
+      <!-- Mode Breakdown -->
+      <div style="background:var(--card-bg, #FFFFFF);border:1px solid var(--bdr, #D5C9F5);border-radius:10px;padding:14px 18px">
+        <h4 style="margin:0 0 10px 0;font-size:13px;color:var(--txt-heading, #1E1B4B)">Payment Mode Distribution</h4>
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px">
+          <div>
+            <div style="font-size:11.5px;color:#64748B">💵 Cash</div>
+            <div style="font-size:15px;font-weight:700;color:#0F172A;margin-top:2px">₹${modeTotals.Cash.toLocaleString('en-IN')}</div>
+          </div>
+          <div>
+            <div style="font-size:11.5px;color:#64748B">📱 UPI / QR</div>
+            <div style="font-size:15px;font-weight:700;color:#0F172A;margin-top:2px">₹${modeTotals.UPI.toLocaleString('en-IN')}</div>
+          </div>
+          <div>
+            <div style="font-size:11.5px;color:#64748B">🏦 Bank Transfer</div>
+            <div style="font-size:15px;font-weight:700;color:#0F172A;margin-top:2px">₹${modeTotals.Bank.toLocaleString('en-IN')}</div>
+          </div>
+          <div>
+            <div style="font-size:11.5px;color:#64748B">📑 Cheque</div>
+            <div style="font-size:15px;font-weight:700;color:#0F172A;margin-top:2px">₹${modeTotals.Cheque.toLocaleString('en-IN')}</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Institutional Net Statement -->
+      <div style="background:#F8F6FC;border:1px solid var(--bdr, #D5C9F5);border-radius:10px;padding:14px 18px">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <div>
+            <div style="font-size:12px;font-weight:700;color:var(--txt-heading, #1E1B4B)">Net Realized Institutional Fee Revenue</div>
+            <div style="font-size:11px;color:#64748B">Total receipts verified and banked into school accounts</div>
+          </div>
+          <div style="font-size:22px;font-weight:800;color:#7C3AED">₹${totalCollected.toLocaleString('en-IN')}</div>
+        </div>
+      </div>
+    `;
+  }
+
+  openM('modalIncomeSummary');
+}
+
+async function exportIncomeSummaryCSV() {
+  const s = DB.settings || {};
+  const curSess = _finActiveSession || s.currentSession || '2026–27';
+  const allTx = getValidPaymentTransactions();
+  const sessionTx = allTx.filter(tx => !tx.session || tx.session === curSess || tx._normSession === curSess);
+
+  let totalCollected = 0;
+  let cash = 0, upi = 0, bank = 0, cheque = 0;
+  sessionTx.forEach(tx => {
+    const amt = Number(tx.amount) || 0;
+    totalCollected += amt;
+    const m = tx.mode || 'Cash';
+    if (m === 'Cash') cash += amt;
+    else if (m.includes('UPI') || m.includes('Online')) upi += amt;
+    else if (m.includes('Cheque')) cheque += amt;
+    else bank += amt;
+  });
+
+  const pendingRows = getPendingFeesDueList({ sessMode: 'current', dueType: 'all', month: '' });
+  const pendingAmt = pendingRows.reduce((sum, r) => sum + r.amount, 0);
+  const totalExp = totalCollected + pendingAmt;
+  const rate = totalExp > 0 ? (totalCollected / totalExp * 100).toFixed(1) : '100.0';
+
+  let csv = 'Metric,Value (INR),Notes\n';
+  csv += `"Total Realized Income",${totalCollected},"100% verified collections"\n`;
+  csv += `"Pending Dues",${pendingAmt},"Active student dues"\n`;
+  csv += `"Total Expected",${totalExp},"Expected revenue"\n`;
+  csv += `"Collection Efficiency Rate",${rate}%,"Realized vs expected"\n`;
+  csv += `"Cash Collections",${cash},"Cash payment register"\n`;
+  csv += `"UPI / Online Collections",${upi},"Digital payments"\n`;
+  csv += `"Bank Transfer Collections",${bank},"NEFT / RTGS / Bank"\n`;
+  csv += `"Cheque Collections",${cheque},"Cheque deposits"\n`;
+
+  await expCSV(`income_summary_${curSess}.csv`, csv);
+}
+
+function printIncomeSummaryReport() {
+  const s = DB.settings || {};
+  const curSess = _finActiveSession || s.currentSession || '2026–27';
+  const allTx = getValidPaymentTransactions();
+  const sessionTx = allTx.filter(tx => !tx.session || tx.session === curSess || tx._normSession === curSess);
+
+  let totalCollected = 0;
+  let cash = 0, upi = 0, bank = 0, cheque = 0;
+  sessionTx.forEach(tx => {
+    const amt = Number(tx.amount) || 0;
+    totalCollected += amt;
+    const m = tx.mode || 'Cash';
+    if (m === 'Cash') cash += amt;
+    else if (m.includes('UPI') || m.includes('Online')) upi += amt;
+    else if (m.includes('Cheque')) cheque += amt;
+    else bank += amt;
+  });
+
+  const pendingRows = getPendingFeesDueList({ sessMode: 'current', dueType: 'all', month: '' });
+  const pendingAmt = pendingRows.reduce((sum, r) => sum + r.amount, 0);
+  const totalExp = totalCollected + pendingAmt;
+  const rate = totalExp > 0 ? (totalCollected / totalExp * 100).toFixed(1) : '100.0';
+
+  const html = `
+    <!DOCTYPE html><html><head><meta charset="UTF-8"><title>Annual Financial & Income Summary - ${curSess}</title>
+    <style>
+      @page { size: A4 portrait; margin: 12mm 10mm; }
+      * { box-sizing: border-box; }
+      html, body { height: 100%; margin: 0; padding: 0; }
+      body { font-family: Arial, sans-serif; padding: 0; color: #111; font-size: 11px; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      .page-container { min-height: 100%; display: flex; flex-direction: column; }
+      .content-wrap { flex: 1 0 auto; }
+      .hdr { text-align: center; border-bottom: 2px solid #7c3aed; padding-bottom: 8px; margin-bottom: 14px; }
+      .hdr h1 { margin: 0; font-size: 20px; color: #7c3aed; }
+      .hdr p { margin: 3px 0 0; font-size: 11px; color: #555; }
+      .kpi-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 16px; }
+      .kpi-card { border: 1px solid #cbd5e1; padding: 10px; border-radius: 6px; text-align: center; background: #f8fafc; }
+      .kpi-val { font-size: 16px; font-weight: bold; margin-top: 2px; }
+      table { width: 100%; border-collapse: collapse; font-size: 11px; margin-top: 14px; }
+      th, td { border: 1px solid #cbd5e1; padding: 7px 10px; }
+      th { background: #f3e8ff; color: #4c1d95; font-weight: bold; text-align: left; }
+      .sig { margin-top: auto; padding-top: 36px; padding-bottom: 4px; display: flex; justify-content: space-between; padding-left: 20px; padding-right: 20px; page-break-inside: avoid; break-inside: avoid; }
+      .sig-line { border-top: 1.5px solid #334155; width: 175px; text-align: center; padding-top: 6px; font-size: 11px; font-weight: bold; color: #1e293b; }
+    </style></head>
+    <body>
+      <div class="page-container">
+        <div class="content-wrap">
+          <div class="hdr">
+            <h1>${escapeHtml(s.schoolName || 'MD Convent Public School')}</h1>
+            <p>${escapeHtml(s.schoolAddress || 'Amanpur, Kasganj Road, Uttar Pradesh')} | Academic Session: ${curSess}</p>
+            <h2 style="font-size:15px;margin:6px 0 0;color:#1e293b">Annual Financial & Income Audit Statement</h2>
+          </div>
+
+          <div class="kpi-grid">
+            <div class="kpi-card"><div>Realized Income</div><div class="kpi-val" style="color:#059669">₹${totalCollected.toLocaleString('en-IN')}</div></div>
+            <div class="kpi-card"><div>Outstanding Dues</div><div class="kpi-val" style="color:#dc2626">₹${pendingAmt.toLocaleString('en-IN')}</div></div>
+            <div class="kpi-card"><div>Total Expected</div><div class="kpi-val">₹${totalExp.toLocaleString('en-IN')}</div></div>
+            <div class="kpi-card"><div>Collection Rate</div><div class="kpi-val" style="color:#7c3aed">${rate}%</div></div>
+          </div>
+
+          <table>
+            <thead>
+              <tr><th>Payment Mode</th><th>Gross Amount Received (₹)</th><th>Share (%)</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>💵 Cash</td><td>₹${cash.toLocaleString('en-IN')}</td><td>${totalCollected > 0 ? (cash / totalCollected * 100).toFixed(1) : 0}%</td></tr>
+              <tr><td>📱 UPI / QR / Online</td><td>₹${upi.toLocaleString('en-IN')}</td><td>${totalCollected > 0 ? (upi / totalCollected * 100).toFixed(1) : 0}%</td></tr>
+              <tr><td>🏦 Bank Transfer (NEFT/RTGS)</td><td>₹${bank.toLocaleString('en-IN')}</td><td>${totalCollected > 0 ? (bank / totalCollected * 100).toFixed(1) : 0}%</td></tr>
+              <tr><td>📑 Cheque / Demand Draft</td><td>₹${cheque.toLocaleString('en-IN')}</td><td>${totalCollected > 0 ? (cheque / totalCollected * 100).toFixed(1) : 0}%</td></tr>
+              <tr style="background:#ede9fe;font-weight:bold"><td>Total Realized Institutional Revenue</td><td>₹${totalCollected.toLocaleString('en-IN')}</td><td>100.0%</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="sig">
+          <div class="sig-line">Prepared By (Accounts)</div>
+          <div class="sig-line">Checked & Verified</div>
+          <div class="sig-line">Principal Signature</div>
+        </div>
+      </div>
+    </body></html>
+  `;
+
+  if (isEl && window.electronAPI && window.electronAPI.printContent) {
+    window.electronAPI.printContent(html);
+  } else {
+    const w = window.open('', '_blank');
+    if (w) { w.document.write(html); w.document.close(); }
+  }
+}
+
+// ------------------------------------------------------------
+// PAYMENT MODE SUMMARY (QUICK ACTION 3)
+// ------------------------------------------------------------
+let _curPaymentModeSummaryRows = [];
+let _curPaymentModeSummaryStats = null;
+
+function openPaymentModeSummaryModal(targetSession = null) {
+  const curSess = targetSession || _finActiveSession || (DB.settings && DB.settings.currentSession) || '2026–27';
+  const titleEl = document.getElementById('pms_title');
+  const subEl = document.getElementById('pms_subtitle');
+  if (titleEl) titleEl.textContent = `Payment Mode Summary – Session ${curSess}`;
+  if (subEl) subEl.textContent = `Collection distribution and volume across all payment channels for Session ${curSess}`;
+
+  const allTx = getValidPaymentTransactions();
+  const sessionTx = allTx.filter(tx => !tx.session || tx.session === curSess || tx._normSession === curSess);
+
+  const modeBuckets = {
+    'Cash': { count: 0, amount: 0, type: 'Cash / Offline Desk', badgeCls: 'fin-badge-cash' },
+    'Online / UPI': { count: 0, amount: 0, type: 'Digital Instant (UPI/QR)', badgeCls: 'fin-badge-online' },
+    'Bank Transfer': { count: 0, amount: 0, type: 'Direct NEFT / IMPS / RTGS', badgeCls: 'fin-badge-other' },
+    'Cheque / DD': { count: 0, amount: 0, type: 'Bank Cheque / Demand Draft', badgeCls: 'fin-badge-other' },
+    'Other / Waived': { count: 0, amount: 0, type: 'Authorized Waivers / Adjustments', badgeCls: 'fin-badge-other' }
+  };
+
+  sessionTx.forEach(tx => {
+    const rawMode = (tx.mode || 'Cash').trim();
+    const amt = Number(tx.amount) || 0;
+    let bucket = 'Cash';
+    if (/upi|online|gpay|phonepe|paytm|qr/i.test(rawMode)) bucket = 'Online / UPI';
+    else if (/bank|neft|rtgs|imps|transfer/i.test(rawMode)) bucket = 'Bank Transfer';
+    else if (/cheque|check|dd/i.test(rawMode)) bucket = 'Cheque / DD';
+    else if (/waiv|concession|adjust/i.test(rawMode)) bucket = 'Other / Waived';
+    else if (/cash/i.test(rawMode)) bucket = 'Cash';
+    else bucket = 'Cash';
+
+    modeBuckets[bucket].count += 1;
+    modeBuckets[bucket].amount += amt;
+  });
+
+  const totalTxns = sessionTx.length;
+  const totalAmount = sessionTx.reduce((sum, tx) => sum + (Number(tx.amount) || 0), 0);
+
+  const rows = Object.entries(modeBuckets).map(([mode, data]) => {
+    const share = totalAmount > 0 ? (data.amount / totalAmount * 100) : 0;
+    const avg = data.count > 0 ? Math.round(data.amount / data.count) : 0;
+    return {
+      mode,
+      count: data.count,
+      amount: data.amount,
+      avg,
+      share: Number(share.toFixed(1)),
+      type: data.type,
+      badgeCls: data.badgeCls
+    };
+  }).filter(r => r.count > 0 || r.mode === 'Cash' || r.mode === 'Online / UPI');
+
+  _curPaymentModeSummaryRows = rows;
+  _curPaymentModeSummaryStats = { totalTxns, totalAmount, curSess };
+
+  // Update KPIs
+  const totalEl = document.getElementById('pms_kpi_total');
+  const txnsEl = document.getElementById('pms_kpi_txns');
+  const primEl = document.getElementById('pms_kpi_primary');
+  const ratioEl = document.getElementById('pms_kpi_online_ratio');
+
+  if (totalEl) totalEl.textContent = '₹' + totalAmount.toLocaleString('en-IN');
+  if (txnsEl) txnsEl.textContent = totalTxns.toLocaleString('en-IN');
+
+  const topMode = [...rows].sort((a, b) => b.amount - a.amount)[0];
+  if (primEl) {
+    primEl.textContent = topMode ? `${topMode.mode} (${topMode.share}%)` : '–';
+  }
+
+  const onlineAmt = (modeBuckets['Online / UPI'].amount || 0) + (modeBuckets['Bank Transfer'].amount || 0);
+  const onlineRatio = totalAmount > 0 ? (onlineAmt / totalAmount * 100).toFixed(1) : '0.0';
+  if (ratioEl) ratioEl.textContent = `${onlineRatio}% (₹${onlineAmt.toLocaleString('en-IN')})`;
+
+  // Render Table Body
+  const tbody = document.getElementById('pms_table_body');
+  if (tbody) {
+    if (rows.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:24px;color:#94A3B8">No payment records found for this session</td></tr>';
+    } else {
+      tbody.innerHTML = rows.map((r, i) => `
+        <tr>
+          <td style="text-align:center;color:#64748B">${i + 1}</td>
+          <td style="font-weight:700;color:var(--txt-heading, #1E1B4B)">${escapeHtml(r.mode)}</td>
+          <td style="text-align:center;font-weight:600">${r.count.toLocaleString('en-IN')}</td>
+          <td style="text-align:right;font-weight:700;color:#16A34A">₹${r.amount.toLocaleString('en-IN')}</td>
+          <td style="text-align:right;color:#475569">₹${r.avg.toLocaleString('en-IN')}</td>
+          <td style="text-align:center">
+            <div style="display:flex;align-items:center;gap:6px;justify-content:center">
+              <div style="width:60px;height:7px;background:#E2E8F0;border-radius:4px;overflow:hidden">
+                <div style="width:${r.share}%;height:100%;background:#7C3AED;border-radius:4px"></div>
+              </div>
+              <span style="font-weight:600;font-size:11px;min-width:34px;text-align:right">${r.share}%</span>
+            </div>
+          </td>
+          <td style="text-align:center"><span class="${r.badgeCls}">${r.type}</span></td>
+        </tr>
+      `).join('');
+    }
+  }
+
+  const tfoot = document.getElementById('pms_table_foot');
+  if (tfoot) {
+    tfoot.innerHTML = `
+      <tr>
+        <td colspan="2" style="text-align:right;padding:8px 12px">Total Realized (${curSess})</td>
+        <td style="text-align:center">${totalTxns.toLocaleString('en-IN')}</td>
+        <td style="text-align:right;color:#16A34A">₹${totalAmount.toLocaleString('en-IN')}</td>
+        <td style="text-align:right">₹${totalTxns > 0 ? Math.round(totalAmount / totalTxns).toLocaleString('en-IN') : 0}</td>
+        <td style="text-align:center">100.0%</td>
+        <td style="text-align:center">–</td>
+      </tr>
+    `;
+  }
+
+  openM('modalPaymentModeSummary');
+}
+
+function exportPaymentModeSummaryCSV() {
+  if (!_curPaymentModeSummaryRows || _curPaymentModeSummaryRows.length === 0) {
+    const curSess = _finActiveSession || (DB.settings && DB.settings.currentSession) || '2026–27';
+    openPaymentModeSummaryModal(curSess);
+  }
+  const rows = _curPaymentModeSummaryRows || [];
+  const curSess = (_curPaymentModeSummaryStats && _curPaymentModeSummaryStats.curSess) || _finActiveSession || '2026–27';
+  
+  const headers = ['#', 'Payment Mode', 'Transactions Count', 'Total Amount (INR)', 'Average Ticket (INR)', 'Share Percentage', 'Channel Classification'];
+  const csvRows = [headers.join(',')];
+  rows.forEach((r, idx) => {
+    csvRows.push([
+      idx + 1,
+      `"${r.mode}"`,
+      r.count,
+      r.amount,
+      r.avg,
+      `"${r.share}%"`,
+      `"${r.type}"`
+    ].join(','));
+  });
+
+  const blob = new Blob([csvRows.join('\n')], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `Payment_Mode_Summary_${curSess.replace(/[^a-zA-Z0-9]/g, '_')}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  toast('Payment Mode Summary CSV exported successfully', 'success');
+}
+
+function printPaymentModeSummary() {
+  if (!_curPaymentModeSummaryRows || _curPaymentModeSummaryRows.length === 0) {
+    const curSess = _finActiveSession || (DB.settings && DB.settings.currentSession) || '2026–27';
+    openPaymentModeSummaryModal(curSess);
+  }
+  const s = DB.settings || {};
+  const curSess = (_curPaymentModeSummaryStats && _curPaymentModeSummaryStats.curSess) || _finActiveSession || '2026–27';
+  const rows = _curPaymentModeSummaryRows || [];
+  const stats = _curPaymentModeSummaryStats || { totalAmount: 0, totalTxns: 0 };
+
+  const rowsHtml = rows.map((r, idx) => `
+    <tr>
+      <td style="text-align:center">${idx + 1}</td>
+      <td><strong>${escapeHtml(r.mode)}</strong></td>
+      <td style="text-align:center">${r.count.toLocaleString('en-IN')}</td>
+      <td style="text-align:right">₹${r.amount.toLocaleString('en-IN')}</td>
+      <td style="text-align:right">₹${r.avg.toLocaleString('en-IN')}</td>
+      <td style="text-align:center">${r.share}%</td>
+      <td>${escapeHtml(r.type)}</td>
+    </tr>
+  `).join('');
+
+  const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Payment Mode Summary - ${curSess}</title>
+  <style>
+    @page { size: A4 portrait; margin: 12mm 10mm; }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; margin: 0; padding: 0; }
+    body { font-family: Arial, sans-serif; font-size: 11px; color: #111; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .page-container { min-height: 100%; display: flex; flex-direction: column; }
+    .content-wrap { flex: 1 0 auto; }
+    .hdr { text-align: center; border-bottom: 2px solid #7c3aed; padding-bottom: 8px; margin-bottom: 14px; }
+    .hdr h1 { margin: 0; font-size: 20px; color: #7c3aed; }
+    .hdr p { margin: 3px 0 0; font-size: 10.5px; color: #555; }
+    .kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 16px; }
+    .kpi { border: 1px solid #cbd5e1; padding: 10px; border-radius: 6px; text-align: center; background: #f8fafc; }
+    .kpi-lbl { font-size: 10px; color: #64748b; font-weight: 600; text-transform: uppercase; }
+    .kpi-val { font-size: 16px; font-weight: bold; margin-top: 3px; color: #1e1b4b; }
+    table { width: 100%; border-collapse: collapse; font-size: 10.5px; margin-top: 8px; }
+    thead { display: table-header-group; }
+    th { background: #f1f5f9; border: 1px solid #cbd5e1; padding: 6px 8px; font-weight: 700; color: #334155; }
+    td { border: 1px solid #e2e8f0; padding: 6px 8px; }
+    tr { page-break-inside: avoid; }
+    tfoot td { background: #ede9fe; font-weight: bold; }
+    .sig { margin-top: auto; padding-top: 36px; padding-bottom: 4px; display: flex; justify-content: space-between; padding-left: 20px; padding-right: 20px; page-break-inside: avoid; break-inside: avoid; }
+    .sig-line { border-top: 1.5px solid #334155; width: 175px; text-align: center; padding-top: 6px; font-size: 11px; font-weight: bold; color: #1e293b; }
+  </style></head>
+  <body>
+    <div class="page-container">
+      <div class="content-wrap">
+        <div class="hdr">
+          <h1>${escapeHtml(s.schoolName || 'MD Convent Public School')}</h1>
+          <p>${escapeHtml(s.schoolAddress || 'Amanpur, Kasganj Road, Uttar Pradesh')} | Academic Session: ${curSess}</p>
+          <h2 style="font-size:15px;margin:8px 0 0;color:#1e293b">Payment Mode Distribution & Audit Summary</h2>
+        </div>
+        <div class="kpis">
+          <div class="kpi"><div class="kpi-lbl">Total Realized Collection</div><div class="kpi-val" style="color:#059669">₹${stats.totalAmount.toLocaleString('en-IN')}</div></div>
+          <div class="kpi"><div class="kpi-lbl">Total Transactions</div><div class="kpi-val">${stats.totalTxns.toLocaleString('en-IN')}</div></div>
+          <div class="kpi"><div class="kpi-lbl">Payment Modes</div><div class="kpi-val" style="color:#7c3aed">${rows.length} Active</div></div>
+          <div class="kpi"><div class="kpi-lbl">Average Transaction</div><div class="kpi-val">₹${stats.totalTxns > 0 ? Math.round(stats.totalAmount / stats.totalTxns).toLocaleString('en-IN') : 0}</div></div>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th style="width:30px;text-align:center">#</th>
+              <th style="text-align:left">Payment Mode</th>
+              <th style="text-align:center">Transactions</th>
+              <th style="text-align:right">Total Collected (₹)</th>
+              <th style="text-align:right">Average Ticket (₹)</th>
+              <th style="text-align:center">% Share</th>
+              <th style="text-align:left">Channel Classification</th>
+            </tr>
+          </thead>
+          <tbody>${rowsHtml}</tbody>
+          <tfoot>
+            <tr>
+              <td colspan="2" style="text-align:right">Total Verified Collections</td>
+              <td style="text-align:center">${stats.totalTxns.toLocaleString('en-IN')}</td>
+              <td style="text-align:right">₹${stats.totalAmount.toLocaleString('en-IN')}</td>
+              <td style="text-align:right">₹${stats.totalTxns > 0 ? Math.round(stats.totalAmount / stats.totalTxns).toLocaleString('en-IN') : 0}</td>
+              <td style="text-align:center">100.0%</td>
+              <td>All Channels</td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+      <div class="sig">
+        <div class="sig-line">Prepared By (Cashier)</div>
+        <div class="sig-line">Verified By (Accountant)</div>
+        <div class="sig-line">Principal Signature</div>
+      </div>
+    </div>
+  </body></html>`;
+
+  if (isEl && window.electronAPI && window.electronAPI.printContent) {
+    window.electronAPI.printContent(html);
+  } else {
+    const w = window.open('', '_blank');
+    if (w) { w.document.write(html); w.document.close(); }
+  }
+}
+
+// ------------------------------------------------------------
+// PROBLEM 5: 4 QUICK ACTIONS (CSV, PRINT, PAYMENT MODES, CUSTOM REPORT)
+// ------------------------------------------------------------
+function openQuickExportModal() {
+  openM('modalQuickExportReports');
+}
+
+function openQuickPrintModal() {
+  openM('modalQuickPrintReports');
+}
+
+function getFinancialReportPrintData(curSess) {
+  const s = (typeof DB !== 'undefined' && DB.settings) || {};
+  const allTx = typeof getValidPaymentTransactions === 'function' ? getValidPaymentTransactions() : [];
+  const sessionTx = allTx.filter(tx => !tx.session || tx.session === curSess || tx._normSession === curSess);
+  const collected = sessionTx.reduce((sum, tx) => sum + (Number(tx.amount) || 0), 0);
+  const pendingRows = typeof getPendingFeesDueList === 'function' ? getPendingFeesDueList({ sessMode: 'current', dueType: 'all', month: '' }) : [];
+  const pending = pendingRows.reduce((sum, r) => sum + r.amount, 0);
+  const expected = collected + pending;
+  const rate = expected > 0 ? (collected / expected * 100).toFixed(1) : '100.0';
+
+  let discount = 0;
+  sessionTx.forEach(tx => {
+    let d = Number(tx.discountAmt || tx.discount || 0);
+    if (Array.isArray(tx.items)) tx.items.forEach(it => { if (it.discount) d += Number(it.discount) || 0; });
+    discount += d;
+  });
+
+  const modeStats = { 'Cash': { count: 0, amt: 0 }, 'Online / UPI': { count: 0, amt: 0 }, 'Bank Transfer': { count: 0, amt: 0 }, 'Cheque': { count: 0, amt: 0 } };
+  sessionTx.forEach(tx => {
+    const m = (tx.mode || 'Cash').trim();
+    const a = Number(tx.amount) || 0;
+    if (/upi|online|gpay|phonepe|paytm|qr/i.test(m)) { modeStats['Online / UPI'].count++; modeStats['Online / UPI'].amt += a; }
+    else if (/bank|neft|rtgs|imps|transfer/i.test(m)) { modeStats['Bank Transfer'].count++; modeStats['Bank Transfer'].amt += a; }
+    else if (/cheque|check|dd/i.test(m)) { modeStats['Cheque'].count++; modeStats['Cheque'].amt += a; }
+    else { modeStats['Cash'].count++; modeStats['Cash'].amt += a; }
+  });
+
+  const modeRows = Object.entries(modeStats).map(([mode, d]) => `
+    <tr><td><strong>${mode}</strong></td><td style="text-align:center">${d.count}</td><td style="text-align:right">₹${d.amt.toLocaleString('en-IN')}</td><td style="text-align:center">${collected > 0 ? (d.amt/collected*100).toFixed(1) : 0}%</td></tr>
+  `).join('');
+
+  const ACADEMIC_MONTHS = ['April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December', 'January', 'February', 'March'];
+  const monthMap = {};
+  ACADEMIC_MONTHS.forEach(m => { monthMap[m] = { month: m, receipts: 0, amount: 0 }; });
+  sessionTx.forEach(tx => {
+    const dt = tx.date || '';
+    if (dt.includes('-')) {
+      const SYS_MO = ['', 'January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+      const mName = SYS_MO[parseInt(dt.split('-')[1], 10)];
+      if (mName && monthMap[mName]) { monthMap[mName].receipts++; monthMap[mName].amount += (Number(tx.amount) || 0); }
+    }
+  });
+
+  const moRows = ACADEMIC_MONTHS.map((m, idx) => `
+    <tr><td style="text-align:center">${idx + 1}</td><td><strong>${m}</strong></td><td style="text-align:center">${monthMap[m].receipts}</td><td style="text-align:right">₹${monthMap[m].amount.toLocaleString('en-IN')}</td><td style="text-align:center">${collected > 0 ? (monthMap[m].amount/collected*100).toFixed(1) : 0}%</td></tr>
+  `).join('');
+
+  const clsList = typeof CLASSES !== 'undefined' ? CLASSES : [];
+  const clsRows = clsList.map((c, idx) => {
+    const cCol = sessionTx.filter(tx => tx.cls === c || tx._normCls === c).reduce((sum, tx) => sum + (Number(tx.amount) || 0), 0);
+    const cPending = pendingRows.filter(r => r.cls === c).reduce((sum, r) => sum + r.amount, 0);
+    const cExp = cCol + cPending;
+    const cRate = cExp > 0 ? (cCol / cExp * 100).toFixed(1) : '100.0';
+    const cLabel = typeof clL === 'function' ? clL(c) : ('Class ' + c);
+    return `<tr><td style="text-align:center">${idx + 1}</td><td><strong>${cLabel}</strong></td><td style="text-align:right">₹${cExp.toLocaleString('en-IN')}</td><td style="text-align:right;color:#16a34a">₹${cCol.toLocaleString('en-IN')}</td><td style="text-align:right;color:${cPending > 0 ? '#dc2626' : '#64748b'}">₹${cPending.toLocaleString('en-IN')}</td><td style="text-align:center">${cRate}%</td></tr>`;
+  }).join('');
+
+  const esc = (typeof escapeHtml === 'function') ? escapeHtml : (str => String(str || ''));
+  const recentTop8 = sessionTx.slice(0, 8);
+  const recRows = recentTop8.length > 0 ? recentTop8.map((tx, idx) => {
+    const cLabel = typeof clL === 'function' ? clL(tx.cls) : ('Class ' + tx.cls);
+    return `<tr><td style="text-align:center">${idx + 1}</td><td><strong>${esc(tx.receiptNo)}</strong></td><td>${esc(tx.date || '–')}</td><td><strong>${esc(tx.studentName)}</strong></td><td>${cLabel}</td><td style="text-align:center">${esc(tx.mode || 'Cash')}</td><td style="text-align:right;font-weight:bold;color:#16a34a">₹${Number(tx.amount).toLocaleString('en-IN')}</td></tr>`;
+  }).join('') : `<tr><td colspan="7" style="text-align:center;padding:12px;color:#64748b">No records found</td></tr>`;
+
+  return {
+    sName: s.schoolName || 'MD Convent Public School',
+    sAddr: s.schoolAddress || 'Amanpur, Kasganj Road, Uttar Pradesh',
+    pDate: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
+    collected, pending, expected, discount, rate,
+    txCount: sessionTx.length,
+    modeRows, moRows, clsRows, recRows
+  };
+}
+
+function printFinancialReportSummary() {
+  const css = `
+    @page { size: A4 portrait; margin: 10mm 10mm 12mm 10mm; }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; margin: 0; padding: 0; }
+    body { font-family: Arial, sans-serif; padding: 0; color: #111; font-size: 10.5px; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .page-container { min-height: 100%; display: flex; flex-direction: column; }
+    .content-wrap { flex: 1 0 auto; }
+    .hdr { text-align: center; border-bottom: 2px solid #7c3aed; padding-bottom: 6px; margin-bottom: 12px; }
+    .hdr h1 { margin: 0; font-size: 20px; color: #7c3aed; }
+    .hdr p { margin: 3px 0 0; font-size: 10.5px; color: #555; }
+    .sec-title { font-size: 11px; font-weight: 700; color: #1e1b4b; margin: 10px 0 4px 0; border-bottom: 1px solid #cbd5e1; padding-bottom: 2px; }
+    .kpis { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; margin-bottom: 12px; page-break-inside: avoid; }
+    .kpi { border: 1px solid #cbd5e1; padding: 8px 6px; border-radius: 6px; text-align: center; background: #f8fafc; }
+    .kpi-lbl { font-size: 9px; color: #64748b; font-weight: 600; text-transform: uppercase; }
+    .kpi-val { font-size: 14.5px; font-weight: bold; margin-top: 3px; }
+    table { width: 100%; border-collapse: collapse; font-size: 9.5px; margin-bottom: 8px; page-break-inside: auto; }
+    thead { display: table-header-group; }
+    th { background: #f8fafc; border: 1px solid #cbd5e1; padding: 4.5px 6px; font-weight: 700; color: #334155; }
+    td { border: 1px solid #e2e8f0; padding: 4px 6px; }
+    tr { page-break-inside: avoid; }
+    tfoot td { background: #ede9fe; font-weight: bold; }
+    .sig { margin-top: auto; padding-top: 36px; padding-bottom: 4px; display: flex; justify-content: space-between; padding-left: 20px; padding-right: 20px; page-break-inside: avoid; break-inside: avoid; }
+    .sig-line { border-top: 1.5px solid #334155; width: 175px; text-align: center; padding-top: 6px; font-size: 11px; font-weight: bold; color: #1e293b; }
+    .grid-2col { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; page-break-inside: avoid; }
+  `;
+  const curSess = _finActiveSession || (DB.settings && DB.settings.currentSession) || '2026–27';
+  const d = getFinancialReportPrintData(curSess);
+  const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Financial & Collection Reports - ${curSess}</title><style>${css}</style></head><body>
+    <div class="page-container"><div class="content-wrap">
+      <div class="hdr"><h1>${escapeHtml(d.sName)}</h1><p>${escapeHtml(d.sAddr)} | Session: ${curSess} | Date: ${d.pDate}</p><h2 style="font-size:14px;margin:6px 0 0;color:#1e293b">Annual Financial & Fee Collection Executive Report</h2></div>
+      <div class="kpis">
+        <div class="kpi"><div class="kpi-lbl">Total Fee Collected</div><div class="kpi-val" style="color:#059669">₹${d.collected.toLocaleString('en-IN')}</div></div>
+        <div class="kpi"><div class="kpi-lbl">Pending Dues</div><div class="kpi-val" style="color:#dc2626">₹${d.pending.toLocaleString('en-IN')}</div></div>
+        <div class="kpi"><div class="kpi-lbl">Total Expected</div><div class="kpi-val">₹${d.expected.toLocaleString('en-IN')}</div></div>
+        <div class="kpi"><div class="kpi-lbl">Discount Given</div><div class="kpi-val" style="color:#d97706">₹${d.discount.toLocaleString('en-IN')}</div></div>
+        <div class="kpi"><div class="kpi-lbl">Collection Rate</div><div class="kpi-val" style="color:#7c3aed">${d.rate}%</div></div>
+      </div>
+      <div class="grid-2col">
+        <div><div class="sec-title">1. Payment Mode Breakdown</div><table><thead><tr><th>Mode</th><th style="text-align:center">Txns</th><th style="text-align:right">Collected (₹)</th><th style="text-align:center">% Share</th></tr></thead><tbody>${d.modeRows}</tbody><tfoot><tr><td>Total Realized</td><td style="text-align:center">${d.txCount}</td><td style="text-align:right">₹${d.collected.toLocaleString('en-IN')}</td><td style="text-align:center">100%</td></tr></tfoot></table></div>
+        <div><div class="sec-title">2. Monthly Collection Distribution</div><table><thead><tr><th style="width:25px;text-align:center">#</th><th>Month</th><th style="text-align:center">Receipts</th><th style="text-align:right">Amount (₹)</th><th style="text-align:center">%</th></tr></thead><tbody>${d.moRows}</tbody><tfoot><tr><td colspan="2" style="text-align:right">Total</td><td style="text-align:center">${d.txCount}</td><td style="text-align:right">₹${d.collected.toLocaleString('en-IN')}</td><td style="text-align:center">100%</td></tr></tfoot></table></div>
+      </div>
+      <div class="sec-title" style="margin-top:10px">3. Class-Wise Collection & Outstanding Dues Summary</div>
+      <table><thead><tr><th style="width:25px;text-align:center">#</th><th>Class</th><th style="text-align:right">Total Expected (₹)</th><th style="text-align:right">Total Collected (₹)</th><th style="text-align:right">Outstanding Dues (₹)</th><th style="text-align:center">Collection Rate</th></tr></thead><tbody>${d.clsRows}</tbody><tfoot><tr><td colspan="2" style="text-align:right">Institutional Aggregate</td><td style="text-align:right">₹${d.expected.toLocaleString('en-IN')}</td><td style="text-align:right;color:#059669">₹${d.collected.toLocaleString('en-IN')}</td><td style="text-align:right;color:#dc2626">₹${d.pending.toLocaleString('en-IN')}</td><td style="text-align:center">${d.rate}%</td></tr></tfoot></table>
+      <div class="sec-title" style="margin-top:10px">4. Recent Collections Audit Register (Latest 8 Receipts)</div>
+      <table><thead><tr><th style="width:25px;text-align:center">#</th><th>Receipt No.</th><th style="text-align:center">Date</th><th>Student Name</th><th>Class</th><th style="text-align:center">Mode</th><th style="text-align:right">Amount (₹)</th></tr></thead><tbody>${d.recRows}</tbody></table>
+      <div style="border:1px solid #e2e8f0;border-radius:6px;padding:8px 12px;background:#fdfdff;font-size:9.5px;line-height:1.5;color:#334155;margin-top:8px;page-break-inside:avoid">
+        <strong>Official Executive Financial Declaration:</strong> This report reflects verified accounting ledgers for Academic Session ${curSess} at MD Convent Public School. Verified collections stand at <strong>₹${d.collected.toLocaleString('en-IN')}</strong> with an institutional realization recovery rate of <strong>${d.rate}%</strong>.
+      </div>
+    </div>
+    <div class="sig"><div class="sig-line">Prepared By (Accountant)</div><div class="sig-line">Checked & Verified By</div><div class="sig-line">Principal Signature</div></div>
+    </div></body></html>`;
+
+  if (isEl && window.electronAPI && window.electronAPI.printContent) {
+    window.electronAPI.printContent(html);
+  } else {
+    const w = window.open('', '_blank');
+    if (w) { w.document.write(html); w.document.close(); }
+  }
+}
+
+// C. Download Master Ledger (PDF) - Real Vector PDF via Electron
+async function downloadMasterLedgerPDF() {
+  const s = DB.settings || {};
+  const curSess = _finActiveSession || s.currentSession || '2026–27';
+  const allTx = getValidPaymentTransactions();
+  const sessionTx = allTx.filter(tx => !tx.session || tx.session === curSess || tx._normSession === curSess);
+
+  if (sessionTx.length === 0) {
+    toast('No payment records to generate Master Ledger PDF!', 'warning');
+    return;
+  }
+
+  let totalGross = 0;
+  let totalDiscount = 0;
+  let totalNet = 0;
+
+  const rowsHtml = sessionTx.map((tx, idx) => {
+    const amt = Number(tx.amount) || 0;
+    let disc = Number(tx.discountAmt || tx.discount || 0);
+    if (Array.isArray(tx.items)) {
+      tx.items.forEach(it => { if (it.discount) disc += Number(it.discount) || 0; });
+    }
+    const gross = amt + disc;
+    totalGross += gross;
+    totalDiscount += disc;
+    totalNet += amt;
+
+    return `
+      <tr>
+        <td style="text-align:center">${idx + 1}</td>
+        <td><strong>${escapeHtml(tx.receiptNo)}</strong></td>
+        <td>${escapeHtml(tx.date || '–')}</td>
+        <td><strong>${escapeHtml(tx.studentName)}</strong></td>
+        <td>${escapeHtml(tx.admno || '–')}</td>
+        <td>${clL(tx.cls)}${tx.section ? ' (' + escapeHtml(tx.section) + ')' : ''}</td>
+        <td>${escapeHtml(tx._summaryPeriod || tx.period || 'Fee')}</td>
+        <td style="text-align:center">${escapeHtml(tx.mode || 'Cash')}</td>
+        <td style="text-align:right">₹${gross.toLocaleString('en-IN')}</td>
+        <td style="text-align:right;color:#d97706">${disc > 0 ? '₹' + disc.toLocaleString('en-IN') : '–'}</td>
+        <td style="text-align:right;font-weight:bold;color:#16a34a">₹${amt.toLocaleString('en-IN')}</td>
+      </tr>
+    `;
+  }).join('');
+
+  const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Master Fee Collection Ledger - ${curSess}</title>
+  <style>
+    @page { size: A4 landscape; margin: 10mm; }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; margin: 0; padding: 0; }
+    body { font-family: Arial, sans-serif; font-size: 10px; color: #111; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .page-container { min-height: 100%; display: flex; flex-direction: column; }
+    .content-wrap { flex: 1 0 auto; }
+    .hdr { text-align: center; border-bottom: 2px solid #7c3aed; padding-bottom: 6px; margin-bottom: 10px; }
+    .hdr h1 { margin: 0; font-size: 18px; color: #7c3aed; }
+    .hdr p { margin: 2px 0 0; font-size: 10px; color: #555; }
+    .meta-bar { display: flex; justify-content: space-between; background: #f5f3ff; border: 1px solid #ddd6fe; border-radius: 4px; padding: 6px 10px; margin-bottom: 10px; font-size: 10.5px; }
+    table { width: 100%; border-collapse: collapse; font-size: 9.5px; }
+    thead { display: table-header-group; }
+    tr { page-break-inside: avoid; }
+    th { background: #7c3aed; color: #fff; padding: 5px 6px; text-align: left; font-size: 9.5px; border: 1px solid #6d28d9; }
+    td { padding: 4px 6px; border: 1px solid #e2e8f0; vertical-align: middle; }
+    tr:nth-child(even) td { background: #faf5ff; }
+    tfoot td { background: #ede9fe; font-weight: bold; border-top: 2px solid #7c3aed; font-size: 10px; }
+    .footer { margin-top: auto; padding-top: 14px; padding-bottom: 4px; display: flex; justify-content: space-between; border-top: 1px dashed #cbd5e1; font-size: 9.5px; color: #555; page-break-inside: avoid; break-inside: avoid; }
+  </style></head>
+  <body>
+    <div class="page-container">
+      <div class="content-wrap">
+        <div class="hdr">
+          <h1>${escapeHtml(s.schoolName || 'MD Convent Public School')}</h1>
+          <p>${escapeHtml(s.schoolAddress || 'Amanpur, Kasganj Road, Uttar Pradesh')} | Academic Session: ${curSess}</p>
+          <h2 style="font-size:14px;margin:4px 0 0;color:#1e1b4b">MASTER FEE COLLECTION & AUDIT LEDGER</h2>
+        </div>
+
+        <div class="meta-bar">
+          <div>Total Receipts: <strong>${sessionTx.length.toLocaleString('en-IN')}</strong></div>
+          <div>Total Gross: <strong>₹${totalGross.toLocaleString('en-IN')}</strong></div>
+          <div>Total Concessions: <strong>₹${totalDiscount.toLocaleString('en-IN')}</strong></div>
+          <div>Total Realized: <strong style="color:#16a34a">₹${totalNet.toLocaleString('en-IN')}</strong></div>
+        </div>
+
+        <table>
+          <thead>
+            <tr>
+              <th style="width:30px;text-align:center">#</th>
+              <th>Receipt No.</th>
+              <th>Date</th>
+              <th>Student Name</th>
+              <th>Adm. No.</th>
+              <th>Class</th>
+              <th>Period</th>
+              <th style="text-align:center">Mode</th>
+              <th style="text-align:right">Gross (₹)</th>
+              <th style="text-align:right">Discount (₹)</th>
+              <th style="text-align:right">Net Paid (₹)</th>
+            </tr>
+          </thead>
+          <tbody>${rowsHtml}</tbody>
+          <tfoot>
+            <tr>
+              <td colspan="8" style="text-align:center">Grand Totals (${sessionTx.length} Receipts)</td>
+              <td style="text-align:right">₹${totalGross.toLocaleString('en-IN')}</td>
+              <td style="text-align:right;color:#d97706">₹${totalDiscount.toLocaleString('en-IN')}</td>
+              <td style="text-align:right;color:#16a34a">₹${totalNet.toLocaleString('en-IN')}</td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+
+      <div class="footer">
+        <div>Master Fee Accounts Register | Official School Document</div>
+        <div>Authorized Signatory: <strong>${escapeHtml(s.principalName || 'Principal')}</strong></div>
+        <div>Generated on: ${new Date().toLocaleString('en-IN')}</div>
+      </div>
+    </div>
+  </body></html>`;
+
+  if (isEl && window.electronAPI && window.electronAPI.exportPDF) {
+    const safeSess = curSess.replace(/[^a-zA-Z0-9_-]/g, '_');
+    toast('Generating Master Fee Ledger PDF...', 'info');
+    const res = await window.electronAPI.exportPDF({
+      filename: `Master_Fee_Ledger_${safeSess}.pdf`,
+      html,
+      landscape: true
+    });
+    if (res && res.success) {
+      toast('Master Fee Ledger PDF saved successfully to ' + res.filePath, 'success');
+    } else if (res && res.error) {
+      toast('Failed to save PDF: ' + res.error, 'error');
+    }
+  } else if (isEl && window.electronAPI && window.electronAPI.printContent) {
+    window.electronAPI.printContent(html);
+  } else {
+    const w = window.open('', '_blank');
+    if (w) { w.document.write(html); w.document.close(); }
+  }
+}
+
+// D. Custom Report
+let _curCustomReportRows = [];
+let _curCustomReportType = 'collections';
+
+function openCustomFinancialReportModal() {
+  const clsSel = document.getElementById('cfr_class');
+  if (clsSel) {
+    clsSel.innerHTML = '<option value="">All Classes</option>' + (CLASSES || []).map(c => `<option value="${c}">${clL(c)}</option>`).join('');
+  }
+  const sessSel = document.getElementById('cfr_session');
+  if (sessSel) {
+    const allSess = (DB.sessions || []).map(x => x.name || x);
+    const curS = _finActiveSession || (DB.settings && DB.settings.currentSession) || '2026–27';
+    if (!allSess.includes(curS)) allSess.unshift(curS);
+    sessSel.innerHTML = allSess.map(s => `<option value="${s}" ${s === curS ? 'selected' : ''}>Session ${s}</option>`).join('');
+  }
+
+  const fromEl = document.getElementById('cfr_from');
+  const toEl = document.getElementById('cfr_to');
+  const now = new Date();
+  const y = now.getFullYear();
+  if (fromEl && !fromEl.value) fromEl.value = `${y}-04-01`;
+  if (toEl && !toEl.value) toEl.value = now.toISOString().split('T')[0];
+
+  onCustomReportTypeChange('collections');
+  openM('modalCustomFinancialReport');
+}
+
+function onCustomReportTypeChange(repType) {
+  _curCustomReportType = repType;
+  const wrapMode = document.getElementById('cfr_wrap_mode');
+  const wrapFrom = document.getElementById('cfr_wrap_from');
+  const wrapTo = document.getElementById('cfr_wrap_to');
+  const wrapMonth = document.getElementById('cfr_wrap_month');
+
+  if (repType === 'dues') {
+    if (wrapMode) wrapMode.style.display = 'none';
+    if (wrapFrom) wrapFrom.style.display = 'none';
+    if (wrapTo) wrapTo.style.display = 'none';
+    if (wrapMonth) wrapMonth.style.display = 'flex';
+  } else if (repType === 'concessions') {
+    if (wrapMode) wrapMode.style.display = 'none';
+    if (wrapFrom) wrapFrom.style.display = 'flex';
+    if (wrapTo) wrapTo.style.display = 'flex';
+    if (wrapMonth) wrapMonth.style.display = 'none';
+  } else {
+    // collections
+    if (wrapMode) wrapMode.style.display = 'flex';
+    if (wrapFrom) wrapFrom.style.display = 'flex';
+    if (wrapTo) wrapTo.style.display = 'flex';
+    if (wrapMonth) wrapMonth.style.display = 'flex';
+  }
+
+  runCustomFinancialReport();
+}
+
+function runCustomFinancialReport() {
+  const repType = _curCustomReportType;
+  const targetSession = document.getElementById('cfr_session')?.value || _finActiveSession || '2026–27';
+  const cls = document.getElementById('cfr_class')?.value || '';
+  const month = document.getElementById('cfr_month')?.value || '';
+  const mode = document.getElementById('cfr_mode')?.value || '';
+  const fromDate = document.getElementById('cfr_from')?.value || '';
+  const toDate = document.getElementById('cfr_to')?.value || '';
+
+  const thead = document.getElementById('cfr_table_head');
+  const tbody = document.getElementById('cfr_table_body');
+  const tfoot = document.getElementById('cfr_table_foot');
+  const badge = document.getElementById('cfr_summary_badge');
+
+  if (repType === 'dues') {
+    // Outstanding Dues Report Query
+    if (thead) {
+      thead.innerHTML = `
+        <tr>
+          <th style="width:40px;text-align:center">#</th>
+          <th>Admission No.</th>
+          <th>Student Name</th>
+          <th>Class</th>
+          <th>Section</th>
+          <th>Father Name</th>
+          <th>Due Period</th>
+          <th style="text-align:right">Pending Due (₹)</th>
+        </tr>
+      `;
+    }
+
+    const pendingList = getPendingFeesDueList({ sessMode: 'current', dueType: 'all', month: month });
+    const filtered = pendingList.filter(r => {
+      if (cls && r.cls !== cls) return false;
+      return true;
+    });
+
+    _curCustomReportRows = filtered;
+    if (badge) badge.textContent = `${filtered.length} Defaulters`;
+
+    if (tbody) {
+      if (filtered.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:24px;color:#94A3B8">No outstanding dues matching criteria</td></tr>';
+      } else {
+        tbody.innerHTML = filtered.slice(0, 150).map((r, i) => `
+          <tr>
+            <td style="text-align:center;color:#64748B">${i + 1}</td>
+            <td><span class="chip cb2">${escapeHtml(r.admno || '–')}</span></td>
+            <td><strong style="color:#7C3AED">${escapeHtml(r.name)}</strong></td>
+            <td>${clL(r.cls)}</td>
+            <td style="text-align:center">${escapeHtml(r.section || 'A')}</td>
+            <td style="color:#64748B">${escapeHtml(r.fatherName || '–')}</td>
+            <td>${escapeHtml(r.period || month || 'Session ' + targetSession)}</td>
+            <td style="text-align:right;font-weight:700;color:#DC2626">₹${Number(r.amount).toLocaleString('en-IN')}</td>
+          </tr>
+        `).join('');
+      }
+    }
+
+    if (tfoot) {
+      const tot = filtered.reduce((s, r) => s + (Number(r.amount) || 0), 0);
+      tfoot.innerHTML = `
+        <tr>
+          <td colspan="7" style="text-align:center">Total Pending Dues (${filtered.length} Students)</td>
+          <td style="text-align:right;color:#DC2626">₹${tot.toLocaleString('en-IN')}</td>
+        </tr>
+      `;
+    }
+
+  } else if (repType === 'concessions') {
+    // Fee Concessions Query
+    if (thead) {
+      thead.innerHTML = `
+        <tr>
+          <th style="width:40px;text-align:center">#</th>
+          <th>Receipt No.</th>
+          <th>Date</th>
+          <th>Student Name</th>
+          <th>Class</th>
+          <th>Reason</th>
+          <th style="text-align:right">Discount (₹)</th>
+          <th style="text-align:right">Net Paid (₹)</th>
+        </tr>
+      `;
+    }
+
+    const allTx = getValidPaymentTransactions();
+    const sessionTx = allTx.filter(tx => !tx.session || tx.session === targetSession || tx._normSession === targetSession);
+
+    const rows = [];
+    sessionTx.forEach(tx => {
+      if (fromDate && tx.date && tx.date < fromDate) return;
+      if (toDate && tx.date && tx.date > toDate) return;
+      if (cls && tx.cls !== cls) return;
+
+      let d = Number(tx.discountAmt || tx.discount || 0);
+      let reason = tx.discountReason || '';
+      if (Array.isArray(tx.items)) {
+        tx.items.forEach(it => {
+          if (it.discount) d += Number(it.discount) || 0;
+          if (it.discountReason && !reason) reason = it.discountReason;
+        });
+      }
+
+      if (d > 0) {
+        rows.push({
+          receiptNo: tx.receiptNo,
+          date: tx.date || '–',
+          studentName: tx.studentName,
+          cls: tx.cls,
+          reason: reason || 'Concession',
+          discount: d,
+          netPaid: Number(tx.amount) || 0
+        });
+      }
+    });
+
+    _curCustomReportRows = rows;
+    if (badge) badge.textContent = `${rows.length} Concessions`;
+
+    if (tbody) {
+      if (rows.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:24px;color:#94A3B8">No concessions matching criteria</td></tr>';
+      } else {
+        tbody.innerHTML = rows.slice(0, 150).map((r, i) => `
+          <tr>
+            <td style="text-align:center;color:#64748B">${i + 1}</td>
+            <td><strong style="color:#7C3AED">${escapeHtml(r.receiptNo)}</strong></td>
+            <td>${escapeHtml(r.date)}</td>
+            <td><strong>${escapeHtml(r.studentName)}</strong></td>
+            <td>${clL(r.cls)}</td>
+            <td>${escapeHtml(r.reason)}</td>
+            <td style="text-align:right;font-weight:700;color:#D97706">₹${r.discount.toLocaleString('en-IN')}</td>
+            <td style="text-align:right;font-weight:700;color:#16A34A">₹${r.netPaid.toLocaleString('en-IN')}</td>
+          </tr>
+        `).join('');
+      }
+    }
+
+    if (tfoot) {
+      const totD = rows.reduce((s, r) => s + r.discount, 0);
+      const totP = rows.reduce((s, r) => s + r.netPaid, 0);
+      tfoot.innerHTML = `
+        <tr>
+          <td colspan="6" style="text-align:center">Total Concessions Allowed</td>
+          <td style="text-align:right;color:#D97706">₹${totD.toLocaleString('en-IN')}</td>
+          <td style="text-align:right;color:#16A34A">₹${totP.toLocaleString('en-IN')}</td>
+        </tr>
+      `;
+    }
+
+  } else {
+    // Fee Collections Query
+    if (thead) {
+      thead.innerHTML = `
+        <tr>
+          <th style="width:40px;text-align:center">#</th>
+          <th>Receipt No.</th>
+          <th>Date</th>
+          <th>Student Name</th>
+          <th>Class</th>
+          <th>Period</th>
+          <th style="text-align:center">Mode</th>
+          <th style="text-align:right">Amount (₹)</th>
+        </tr>
+      `;
+    }
+
+    const allTx = getValidPaymentTransactions();
+    const filtered = allTx.filter(tx => {
+      if (tx.session && tx.session !== targetSession && tx._normSession !== targetSession) return false;
+      if (fromDate && tx.date && tx.date < fromDate) return false;
+      if (toDate && tx.date && tx.date > toDate) return false;
+      if (cls && tx.cls !== cls) return false;
+      if (mode && tx.mode !== mode) return false;
+      if (month) {
+        let hasM = false;
+        if (Array.isArray(tx.items)) hasM = tx.items.some(it => it.month === month);
+        if (!hasM && tx.period && tx.period.includes(month)) hasM = true;
+        if (!hasM && tx.date) {
+          const parts = tx.date.split('-');
+          if (parts.length >= 2 && SYS_MONTHS[parseInt(parts[1], 10) - 1] === month) hasM = true;
+        }
+        if (!hasM) return false;
+      }
+      return true;
+    });
+
+    _curCustomReportRows = filtered;
+    if (badge) badge.textContent = `${filtered.length} Records`;
+
+    if (tbody) {
+      if (filtered.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:24px;color:#94A3B8">No records matching query criteria</td></tr>';
+      } else {
+        tbody.innerHTML = filtered.slice(0, 150).map((tx, idx) => `
+          <tr>
+            <td style="text-align:center;color:#64748B">${idx + 1}</td>
+            <td><strong style="color:#7C3AED">${escapeHtml(tx.receiptNo)}</strong></td>
+            <td>${escapeHtml(tx.date || '–')}</td>
+            <td style="font-weight:600">${escapeHtml(tx.studentName)}</td>
+            <td>${clL(tx.cls)}${tx.section ? ' (' + escapeHtml(tx.section) + ')' : ''}</td>
+            <td style="font-size:11.5px;color:#64748B">${escapeHtml(tx._summaryPeriod || tx.period || 'Fee')}</td>
+            <td style="text-align:center"><span class="chip cb2">${escapeHtml(tx.mode || 'Cash')}</span></td>
+            <td style="text-align:right;font-weight:700">₹${Number(tx.amount).toLocaleString('en-IN')}</td>
+          </tr>
+        `).join('');
+      }
+    }
+
+    if (tfoot) {
+      const totalAmt = filtered.reduce((s, tx) => s + (Number(tx.amount) || 0), 0);
+      tfoot.innerHTML = `
+        <tr>
+          <td colspan="7" style="text-align:center">Filtered Query Total</td>
+          <td style="text-align:right;font-weight:700;color:#16A34A">₹${totalAmt.toLocaleString('en-IN')}</td>
+        </tr>
+      `;
+    }
+  }
+}
+
+async function exportCustomReportCSV() {
+  if (!_curCustomReportRows || _curCustomReportRows.length === 0) {
+    toast('No query records to export!', 'warning');
+    return;
+  }
+  const repType = _curCustomReportType;
+  let csv = '';
+
+  if (repType === 'dues') {
+    csv = 'Admission No,Student Name,Class,Section,Father Name,Period,Pending Due\n';
+    _curCustomReportRows.forEach(r => {
+      csv += `"${r.admno}","${r.name}","${r.cls}","${r.section || 'A'}","${r.fatherName || ''}","${r.period || ''}",${r.amount}\n`;
+    });
+  } else if (repType === 'concessions') {
+    csv = 'Receipt No,Date,Student Name,Class,Reason,Discount,Net Paid\n';
+    _curCustomReportRows.forEach(r => {
+      csv += `"${r.receiptNo}","${r.date}","${r.studentName}","${r.cls}","${r.reason}",${r.discount},${r.netPaid}\n`;
+    });
+  } else {
+    csv = 'Receipt No,Date,Student Name,Class,Section,Period,Mode,Amount\n';
+    _curCustomReportRows.forEach(tx => {
+      csv += `"${tx.receiptNo}","${tx.date}","${tx.studentName}","${tx.cls}","${tx.section || 'A'}","${tx._summaryPeriod || tx.period || ''}","${tx.mode}",${tx.amount}\n`;
+    });
+  }
+
+  await expCSV(`custom_report_${repType}.csv`, csv);
+}
+
+function printCustomReport() {
+  if (!_curCustomReportRows || _curCustomReportRows.length === 0) {
+    toast('No query records to print!', 'warning');
+    return;
+  }
+  const s = DB.settings || {};
+  const repType = _curCustomReportType;
+  const targetSession = document.getElementById('cfr_session')?.value || _finActiveSession || '2026–27';
+
+  let title = 'Custom Financial Report';
+  let theadHtml = '';
+  let tbodyHtml = '';
+  let tfootHtml = '';
+
+  if (repType === 'dues') {
+    title = `Custom Outstanding Dues Report - Session ${targetSession}`;
+    theadHtml = '<tr><th>#</th><th>Adm. No.</th><th>Student Name</th><th>Class</th><th>Section</th><th>Father Name</th><th style="text-align:right">Pending Due (₹)</th></tr>';
+    tbodyHtml = _curCustomReportRows.slice(0, 200).map((r, i) => `
+      <tr>
+        <td style="text-align:center">${i + 1}</td>
+        <td>${escapeHtml(r.admno || '–')}</td>
+        <td><strong>${escapeHtml(r.name)}</strong></td>
+        <td>${clL(r.cls)}</td>
+        <td style="text-align:center">${escapeHtml(r.section || 'A')}</td>
+        <td>${escapeHtml(r.fatherName || '–')}</td>
+        <td style="text-align:right;color:#dc2626;font-weight:bold">₹${Number(r.amount).toLocaleString('en-IN')}</td>
+      </tr>
+    `).join('');
+    const tot = _curCustomReportRows.reduce((sum, r) => sum + (Number(r.amount) || 0), 0);
+    tfootHtml = `<tr><td colspan="6" style="text-align:center">Total Pending Dues</td><td style="text-align:right;color:#dc2626">₹${tot.toLocaleString('en-IN')}</td></tr>`;
+  } else if (repType === 'concessions') {
+    title = `Custom Fee Concession Report - Session ${targetSession}`;
+    theadHtml = '<tr><th>#</th><th>Receipt #</th><th>Date</th><th>Student Name</th><th>Class</th><th>Reason</th><th style="text-align:right">Concession (₹)</th><th style="text-align:right">Net Paid (₹)</th></tr>';
+    tbodyHtml = _curCustomReportRows.slice(0, 200).map((r, i) => `
+      <tr>
+        <td style="text-align:center">${i + 1}</td>
+        <td><strong>${r.receiptNo}</strong></td>
+        <td>${r.date}</td>
+        <td>${r.studentName}</td>
+        <td>${clL(r.cls)}</td>
+        <td>${r.reason}</td>
+        <td style="text-align:right;color:#d97706;font-weight:bold">₹${r.discount.toLocaleString('en-IN')}</td>
+        <td style="text-align:right">₹${r.netPaid.toLocaleString('en-IN')}</td>
+      </tr>
+    `).join('');
+    const totD = _curCustomReportRows.reduce((sum, r) => sum + r.discount, 0);
+    const totP = _curCustomReportRows.reduce((sum, r) => sum + r.netPaid, 0);
+    tfootHtml = `<tr><td colspan="6" style="text-align:center">Total Concessions Allowed</td><td style="text-align:right;color:#d97706">₹${totD.toLocaleString('en-IN')}</td><td style="text-align:right">₹${totP.toLocaleString('en-IN')}</td></tr>`;
+  } else {
+    title = `Custom Fee Collections Report - Session ${targetSession}`;
+    theadHtml = '<tr><th>#</th><th>Receipt No.</th><th>Date</th><th>Student Name</th><th>Class</th><th>Period</th><th>Mode</th><th style="text-align:right">Amount (₹)</th></tr>';
+    tbodyHtml = _curCustomReportRows.slice(0, 200).map((tx, i) => `
+      <tr>
+        <td style="text-align:center">${i + 1}</td>
+        <td><strong>${tx.receiptNo}</strong></td>
+        <td>${tx.date}</td>
+        <td>${tx.studentName}</td>
+        <td>${clL(tx.cls)}</td>
+        <td>${tx._summaryPeriod || tx.period || ''}</td>
+        <td style="text-align:center">${tx.mode}</td>
+        <td style="text-align:right"><strong>₹${Number(tx.amount).toLocaleString('en-IN')}</strong></td>
+      </tr>
+    `).join('');
+    const totA = _curCustomReportRows.reduce((sum, r) => sum + (Number(r.amount) || 0), 0);
+    tfootHtml = `<tr><td colspan="7" style="text-align:center">Total Collections Filtered</td><td style="text-align:right;color:#16a34a">₹${totA.toLocaleString('en-IN')}</td></tr>`;
+  }
+
+  const html = `
+    <!DOCTYPE html><html><head><meta charset="UTF-8"><title>${title}</title>
+    <style>
+      @page { size: A4 portrait; margin: 12mm 10mm; }
+      * { box-sizing: border-box; }
+      html, body { height: 100%; margin: 0; padding: 0; }
+      body { font-family: Arial, sans-serif; font-size: 11px; color: #111; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      .page-container { min-height: 100%; display: flex; flex-direction: column; }
+      .content-wrap { flex: 1 0 auto; }
+      .hdr { text-align: center; border-bottom: 2px solid #7c3aed; padding-bottom: 8px; margin-bottom: 12px; }
+      .hdr h1 { margin: 0; font-size: 20px; color: #7c3aed; }
+      .hdr p { margin: 3px 0 0; font-size: 11px; color: #555; }
+      table { width: 100%; border-collapse: collapse; font-size: 10.5px; margin-top: 10px; }
+      thead { display: table-header-group; }
+      tr { page-break-inside: avoid; }
+      th, td { border: 1px solid #cbd5e1; padding: 6px 8px; }
+      th { background: #f3e8ff; color: #4c1d95; font-weight: bold; }
+      tfoot td { background: #ede9fe; font-weight: bold; border-top: 2px solid #7c3aed; }
+      .footer { margin-top: auto; padding-top: 18px; padding-bottom: 4px; display: flex; justify-content: space-between; border-top: 1px dashed #cbd5e1; font-size: 10px; color: #666; page-break-inside: avoid; break-inside: avoid; }
+    </style></head>
+    <body>
+      <div class="page-container">
+        <div class="content-wrap">
+          <div class="hdr">
+            <h1>${escapeHtml(s.schoolName || 'MD Convent Public School')}</h1>
+            <p>${escapeHtml(s.schoolAddress || 'Amanpur, Kasganj Road, Uttar Pradesh')} | Academic Session: ${targetSession}</p>
+            <h2 style="font-size:15px;margin:6px 0 0;color:#1e293b">${title}</h2>
+          </div>
+          <table>
+            <thead>${theadHtml}</thead>
+            <tbody>${tbodyHtml}</tbody>
+            <tfoot>${tfootHtml}</tfoot>
+          </table>
+        </div>
+        <div class="footer">
+          <div>Custom Accounts Query | Authorized Signatory: <strong>${escapeHtml(s.principalName || 'Principal')}</strong></div>
+          <div>Printed on: ${new Date().toLocaleString('en-IN')}</div>
+        </div>
+      </div>
+    </body></html>
+  `;
+
+  if (isEl && window.electronAPI && window.electronAPI.printContent) {
+    window.electronAPI.printContent(html);
+  } else {
+    const w = window.open('', '_blank');
+    if (w) { w.document.write(html); w.document.close(); }
+  }
+}
+
+// ------------------------------------------------------------
+// DAILY FEE COLLECTION & AUDIT REPORT
+// ------------------------------------------------------------
 let curDailyCollRows = [];
 
 function openDailyCollectionReport() {
   const today = new Date().toISOString().split('T')[0];
   const fromEl = document.getElementById('dcr_from');
   const toEl = document.getElementById('dcr_to');
-  if (fromEl && !fromEl.value) fromEl.value = today;
-  if (toEl && !toEl.value) toEl.value = today;
+  if (fromEl && !fromEl.value) {
+    const hasToday = (DB.payments || []).some(p => p.date === today && !p.reversed);
+    if (hasToday) {
+      fromEl.value = today;
+      if (toEl) toEl.value = today;
+    } else {
+      const latestDate = (DB.payments || []).reduce((max, p) => (p.date && p.date > max ? p.date : max), '') || today;
+      fromEl.value = latestDate;
+      if (toEl) toEl.value = latestDate;
+    }
+  }
 
   renderDailyCollectionData();
   openM('dailyCollM');
@@ -11206,11 +13988,11 @@ function setDailyFilterRange(type) {
     fromEl.value = today;
     toEl.value = today;
   } else if (type === 'yesterday') {
-    const yestObj = new Date(todayObj);
-    yestObj.setDate(yestObj.getDate() - 1);
-    const yest = yestObj.toISOString().split('T')[0];
-    fromEl.value = yest;
-    toEl.value = yest;
+    const yest = new Date(todayObj);
+    yest.setDate(yest.getDate() - 1);
+    const yStr = yest.toISOString().split('T')[0];
+    fromEl.value = yStr;
+    toEl.value = yStr;
   } else if (type === 'thisMonth') {
     const y = todayObj.getFullYear();
     const m = String(todayObj.getMonth() + 1).padStart(2, '0');
@@ -11221,8 +14003,10 @@ function setDailyFilterRange(type) {
 }
 
 function renderDailyCollectionData() {
-  const fromDate = document.getElementById('dcr_from')?.value || '';
-  const toDate = document.getElementById('dcr_to')?.value || '';
+  const fromEl = document.getElementById('dcr_from');
+  const toEl = document.getElementById('dcr_to');
+  const fromDate = fromEl?.value || '';
+  const toDate = toEl?.value || '';
 
   const allPayments = (DB.payments || []).filter(p => {
     if (!p.date) return false;
@@ -11231,182 +14015,282 @@ function renderDailyCollectionData() {
     return true;
   });
 
-  // Sort chronologically descending
   allPayments.sort((a, b) => (b.date || '').localeCompare(a.date || '') || (b.receiptNo || '').localeCompare(a.receiptNo || ''));
   curDailyCollRows = allPayments;
 
-  // Calculate totals by payment mode (excluding reversed/voided payments)
-  const modeTotals = { Cash: 0, UPI: 0, 'Bank Transfer': 0, Other: 0 };
-  let grandTotal = 0;
-  let voidCount = 0;
+  let totalCollected = 0;
+  let cashTotal = 0;
+  let upiTotal = 0;
+  let bankTotal = 0;
+  let chequeTotal = 0;
 
   allPayments.forEach(p => {
-    if (p.reversed) {
-      voidCount++;
-      return;
-    }
+    if (p.reversed) return;
     const amt = Number(p.amount) || 0;
-    const mode = p.mode || 'Cash';
-    if (mode === 'Cash') modeTotals.Cash += amt;
-    else if (mode === 'UPI') modeTotals.UPI += amt;
-    else if (mode === 'Bank Transfer') modeTotals['Bank Transfer'] += amt;
-    else modeTotals.Other += amt;
-    grandTotal += amt;
+    totalCollected += amt;
+    const m = p.mode || 'Cash';
+    if (m === 'Cash') cashTotal += amt;
+    else if (m.includes('UPI') || m.includes('Online')) upiTotal += amt;
+    else if (m.includes('Cheque')) chequeTotal += amt;
+    else bankTotal += amt;
   });
 
-  // Render Mode Cards
+  // Render cards container if present in DOM
   const cardsEl = document.getElementById('dcrSummaryCards');
   if (cardsEl) {
     cardsEl.innerHTML = `
       <div style="background:var(--bg);border-radius:8px;padding:10px 12px;border:1px solid var(--bdr)">
         <div style="font-size:11px;color:var(--txt2);font-weight:600">💵 Cash</div>
-        <div style="font-size:16px;font-weight:700;color:var(--txt);margin-top:2px">₹${modeTotals.Cash.toLocaleString('en-IN')}</div>
+        <div style="font-size:16px;font-weight:700;color:var(--txt);margin-top:2px">₹${cashTotal.toLocaleString('en-IN')}</div>
       </div>
       <div style="background:var(--bg);border-radius:8px;padding:10px 12px;border:1px solid var(--bdr)">
         <div style="font-size:11px;color:var(--txt2);font-weight:600">📱 UPI / QR</div>
-        <div style="font-size:16px;font-weight:700;color:var(--txt);margin-top:2px">₹${modeTotals.UPI.toLocaleString('en-IN')}</div>
+        <div style="font-size:16px;font-weight:700;color:var(--txt);margin-top:2px">₹${upiTotal.toLocaleString('en-IN')}</div>
       </div>
       <div style="background:var(--bg);border-radius:8px;padding:10px 12px;border:1px solid var(--bdr)">
         <div style="font-size:11px;color:var(--txt2);font-weight:600">🏦 Bank Transfer</div>
-        <div style="font-size:16px;font-weight:700;color:var(--txt);margin-top:2px">₹${modeTotals['Bank Transfer'].toLocaleString('en-IN')}</div>
+        <div style="font-size:16px;font-weight:700;color:var(--txt);margin-top:2px">₹${bankTotal.toLocaleString('en-IN')}</div>
       </div>
       <div style="background:var(--bg);border-radius:8px;padding:10px 12px;border:1px solid var(--bdr)">
         <div style="font-size:11px;color:var(--txt2);font-weight:600">💳 Cheque / Other</div>
-        <div style="font-size:16px;font-weight:700;color:var(--txt);margin-top:2px">₹${modeTotals.Other.toLocaleString('en-IN')}</div>
+        <div style="font-size:16px;font-weight:700;color:var(--txt);margin-top:2px">₹${chequeTotal.toLocaleString('en-IN')}</div>
       </div>
-      <div style="background:var(--gl);border-radius:8px;padding:10px 12px;border:1px solid #a9dfbf">
-        <div style="font-size:11px;color:var(--grn);font-weight:700">💰 Grand Total</div>
-        <div style="font-size:18px;font-weight:700;color:var(--grn);margin-top:2px">₹${grandTotal.toLocaleString('en-IN')}</div>
-      </div>`;
+      <div style="background:#eafaf1;border-radius:8px;padding:10px 12px;border:1px solid #a9dfbf">
+        <div style="font-size:11px;color:#16a34a;font-weight:700">💰 Grand Total (${allPayments.length} Recs)</div>
+        <div style="font-size:18px;font-weight:700;color:#16a34a;margin-top:2px">₹${totalCollected.toLocaleString('en-IN')}</div>
+      </div>
+    `;
   }
 
-  // Render Table Rows
-  const tbEl = document.getElementById('dcrTableBody');
-  if (tbEl) {
-    if (!allPayments.length) {
-      tbEl.innerHTML = '<tr><td colspan="9" class="empty" style="padding:24px 0">No fee collection transactions found for selected date range.</td></tr>';
-      return;
+  // Update individual summary values if present
+  const elTot = document.getElementById('dcr_sum_total');
+  if (elTot) elTot.textContent = '₹' + totalCollected.toLocaleString('en-IN');
+  const elCash = document.getElementById('dcr_sum_cash');
+  if (elCash) elCash.textContent = '₹' + cashTotal.toLocaleString('en-IN');
+  const elUpi = document.getElementById('dcr_sum_upi');
+  if (elUpi) elUpi.textContent = '₹' + upiTotal.toLocaleString('en-IN');
+  const elBank = document.getElementById('dcr_sum_bank');
+  if (elBank) elBank.textContent = '₹' + bankTotal.toLocaleString('en-IN');
+  const elCheque = document.getElementById('dcr_sum_cheque');
+  if (elCheque) elCheque.textContent = '₹' + chequeTotal.toLocaleString('en-IN');
+  const elCount = document.getElementById('dcr_count');
+  if (elCount) elCount.textContent = allPayments.length.toString();
+
+  const tbody = document.getElementById('dcrTableBody') || document.getElementById('dcr_table_body');
+  if (!tbody) return;
+
+  if (allPayments.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;padding:24px;color:#94A3B8">No collection records found for the selected date range</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = allPayments.map((p, idx) => {
+    const isOnline = (p.mode || '').includes('UPI') || (p.mode || '').includes('Online');
+    const isCash = (p.mode || '').includes('Cash') || !p.mode;
+    const badgeCls = isCash ? 'cb1' : (isOnline ? 'cb2' : 'cb3');
+
+    return `
+      <tr style="${p.reversed ? 'opacity:0.6;background:#FEF2F2' : ''}">
+        <td><strong style="color:#7C3AED">${escapeHtml(p.receiptNo)}</strong></td>
+        <td>${escapeHtml(p.date || '–')}</td>
+        <td><strong>${escapeHtml(p.studentName)}</strong></td>
+        <td style="text-align:center"><span class="chip cb2">${escapeHtml(p.admno || '–')}</span></td>
+        <td style="text-align:center">${clL(p.cls)}${p.section ? ' (' + escapeHtml(p.section) + ')' : ''}</td>
+        <td>${escapeHtml(p.category || p._summaryPeriod || p.period || 'Fee')}</td>
+        <td style="text-align:center"><span class="chip ${badgeCls}">${escapeHtml(p.mode || 'Cash')}</span></td>
+        <td style="text-align:center">${p.reversed ? '<span style="color:#DC2626;font-weight:700">VOID</span>' : '<span style="color:#16A34A;font-weight:600">VALID</span>'}</td>
+        <td style="text-align:right;font-weight:700;${p.reversed ? 'text-decoration:line-through;color:#94A3B8' : 'color:#0F172A'}">₹${Number(p.amount).toLocaleString('en-IN')}</td>
+      </tr>
+    `;
+  }).join('');
+}
+
+function generateDailyCollectionReport() {
+  if (!curDailyCollRows || !curDailyCollRows.length) {
+    const fromEl = document.getElementById('dcr_from');
+    const toEl = document.getElementById('dcr_to');
+    if (fromEl && !fromEl.value) {
+      const today = new Date().toISOString().split('T')[0];
+      const hasToday = (DB.payments || []).some(p => p.date === today && !p.reversed);
+      const defDate = hasToday ? today : ((DB.payments || []).reduce((max, p) => (p.date && p.date > max ? p.date : max), '') || today);
+      fromEl.value = defDate;
+      if (toEl) toEl.value = defDate;
     }
-
-    tbEl.innerHTML = allPayments.map(p => {
-      const isVoid = p.reversed === true;
-      return `<tr style="${isVoid ? 'background:#fdecea;opacity:0.75' : ''}">
-        <td style="white-space:nowrap"><strong style="color:var(--blu)">${p.receiptNo}</strong></td>
-        <td style="white-space:nowrap">${p.date || '–'}</td>
-        <td style="font-weight:600">${p.studentName}</td>
-        <td style="white-space:nowrap;text-align:center"><span class="chip cb2">${p.admno}</span></td>
-        <td style="white-space:nowrap;text-align:center">${clL(p.cls)}</td>
-        <td style="line-height:1.4">${p.category || 'Fee'} ${p.period ? `(${p.period})` : ''}</td>
-        <td style="white-space:nowrap;text-align:center"><span class="chip cb2">${p.mode || 'Cash'}</span></td>
-        <td style="white-space:nowrap;text-align:center">${isVoid ? `<span class="chip cr" title="Void reason: ${p.voidReason || 'Cancelled'}">VOID</span>` : '<span class="chip cg">Valid ✓</span>'}</td>
-        <td style="white-space:nowrap;text-align:right;font-weight:700;color:${isVoid ? 'var(--txt2)' : 'var(--grn)'};${isVoid ? 'text-decoration:line-through' : ''}">₹${Number(p.amount).toLocaleString('en-IN')}</td>
-      </tr>`;
-    }).join('');
+    renderDailyCollectionData();
   }
+  if (!curDailyCollRows || !curDailyCollRows.length) {
+    const latestDate = (DB.payments || []).reduce((max, p) => (p.date && p.date > max ? p.date : max), '');
+    curDailyCollRows = (DB.payments || []).filter(p => !latestDate || p.date === latestDate);
+    curDailyCollRows.sort((a, b) => (b.date || '').localeCompare(a.date || '') || (b.receiptNo || '').localeCompare(a.receiptNo || ''));
+  }
+  return curDailyCollRows;
 }
 
 async function expDailyCollectionCSV() {
   if (!curDailyCollRows.length) {
-    toast('No collection transactions to export for the selected date range!', 'warning');
+    toast('No daily collection records to export!', 'warning');
     return;
   }
-  let csv = 'Receipt No,Date,Student Name,Admission No,Class,Section,Category,Period,Payment Mode,Status,Amount,Void Reason\n';
+  let csv = 'Receipt No,Date,Student Name,Admission No,Class,Section,Category,Mode,Status,Amount\n';
   curDailyCollRows.forEach(p => {
-    const cName = (p.studentName || '').replace(/"/g, '""');
-    const cCat = (p.category || '').replace(/"/g, '""');
-    const cPeriod = (p.period || '').replace(/"/g, '""');
-    const cReason = (p.voidReason || '').replace(/"/g, '""');
-    csv += `"${p.receiptNo}","${p.date || ''}","${cName}","${p.admno}","${p.cls}","${p.section || 'A'}","${cCat}","${cPeriod}","${p.mode || 'Cash'}","${p.reversed ? 'VOID' : 'VALID'}",${p.amount},"${cReason}"\n`;
+    csv += `"${p.receiptNo}","${p.date}","${p.studentName}","${p.admno || ''}","${p.cls}","${p.section || 'A'}","${p.category || 'Fee'}","${p.mode}","${p.reversed ? 'VOID' : 'VALID'}",${p.amount}\n`;
   });
-  await expCSV('daily_collection_report.csv', csv);
+  await expCSV('daily_collection_audit_report.csv', csv);
+}
+
+function exportDailyCollectionCSV() {
+  return expDailyCollectionCSV();
 }
 
 function printDailyCollectionReport() {
-  const fromDate = document.getElementById('dcr_from')?.value || '';
-  const toDate = document.getElementById('dcr_to')?.value || '';
-  const s = DB.settings || {};
-
-  if (!curDailyCollRows.length) {
+  if (!curDailyCollRows || !curDailyCollRows.length) {
+    generateDailyCollectionReport();
+  }
+  if (!curDailyCollRows || !curDailyCollRows.length) {
     toast('No collection transactions to print!', 'warning');
     return;
   }
 
-  // Calculate totals by mode
-  const modeTotals = { Cash: 0, UPI: 0, 'Bank Transfer': 0, Other: 0 };
-  let grandTotal = 0;
+  const fromDate = document.getElementById('dcr_from')?.value || '';
+  const toDate = document.getElementById('dcr_to')?.value || '';
+  const s = DB.settings || {};
+  const curSess = _finActiveSession || s.currentSession || '2026–27';
+
+  let totalCollected = 0;
+  let cash = 0, upi = 0, bank = 0, cheque = 0;
+  let validCount = 0;
+  let minDate = '', maxDate = '';
+
   curDailyCollRows.forEach(p => {
+    if (p.date) {
+      if (!minDate || p.date < minDate) minDate = p.date;
+      if (!maxDate || p.date > maxDate) maxDate = p.date;
+    }
     if (p.reversed) return;
+    validCount++;
     const amt = Number(p.amount) || 0;
-    const mode = p.mode || 'Cash';
-    if (mode === 'Cash') modeTotals.Cash += amt;
-    else if (mode === 'UPI') modeTotals.UPI += amt;
-    else if (mode === 'Bank Transfer') modeTotals['Bank Transfer'] += amt;
-    else modeTotals.Other += amt;
-    grandTotal += amt;
+    totalCollected += amt;
+    const m = p.mode || 'Cash';
+    if (m === 'Cash') cash += amt;
+    else if (m.includes('UPI') || m.includes('Online')) upi += amt;
+    else if (m.includes('Cheque')) cheque += amt;
+    else bank += amt;
   });
 
-  const rows = curDailyCollRows.map((p, i) => `
+  const rangeLabel = (fromDate && toDate && fromDate === toDate)
+    ? `Date: ${fromDate}`
+    : (fromDate && toDate)
+      ? `Date Range: ${fromDate} to ${toDate}`
+      : (minDate && maxDate && minDate === maxDate)
+        ? `Date: ${minDate}`
+        : `Date Range: ${minDate || '–'} to ${maxDate || '–'}`;
+
+  const rowsHtml = curDailyCollRows.map((p, i) => `
     <tr style="${p.reversed ? 'background:#fdecea;color:#888' : ''}">
-      <td>${i + 1}</td>
-      <td><strong>${p.receiptNo}</strong></td>
-      <td>${p.date || '–'}</td>
-      <td><strong>${p.studentName}</strong> (Adm: ${p.admno})</td>
-      <td>${clL(p.cls)}</td>
-      <td>${p.category || 'Fee'}</td>
-      <td>${p.mode || 'Cash'}</td>
-      <td>${p.reversed ? '<span style="color:#c0392b;font-weight:bold">VOID</span>' : 'VALID'}</td>
-      <td style="text-align:right;font-weight:bold;${p.reversed ? 'text-decoration:line-through' : ''}">₹${Number(p.amount).toLocaleString('en-IN')}</td>
-    </tr>`).join('');
+      <td style="text-align:center">${i + 1}</td>
+      <td><strong>${escapeHtml(p.receiptNo)}</strong></td>
+      <td style="text-align:center">${escapeHtml(p.date || '–')}</td>
+      <td>
+        <strong>${escapeHtml(p.studentName)}</strong>
+        ${p.admno ? `<div style="font-size:9.5px;color:#64748B">Adm: ${escapeHtml(p.admno)}</div>` : ''}
+      </td>
+      <td style="text-align:center">${clL(p.cls)}${p.section ? ' (' + escapeHtml(p.section) + ')' : ''}</td>
+      <td>${escapeHtml(p.category || p._summaryPeriod || p.period || 'Fee')}</td>
+      <td style="text-align:center">${escapeHtml(p.mode || 'Cash')}</td>
+      <td style="text-align:center">${p.reversed ? '<span style="color:#c0392b;font-weight:bold">VOID</span>' : '<span style="color:#16a34a;font-weight:600">VALID</span>'}</td>
+      <td style="text-align:right;${p.reversed ? 'text-decoration:line-through;color:#94a3b8' : 'font-weight:bold'}">₹${Number(p.amount).toLocaleString('en-IN')}</td>
+    </tr>
+  `).join('');
 
-  const html = `<!DOCTYPE html><html><head><title>Daily Fee Collection Report</title>
+  const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Daily Fee Collection Report</title>
   <style>
-    @page { size: A4 portrait; margin: 10mm; }
-    body { font-family: Arial, sans-serif; margin: 10px; font-size: 11.5px; color: #222; }
-    table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-    th { background: #27ae60; color: #fff; padding: 6px 8px; text-align: left; font-size: 11px; }
-    td { padding: 5px 8px; border-bottom: 1px solid #ddd; font-size: 11px; }
-    .hdr { text-align: center; border-bottom: 2px solid #27ae60; padding-bottom: 8px; margin-bottom: 10px; }
+    @page { size: A4 portrait; margin: 12mm 10mm; }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; margin: 0; padding: 0; }
+    body { font-family: Arial, sans-serif; font-size: 11px; color: #111; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .page-container { min-height: 100%; display: flex; flex-direction: column; }
+    .content-wrap { flex: 1 0 auto; }
+    table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 10px; }
+    thead { display: table-header-group; }
+    tr { page-break-inside: avoid; }
+    th { background: #7c3aed; color: #fff; padding: 6px 7px; text-align: left; font-size: 10px; border: 1px solid #6d28d9; }
+    td { padding: 5px 7px; border: 1px solid #cbd5e1; }
+    tfoot td { background: #ede9fe; font-weight: bold; border-top: 2px solid #7c3aed; }
+    .hdr { text-align: center; border-bottom: 2px solid #7c3aed; padding-bottom: 8px; margin-bottom: 12px; }
+    .hdr h1 { margin: 0; font-size: 20px; color: #7c3aed; }
+    .hdr p { margin: 3px 0 0; font-size: 11px; color: #555; }
     .summary-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; margin-bottom: 12px; }
-    .sum-card { background: #f9f9f9; border: 1px solid #ddd; border-radius: 6px; padding: 8px; text-align: center; }
-    .sum-val { font-size: 14px; font-weight: bold; margin-top: 2px; }
-    @media print { body { margin: 0; } }
+    .sum-card { background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 6px; padding: 6px 8px; text-align: center; }
+    .sum-val { font-size: 13px; font-weight: bold; margin-top: 2px; }
+    .sig { margin-top: auto; padding-top: 42px; padding-bottom: 6px; display: flex; justify-content: space-between; padding-left: 20px; padding-right: 20px; page-break-inside: avoid; break-inside: avoid; }
+    .sig-line { border-top: 1.5px solid #334155; width: 175px; text-align: center; padding-top: 6px; font-size: 11px; font-weight: bold; color: #1e293b; }
+    .footer { margin-top: auto; padding-top: 10px; padding-bottom: 4px; display: flex; justify-content: space-between; border-top: 1px dashed #cbd5e1; font-size: 10px; color: #666; page-break-inside: avoid; break-inside: avoid; }
   </style></head><body>
-    <div class="hdr">
-      <div style="font-size:17px;font-weight:bold;color:#27ae60">${s.schoolName || 'MD Convent Public School'}</div>
-      <div style="font-size:11px;color:#555">${s.schoolAddr || ''} | Contact: ${s.schoolPhone || ''}</div>
-      <div style="font-size:13px;font-weight:bold;margin-top:4px">DAILY FEE COLLECTION & AUDIT REPORT</div>
-      <div style="font-size:11px;color:#666">Period: ${fromDate || '–'} to ${toDate || '–'} | Active Session: ${s.currentSession || '2026–27'}</div>
-    </div>
+    <div class="page-container">
+      <div class="content-wrap">
+        <div class="hdr">
+          <h1>${escapeHtml(s.schoolName || 'MD Convent Public School')}</h1>
+          <p>${escapeHtml(s.schoolAddress || 'Amanpur, Kasganj Road, Uttar Pradesh')} | Academic Session: ${curSess}</p>
+          <h2 style="font-size:15px;margin:6px 0 0;color:#1e1b4b">DAILY FEE COLLECTION & AUDIT REPORT</h2>
+          <div style="font-size:11px;color:#64748B;margin-top:3px">${rangeLabel}</div>
+        </div>
 
-    <div class="summary-grid">
-      <div class="sum-card"><div>Cash</div><div class="sum-val">₹${modeTotals.Cash.toLocaleString('en-IN')}</div></div>
-      <div class="sum-card"><div>UPI / QR</div><div class="sum-val">₹${modeTotals.UPI.toLocaleString('en-IN')}</div></div>
-      <div class="sum-card"><div>Bank Transfer</div><div class="sum-val">₹${modeTotals['Bank Transfer'].toLocaleString('en-IN')}</div></div>
-      <div class="sum-card"><div>Cheque / Other</div><div class="sum-val">₹${modeTotals.Other.toLocaleString('en-IN')}</div></div>
-      <div class="sum-card" style="background:#eafaf1;border-color:#a9dfbf;color:#27ae60"><div>Total Collected</div><div class="sum-val">₹${grandTotal.toLocaleString('en-IN')}</div></div>
-    </div>
+        <div class="summary-grid">
+          <div class="sum-card"><div>Cash</div><div class="sum-val">₹${cash.toLocaleString('en-IN')}</div></div>
+          <div class="sum-card"><div>UPI / Online</div><div class="sum-val">₹${upi.toLocaleString('en-IN')}</div></div>
+          <div class="sum-card"><div>Bank Transfer</div><div class="sum-val">₹${bank.toLocaleString('en-IN')}</div></div>
+          <div class="sum-card"><div>Cheque / Other</div><div class="sum-val">₹${cheque.toLocaleString('en-IN')}</div></div>
+          <div class="sum-card" style="background:#eafaf1;border-color:#a9dfbf;color:#16a34a"><div>Total Realized</div><div class="sum-val">₹${totalCollected.toLocaleString('en-IN')}</div></div>
+        </div>
 
-    <table>
-      <thead>
-        <tr><th>#</th><th>Receipt #</th><th>Date</th><th>Student Name</th><th>Class</th><th>Category</th><th>Mode</th><th>Status</th><th style="text-align:right">Amount (₹)</th></tr>
-      </thead>
-      <tbody>
-        ${rows}
-      </tbody>
-    </table>
-
-    <div style="margin-top:24px;display:flex;justify-content:space-between;align-items:flex-end;border-top:1px dashed #ccc;padding-top:10px;font-size:10.5px;color:#666">
-      <div>
-        Official School Accounts Report<br>
-        Authorized Signatory: <strong>${s.principalName || 'Principal'}</strong>
+        <table>
+          <thead>
+            <tr>
+              <th style="text-align:center;width:28px">#</th>
+              <th>Receipt #</th>
+              <th style="text-align:center">Date</th>
+              <th>Student Details</th>
+              <th style="text-align:center">Class</th>
+              <th>Fee Category / Period</th>
+              <th style="text-align:center">Mode</th>
+              <th style="text-align:center">Status</th>
+              <th style="text-align:right">Amount (₹)</th>
+            </tr>
+          </thead>
+          <tbody>${rowsHtml}</tbody>
+          <tfoot>
+            <tr>
+              <td colspan="2" style="text-align:center">Grand Totals</td>
+              <td colspan="4" style="text-align:center">${validCount} Valid Transactions (${curDailyCollRows.length} Total)</td>
+              <td colspan="2" style="text-align:center">Cash + UPI + Bank</td>
+              <td style="text-align:right;color:#16a34a">₹${totalCollected.toLocaleString('en-IN')}</td>
+            </tr>
+          </tfoot>
+        </table>
       </div>
-      <div>Printed on: ${new Date().toLocaleString('en-IN')}</div>
+
+      <div class="sig">
+        <div class="sig-line">Prepared By</div>
+        <div class="sig-line">Accountant</div>
+        <div class="sig-line">Principal</div>
+      </div>
+
+      <div class="footer">
+        <div>Daily Fee Audit Register | MD Convent SMS</div>
+        <div>Printed on: ${new Date().toLocaleString('en-IN')}</div>
+      </div>
     </div>
   </body></html>`;
 
-  if (isEl) window.electronAPI.printContent(html);
-  else { const w = window.open('','_blank'); w.document.write(html); w.document.close(); }
+  if (isEl && window.electronAPI && window.electronAPI.printContent) {
+    window.electronAPI.printContent(html);
+  } else {
+    const w = window.open('','_blank');
+    if (w) { w.document.write(html); w.document.close(); }
+  }
 }
+
+
 async function expSt() {
   const list = DB.students || [];
   if (!list.length) {
@@ -11924,6 +14808,7 @@ function gSchFn(q) {
 
 var transportState = {
   activeSession: '',
+  collectSession: null,
   activeMonth: '',
   activeClass: 'all',
   activeStatus: 'all',
@@ -12352,6 +15237,10 @@ function buildTransportLedgerRows() {
     const { paid, discount } = getStudentMonthTransportAccounting(st.id, transportState.activeMonth);
     const isFutureActiveMonth = activeMonthSortKey > curMonthSortKey;
     const due = (coversMonth && !isFutureActiveMonth) ? Math.max(0, monthlyFee - discount - paid) : 0;
+    
+    // Total outstanding amount across all sessions (previous + current) & pending month range
+    const { totalOutstanding: sessionDue, pendingMonths } = getStudentTotalOutstandingTransportDues(st.id, transportState.activeSession, transportState.activeMonth);
+    const pendingRangeText = formatCompactTransportMonthRangeShort(pendingMonths);
     const prevDues = safeNum(getStudentPreviousSessionTransportDues(st.id, transportState.activeSession), 0);
 
     let status = 'Due';
@@ -12379,8 +15268,11 @@ function buildTransportLedgerRows() {
       monthlyFee,
       paid,
       discount,
+      due,                  // This Month Due (only active selected month)
+      sessionDue,           // Session Due (total outstanding across all sessions)
+      pendingMonths,
+      pendingRangeText,
       prevDues,
-      due,
       status,
       active: assign.active,
       effectiveFrom: assign.effectiveFrom,
@@ -12463,8 +15355,11 @@ function renderTransportLedger() {
         <td style="color:#1e293b">${escapeHtml(row.pickup || '-')}</td>
         <td class="text-right" style="font-weight:600">${safeCurrency(row.monthlyFee)}</td>
         <td class="text-right" style="font-weight:600;color:#16a34a">${safeCurrency(row.paid)}</td>
-        <td class="text-right" style="font-weight:600;color:${row.prevDues > 0 ? '#c0392b' : '#64748b'}">${safeCurrency(row.prevDues)}</td>
         <td class="text-right" style="font-weight:700;color:${row.due > 0 ? '#c0392b' : '#1e293b'}">${safeCurrency(row.due)}</td>
+        <td class="text-right" style="font-weight:600;color:${row.sessionDue > 0 ? '#c0392b' : '#64748b'}">
+          <div>${safeCurrency(row.sessionDue)}</div>
+          ${row.sessionDue > 0 && row.pendingRangeText && row.pendingRangeText !== '-' ? `<div style="font-size:10.5px;color:#64748b;font-weight:500;margin-top:1px">${escapeHtml(row.pendingRangeText)}</div>` : ''}
+        </td>
         <td class="text-center"><span class="tr-badge ${badgeClass}">${row.status}</span></td>
         <td class="text-center">
           <div class="tr-actions-cell" style="justify-content:center">
@@ -13239,6 +16134,8 @@ function selectCollectStudent(studentId) {
   // Populate Switcher Dropdown and Class filter
   populateCollectStudentSwitcher(student.id);
 
+
+
   // Student Details box
   const nameEl = document.getElementById('tr_col_student_name');
   const clsEl = document.getElementById('tr_col_student_class');
@@ -13330,6 +16227,96 @@ function onCollectStudentFilterInput() {
   onCollectSearchInput();
 }
 
+function populateCollectSessionDropdown(selectedSession) {
+  const selectEl = document.getElementById('tr_col_session_select');
+  if (!selectEl) return;
+
+  const activeSess = transportState.activeSession || getAuthoritativeActiveSession();
+  const currentSel = selectedSession || transportState.collectSession || activeSess;
+
+  const [curStartYear] = parseSessionYears(activeSess);
+  const sessionList = [];
+
+  // 1. Add active session first
+  sessionList.push(activeSess);
+
+  // 2. Add sessions from DB.sessions if available
+  if (Array.isArray(DB.sessions)) {
+    DB.sessions.forEach(s => {
+      const sName = (typeof s === 'string' ? s : s.name);
+      if (sName && !sessionList.includes(sName)) {
+        sessionList.push(sName);
+      }
+    });
+  }
+
+  // 3. Ensure candidate historical academic sessions exist (e.g. 2025–26, 2024–25)
+  for (let offset = 1; offset <= 3; offset++) {
+    const prevStartYr = curStartYear - offset;
+    const prevEndYr = prevStartYr + 1;
+    const prevCandidate = `${prevStartYr}–${String(prevEndYr).slice(2)}`;
+    if (!sessionList.includes(prevCandidate)) {
+      sessionList.push(prevCandidate);
+    }
+  }
+
+  // Sort sessions: active session first, then descending by start year
+  sessionList.sort((a, b) => {
+    if (a === activeSess) return -1;
+    if (b === activeSess) return 1;
+    const [yA] = parseSessionYears(a);
+    const [yB] = parseSessionYears(b);
+    return yB - yA;
+  });
+
+  selectEl.innerHTML = sessionList.map(s => {
+    const isCur = (s === activeSess);
+    const label = isCur ? `${s} (Current Session)` : `${s} (Previous Session)`;
+    return `<option value="${escapeHtml(s)}"${s === currentSel ? ' selected' : ''}>${escapeHtml(label)}</option>`;
+  }).join('');
+
+  // Update session badge
+  const badgeEl = document.getElementById('tr_col_session_badge');
+  if (badgeEl) {
+    if (currentSel === activeSess) {
+      badgeEl.textContent = 'Current Session';
+      badgeEl.style.background = '#ede9fe';
+      badgeEl.style.color = '#6d28d9';
+    } else {
+      badgeEl.textContent = 'Previous Session Dues';
+      badgeEl.style.background = '#fef3c7';
+      badgeEl.style.color = '#b45309';
+    }
+  }
+}
+
+function onCollectSessionChange(newSession) {
+  transportState.collectSession = newSession;
+  const activeSess = transportState.activeSession || getAuthoritativeActiveSession();
+  const badgeEl = document.getElementById('tr_col_session_badge');
+  if (badgeEl) {
+    if (newSession === activeSess) {
+      badgeEl.textContent = 'Current Session';
+      badgeEl.style.background = '#ede9fe';
+      badgeEl.style.color = '#6d28d9';
+    } else {
+      badgeEl.textContent = 'Previous Session Dues';
+      badgeEl.style.background = '#fef3c7';
+      badgeEl.style.color = '#b45309';
+    }
+  }
+
+  // Reset student-specific inputs when switching sessions
+  const discAmtInput = document.getElementById('tr_col_discount_amount');
+  if (discAmtInput) discAmtInput.value = '0';
+  const reasonInput = document.getElementById('tr_col_discount_reason');
+  if (reasonInput) reasonInput.value = '';
+  const discDisp = document.getElementById('tr_col_discount_display');
+  if (discDisp) discDisp.textContent = '₹ 0';
+
+  renderCollectMonthsList();
+}
+
 function populateCollectStudentSwitcher(selectedId) {
   const clsEl = document.getElementById('tr_col_class_filter');
   if (clsEl && clsEl.options.length <= 1) {
@@ -13414,44 +16401,86 @@ function renderCollectMonthsList() {
   const assign = assignments[student.id];
   if (!assign) return;
 
-  const sessionMonths = getTransportAcademicMonths(transportState.activeSession);
+  const activeSess = transportState.activeSession || getAuthoritativeActiveSession();
   const allowAdvance = !!document.getElementById('tr_col_allow_advance')?.checked;
   const curMonthSortKey = getFeeMonthSortKey(getCurrentMonthKey());
+  const [curStartYear] = parseSessionYears(activeSess);
+  const sessionStartSortKey = curStartYear * 100 + 4; // e.g. 202604
 
   const mListEl = document.getElementById('tr_col_months_list');
   if (!mListEl) return;
 
+  const studentMonths = getStudentAllTransportMonths(student, assign, activeSess, curMonthSortKey, allowAdvance);
+
+  if (studentMonths.length === 0) {
+    mListEl.innerHTML = `
+      <div style="text-align:center;padding:24px 16px;background:#f8fafc;border:1px dashed #cbd5e1;border-radius:8px;color:#64748b;font-size:12px">
+        <div style="font-size:22px;margin-bottom:6px">📋</div>
+        <div style="font-weight:700;color:#334155;margin-bottom:4px;font-size:13px">No Transport Months Available</div>
+        <div>No transport months found for <strong>${escapeHtml(student.name)}</strong>.</div>
+      </div>
+    `;
+    const btn = document.getElementById('tr_btn_select_all_months');
+    if (btn) btn.style.display = 'none';
+    const totalEl = document.getElementById('tr_col_total_display');
+    if (totalEl) totalEl.textContent = '₹ 0';
+    const discDisp = document.getElementById('tr_col_discount_display');
+    if (discDisp) discDisp.textContent = '₹ 0';
+    const amtInput = document.getElementById('tr_col_amount_input');
+    if (amtInput) amtInput.value = '0';
+    const balEl = document.getElementById('tr_col_balance_display');
+    if (balEl) balEl.textContent = '₹ 0';
+    const prevBox = document.getElementById('tr_col_allocation_preview');
+    if (prevBox) prevBox.innerHTML = '<span style="color:#64748b;font-style:italic">No months eligible for collection.</span>';
+    return;
+  }
+
   const rowsHtml = [];
   let eligibleCount = 0;
 
-  sessionMonths.forEach(m => {
-    const isEnrolled = isMonthInAssignmentPeriod(m, assign.effectiveFrom, assign.stoppedAt);
-    const mSortKey = getFeeMonthSortKey(m);
+  studentMonths.forEach(item => {
+    const m = item.monthStr;
+    const mSortKey = item.sortKey;
+    const isEnrolled = isMonthInAssignmentPeriod(m, assign.effectiveFrom, assign.stoppedAt, assign.active);
     const { paid, discount } = getStudentMonthTransportAccounting(student.id, m);
-    const fee = Number(assign.monthlyFee) || 0;
+    const fee = isEnrolled ? (Number(assign.monthlyFee) || 0) : 0;
     const balance = Math.max(0, fee - discount - paid);
+    const isPreviousSession = (mSortKey < sessionStartSortKey);
 
+    // Rule: Do not charge months before enrollment date
     if (!isEnrolled) {
-      // Not Applicable
-      rowsHtml.push(`
-        <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;opacity:0.6;font-size:12px">
-          <div style="display:flex;align-items:center;gap:8px">
-            <input type="checkbox" disabled>
-            <span style="font-weight:600;color:#64748b">${m}</span>
+      if (paid > 0) {
+        // Historical settled
+        rowsHtml.push(`
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:6px;font-size:12px">
+            <div style="display:flex;align-items:center;gap:8px">
+              <input type="checkbox" disabled checked style="accent-color:#16a34a">
+              <span style="font-weight:600;color:#166534">${escapeHtml(m)} (Paid: ₹${paid.toLocaleString('en-IN')})</span>
+            </div>
+            <span class="tr-badge tr-badge-paid">Paid</span>
           </div>
-          <span class="tr-badge tr-badge-na">Not Applicable</span>
-        </div>
-      `);
+        `);
+      } else {
+        rowsHtml.push(`
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;opacity:0.6;font-size:12px">
+            <div style="display:flex;align-items:center;gap:8px">
+              <input type="checkbox" disabled>
+              <span style="font-weight:600;color:#64748b">${escapeHtml(m)}</span>
+            </div>
+            <span class="tr-badge tr-badge-na">Not Applicable</span>
+          </div>
+        `);
+      }
       return;
     }
 
     if (balance === 0 && (paid > 0 || discount >= fee)) {
-      // Paid
+      // Fully Paid
       rowsHtml.push(`
         <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:6px;font-size:12px">
           <div style="display:flex;align-items:center;gap:8px">
             <input type="checkbox" disabled checked style="accent-color:#16a34a">
-            <span style="font-weight:600;color:#166534">${m} (Paid: ₹${paid}${discount > 0 ? ' • Disc: ₹' + discount : ''})</span>
+            <span style="font-weight:600;color:#166534">${escapeHtml(m)} (Paid: ₹${paid.toLocaleString('en-IN')}${discount > 0 ? ' • Disc: ₹' + discount.toLocaleString('en-IN') : ''})</span>
           </div>
           <span class="tr-badge tr-badge-paid">Paid</span>
         </div>
@@ -13459,15 +16488,15 @@ function renderCollectMonthsList() {
       return;
     }
 
-    const isUpcoming = mSortKey > curMonthSortKey;
+    const isUpcoming = (mSortKey > curMonthSortKey);
 
     if (isUpcoming && !allowAdvance) {
-      // Upcoming but advance not enabled
+      // Upcoming and advance not enabled
       rowsHtml.push(`
-        <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;background:#f8fafc;border:1px dashed #cbd5e1;border-radius:6px;opacity:0.75;font-size:12px" title="Check 'Allow advance collection' above to collect for upcoming months">
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;background:#f8fafc;border:1px dashed #cbd5e1;border-radius:6px;opacity:0.75;font-size:12px" title="Check 'Include Upcoming Months (Advance)' above to collect for upcoming months">
           <div style="display:flex;align-items:center;gap:8px">
             <input type="checkbox" disabled>
-            <span style="font-weight:600;color:#64748b">${m}</span>
+            <span style="font-weight:600;color:#64748b">${escapeHtml(m)}</span>
           </div>
           <span class="tr-badge tr-badge-upcoming">Upcoming</span>
         </div>
@@ -13475,19 +16504,27 @@ function renderCollectMonthsList() {
       return;
     }
 
-    // Due / Current Month OR Upcoming with advance enabled
+    // Due / Current Month OR Upcoming with advance enabled OR Previous session pending month
     eligibleCount++;
     const isChecked = (m === transportState.activeMonth || eligibleCount === 1);
-    const badgeHtml = isUpcoming
-      ? `<span class="tr-badge tr-badge-upcoming">Advance</span>`
-      : (paid > 0 ? `<span class="tr-badge tr-badge-partial">Partial</span>` : `<span class="tr-badge tr-badge-due">Due</span>`);
+    
+    let badgeHtml = '';
+    if (isUpcoming) {
+      badgeHtml = `<span class="tr-badge tr-badge-upcoming">Advance</span>`;
+    } else if (paid > 0) {
+      badgeHtml = `<span class="tr-badge tr-badge-partial">Partial</span>`;
+    } else if (isPreviousSession) {
+      badgeHtml = `<span class="tr-badge tr-badge-due" style="background:#fee2e2;color:#b91c1c" title="Previous session pending fee">Previous Due</span>`;
+    } else {
+      badgeHtml = `<span class="tr-badge tr-badge-due">Due</span>`;
+    }
 
     rowsHtml.push(`
       <label style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;background:#ffffff;border:1px solid #e2e8f0;border-radius:6px;cursor:pointer;font-size:12.5px;box-shadow:0 1px 2px rgba(0,0,0,0.03)">
         <div style="display:flex;align-items:center;gap:8px">
-          <input type="checkbox" class="tr-due-mo-check" value="${m}" data-fee="${fee}" data-balance="${balance}" data-paid="${paid}" ${isChecked ? 'checked' : ''} onchange="onTransportMonthToggle()">
-          <span style="font-weight:600;color:#0f172a">${m}</span>
-          ${paid > 0 ? `<span style="color:#16a34a;font-size:11px">(Paid: ₹${paid})</span>` : ''}
+          <input type="checkbox" class="tr-due-mo-check" value="${escapeHtml(m)}" data-fee="${fee}" data-balance="${balance}" data-paid="${paid}" ${isChecked ? 'checked' : ''} onchange="onTransportMonthToggle()">
+          <span style="font-weight:600;color:#0f172a">${escapeHtml(m)}</span>
+          ${paid > 0 ? `<span style="color:#16a34a;font-size:11px">(Paid: ₹${paid.toLocaleString('en-IN')})</span>` : ''}
         </div>
         <div style="display:flex;align-items:center;gap:8px">
           ${badgeHtml}
@@ -13659,9 +16696,9 @@ function saveTransportPayment() {
 
   const allowAdvance = !!document.getElementById('tr_col_allow_advance')?.checked;
   const curMonthSortKey = getFeeMonthSortKey(getCurrentMonthKey());
+  const activeSess = transportState.activeSession || getAuthoritativeActiveSession();
 
-  // Strict check: Prevent collecting transport fees for non-enrolled / cancelled months,
-  // or future months when advance collection is not allowed.
+  // Strict check: Prevent collecting transport fees for non-enrolled months or future months without advance
   for (const cb of checkedBoxes) {
     const moName = cb.value;
     const isEnrolled = isMonthInAssignmentPeriod(moName, assign.effectiveFrom, assign.stoppedAt, assign.active);
@@ -13671,7 +16708,7 @@ function saveTransportPayment() {
     }
     const moSortKey = getFeeMonthSortKey(moName);
     if (moSortKey > curMonthSortKey && !allowAdvance) {
-      showToast(`Cannot collect transport fee for upcoming month (${moName}) unless 'Allow advance collection' is enabled.`, 'error');
+      showToast(`Cannot collect transport fee for upcoming month (${moName}) unless 'Include Upcoming Months (Advance)' is enabled.`, 'error');
       return;
     }
   }
@@ -13720,6 +16757,7 @@ function saveTransportPayment() {
     allocations.push({
       month: moName,
       monthKey: displayToMonthKey(moName),
+      session: getAcademicSessionForFeeMonth(moName),
       fee: moFullFee,
       previousPaid: moAlreadyPaid,
       discountAllocated: discForMo,
@@ -13747,11 +16785,23 @@ function saveTransportPayment() {
   const dateStr = now.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
   const remaining = Math.max(0, totalDueAcrossChecked - discount - received);
 
+  const distinctSessions = [...new Set(allocations.map(a => a.session).filter(Boolean))];
+  const receiptSession = distinctSessions.length === 1 ? distinctSessions[0] : (distinctSessions.length > 0 ? distinctSessions.join(', ') : activeSess);
+  
+  let sessionType = 'current';
+  const allCurrent = distinctSessions.every(s => s === activeSess);
+  const allPrevious = distinctSessions.every(s => s !== activeSess);
+  if (allCurrent) sessionType = 'current';
+  else if (allPrevious) sessionType = 'previous';
+  else sessionType = 'mixed';
+
   const paymentRecord = {
     id: 'trp_' + Date.now() + '_' + Math.floor(Math.random() * 1000),
     receiptNo,
     date: dateStr,
     timestamp: now.toISOString(),
+    session: receiptSession,
+    sessionType,
     studentId: student.id,
     studentName: student.name,
     admNo: student.admNo,
@@ -13772,6 +16822,8 @@ function saveTransportPayment() {
   DB.transport.payments.push(paymentRecord);
   transportState.activeReceipt = paymentRecord;
 
+  // Invalidate performance indices so previous session dues & accounting are immediately recomputed
+  invalidatePerformanceIndices();
   saveDB(true);
 
   closeM('modalCollectTransport');
@@ -13863,6 +16915,203 @@ function formatCompactTransportMonthRange(months) {
   }).join(', ');
 }
 
+// Return short 3-letter range representation (e.g. "Apr 2025 – Nov 2026")
+function formatCompactTransportMonthRangeShort(months) {
+  if (!months) return '-';
+  if (typeof months === 'string') {
+    months = months.split(',').map(m => m.trim()).filter(Boolean);
+  }
+  if (!Array.isArray(months) || months.length === 0) return '-';
+
+  const shortNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const fullNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+
+  const parsed = [];
+  const seen = new Set();
+
+  for (const mStr of months) {
+    if (!mStr || typeof mStr !== 'string') continue;
+    const trimmed = mStr.trim();
+    if (!trimmed) continue;
+    const parts = trimmed.split(/\s+/);
+    if (parts.length < 2) {
+      parsed.push({ raw: trimmed, val: -1 });
+      continue;
+    }
+    const mName = parts[0];
+    const yr = parseInt(parts[1], 10);
+    const mIdx = fullNames.findIndex(m => m.toLowerCase() === mName.toLowerCase());
+    if (mIdx === -1 || isNaN(yr)) {
+      parsed.push({ raw: trimmed, val: -1 });
+      continue;
+    }
+    const val = yr * 12 + mIdx;
+    if (!seen.has(val)) {
+      seen.add(val);
+      parsed.push({
+        raw: trimmed,
+        shortName: shortNames[mIdx],
+        year: yr,
+        val: val
+      });
+    }
+  }
+
+  if (parsed.length === 0) return '-';
+  if (parsed.some(p => p.val === -1)) {
+    return months.join(', ');
+  }
+
+  parsed.sort((a, b) => a.val - b.val);
+
+  const runs = [];
+  let currentRun = [];
+
+  parsed.forEach(item => {
+    if (currentRun.length === 0) {
+      currentRun.push(item);
+    } else {
+      const prev = currentRun[currentRun.length - 1];
+      if (item.val === prev.val + 1) {
+        currentRun.push(item);
+      } else {
+        runs.push(currentRun);
+        currentRun = [item];
+      }
+    }
+  });
+  if (currentRun.length > 0) {
+    runs.push(currentRun);
+  }
+
+  return runs.map(run => {
+    if (run.length === 1) {
+      return `${run[0].shortName} ${run[0].year}`;
+    } else {
+      return `${run[0].shortName} ${run[0].year} – ${run[run.length - 1].shortName} ${run[run.length - 1].year}`;
+    }
+  }).join(', ');
+}
+
+// Determine academic session for any given month (e.g. "April 2025" -> "2025–26", "March 2026" -> "2025–26")
+function getAcademicSessionForFeeMonth(monthStrOrKey) {
+  const sortKey = getFeeMonthSortKey(monthStrOrKey);
+  if (!sortKey) return (typeof transportState !== 'undefined' && transportState.activeSession) || (DB && DB.settings && DB.settings.currentSession) || '2026–27';
+  const yr = Math.floor(sortKey / 100);
+  const mo = sortKey % 100;
+  const startYr = (mo >= 4) ? yr : yr - 1;
+  const endYr = startYr + 1;
+  return `${startYr}–${String(endYr).slice(2)}`;
+}
+
+// Generate chronological sequence of transport months across historical and current sessions for a student
+function getStudentAllTransportMonths(student, assign, activeSession, curMonthSortKey, allowAdvance) {
+  if (!student || !assign) return [];
+  const [curStartYear, curEndYear] = parseSessionYears(activeSession || (DB.settings && DB.settings.currentSession) || '2026–27');
+
+  let startSortKey = getFeeMonthSortKey(assign.effectiveFrom);
+  if (!startSortKey) {
+    ensurePerformanceIndices();
+    const payments = _idxTransportPaymentsByStudent.get(student.id) || [];
+    let minPayKey = 999999;
+    payments.forEach(p => {
+      if (!p.reversed && isValidTransportPayment(p)) {
+        if (Array.isArray(p.allocations)) {
+          p.allocations.forEach(al => {
+            const k = getFeeMonthSortKey(al.month);
+            if (k && k < minPayKey) minPayKey = k;
+          });
+        }
+      }
+    });
+    if (minPayKey < 999999) {
+      startSortKey = minPayKey;
+    } else {
+      startSortKey = curStartYear * 100 + 4;
+    }
+  }
+
+  let endSortKey = curEndYear * 100 + 3;
+  if (assign.stoppedAt) {
+    const stopKey = getFeeMonthSortKey(assign.stoppedAt);
+    if (stopKey && stopKey < endSortKey) {
+      endSortKey = stopKey;
+    }
+  }
+
+  const allMonths = [];
+  let curKey = startSortKey;
+  while (curKey <= endSortKey) {
+    const yr = Math.floor(curKey / 100);
+    const mo = curKey % 100;
+    const moStr = `${SYS_MONTHS[mo - 1]} ${yr}`;
+    allMonths.push({
+      monthStr: moStr,
+      sortKey: curKey,
+      year: yr,
+      monthNum: mo
+    });
+
+    if (mo === 12) {
+      curKey = (yr + 1) * 100 + 1;
+    } else {
+      curKey = yr * 100 + (mo + 1);
+    }
+  }
+
+  return allMonths;
+}
+
+// Calculate total outstanding transport fee across all sessions (previous + current) for a student
+function getStudentTotalOutstandingTransportDues(studentId, activeSession, activeMonth) {
+  if (!studentId) return { totalOutstanding: 0, pendingMonths: [] };
+  const assignments = (DB.transport && DB.transport.assignments) ? DB.transport.assignments : {};
+  const assign = assignments[studentId];
+  if (!assign) return { totalOutstanding: 0, pendingMonths: [] };
+
+  const [curStartYear] = parseSessionYears(activeSession || (DB.settings && DB.settings.currentSession) || '2026–27');
+  
+  let startSortKey = getFeeMonthSortKey(assign.effectiveFrom);
+  if (!startSortKey) {
+    startSortKey = (curStartYear - 1) * 100 + 4;
+  }
+
+  const curMoKey = activeMonth || (typeof transportState !== 'undefined' && transportState.activeMonth) || getCurrentMonthKey();
+  const endSortKey = Math.min(
+    getFeeMonthSortKey(curMoKey) || (curStartYear * 100 + 12),
+    assign.stoppedAt ? getFeeMonthSortKey(assign.stoppedAt) : 999999
+  );
+
+  let totalOutstanding = 0;
+  const pendingMonths = [];
+
+  let curKey = startSortKey;
+  while (curKey <= endSortKey) {
+    const yr = Math.floor(curKey / 100);
+    const mo = curKey % 100;
+    const moStr = `${SYS_MONTHS[mo - 1]} ${yr}`;
+    
+    const isEnrolled = isMonthInAssignmentPeriod(moStr, assign.effectiveFrom, assign.stoppedAt, assign.active);
+    if (isEnrolled) {
+      const fee = safeNum(assign.monthlyFee, 0);
+      const { paid, discount } = getStudentMonthTransportAccounting(studentId, moStr);
+      const bal = Math.max(0, fee - discount - paid);
+      if (bal > 0) {
+        totalOutstanding += bal;
+        pendingMonths.push(moStr);
+      }
+    }
+
+    if (mo === 12) {
+      curKey = (yr + 1) * 100 + 1;
+    } else {
+      curKey = yr * 100 + (mo + 1);
+    }
+  }
+
+  return { totalOutstanding, pendingMonths };
+}
+
 function populateTransportReceiptModal(rcpt) {
   if (!rcpt) return;
   const schoolName = (DB && DB.settings && DB.settings.schoolName) || 'MD CONVENT PUBLIC SCHOOL';
@@ -13880,14 +17129,17 @@ function populateTransportReceiptModal(rcpt) {
 
   const noEl = document.getElementById('tr_rcpt_no');
   const dtEl = document.getElementById('tr_rcpt_date');
+  const sessEl = document.getElementById('tr_rcpt_session');
   const stNameEl = document.getElementById('tr_rcpt_st_name');
   const stAdmEl = document.getElementById('tr_rcpt_st_adm');
   const stClsEl = document.getElementById('tr_rcpt_st_class');
   const pickEl = document.getElementById('tr_rcpt_pickup');
   const dropEl = document.getElementById('tr_rcpt_drop');
 
+  const rcptSession = rcpt.session || transportState.activeSession || '2026–27';
   if (noEl) noEl.textContent = rcpt.receiptNo || '–';
   if (dtEl) dtEl.textContent = rcpt.date || '–';
+  if (sessEl) sessEl.textContent = rcptSession;
   if (stNameEl) stNameEl.textContent = rcpt.studentName || '–';
   if (stAdmEl) stAdmEl.textContent = rcpt.admNo || '–';
   if (stClsEl) stClsEl.textContent = rcpt.class || '–';
@@ -13902,24 +17154,21 @@ function populateTransportReceiptModal(rcpt) {
   const received = safeNum(rcpt.amountReceived !== undefined ? rcpt.amountReceived : rcpt.amount, 0);
   const balance = safeNum(rcpt.remainingBalance, Math.max(0, totalFee - discount - received));
 
-  const mEl = document.getElementById('tr_rcpt_month');
-  if (mEl) mEl.textContent = moText;
-  const feeEl = document.getElementById('tr_rcpt_fee');
-  if (feeEl) feeEl.textContent = totalFee.toFixed(2);
-  const discEl = document.getElementById('tr_rcpt_disc');
-  if (discEl) discEl.textContent = discount.toFixed(2);
-  const recEl = document.getElementById('tr_rcpt_received');
-  if (recEl) recEl.textContent = received.toFixed(2);
-  const balEl = document.getElementById('tr_rcpt_bal');
-  if (balEl) balEl.textContent = balance.toFixed(2);
-
   const discLabel = (discount > 0 && rcpt.discountReason)
     ? `Discount <span style="font-size:10.5px;color:#64748b;font-weight:normal">(${escapeHtml(rcpt.discountReason)})</span>`
     : 'Discount';
 
+  let sessLabel = escapeHtml(rcptSession);
+  if (rcpt.sessionType === 'mixed') {
+    sessLabel = `${escapeHtml(rcptSession)} <span style="font-size:10px;color:#2563eb;font-weight:700">(Mixed Sessions)</span>`;
+  } else if (rcpt.sessionType === 'previous' || (rcpt.session && rcpt.session !== (transportState.activeSession || '2026–27'))) {
+    sessLabel = `${escapeHtml(rcptSession)} <span style="font-size:10px;color:#d97706;font-weight:700">(Previous Session)</span>`;
+  }
+
   const tbody = document.getElementById('tr_rcpt_items_tbody');
   if (tbody) {
     tbody.innerHTML = `
+      <tr><td>Academic Session</td><td class="text-right" style="font-weight:600">${sessLabel}</td></tr>
       <tr><td>Fee Month</td><td class="text-right" id="tr_rcpt_month">${escapeHtml(moText)}</td></tr>
       <tr><td>Transport Fee</td><td class="text-right" id="tr_rcpt_fee">${totalFee.toFixed(2)}</td></tr>
       <tr><td>${discLabel}</td><td class="text-right" id="tr_rcpt_disc">${discount.toFixed(2)}</td></tr>

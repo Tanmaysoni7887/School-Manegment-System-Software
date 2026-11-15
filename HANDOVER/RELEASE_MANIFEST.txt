@@ -6,56 +6,58 @@ Release Package Manifest & Verification Checksums
 RELEASE METADATA
 --------------------------------------------------------------------------------
 Application Name:      MD Convent SMS
-Release Version:       2.1.0 (Production Release — Dashboard Fee Collected Optimization & Report Filters)
+Release Version:       2.2.0 (Production Release — Dashboard Quick Actions, Multi-Session Transport & Reports)
 Target Platform:       Windows 10 / Windows 11 (64-bit)
-Release Date:          November 11, 2026
+Release Date:          November 15, 2026
 Packaging System:      Inno Setup 6.3.1 (LZMA2/Ultra64 Compression) + Electron v28.3.3
 
 
 PACKAGE FILE INVENTORY & SHA-256 CHECKSUMS
 --------------------------------------------------------------------------------
 
-1. [STANDALONE WINDOWS INSTALLER (v2.1.0)]
+1. [STANDALONE WINDOWS INSTALLER (v2.2.0)]
+   Relative Path:  Installer/MD_Convent_SMS_Setup_v2.2.exe
+   File Size:      456,655,751 bytes (435.50 MB)
+   SHA-256 Hash:   F58D7806DF8AC180EE8FDB984D2CAA86BC01BCD7EC6CB628174B1DECEF27CA94
+   Description:    Official Windows x64 setup wizard with Desktop shortcut,
+                   Start Menu integration, and clean uninstallation support.
+   Updates in Build:
+     - Dashboard Quick Actions Redesign & Sizing: Comfortable vertical spacing,
+       34px/31px button heights, 6px gaps, single plus sign on "Add New Student",
+       and fully visible 3-row Academic Overview sub-card.
+     - Direct Quick Action Navigation: Added Financial Reports navigation button,
+       renamed Reports & Backup to "Data & Backup" with direct routing.
+     - Month-Wise Dashboard KPI Card Optimization: Complete subtitle deduplication,
+       card padding & typography tuning guaranteeing zero text/amount clipping in
+       both Current Month and Select Month & Year modes across all viewports.
+     - Student Count Perfect Parity: Unified eligibility function ensuring Dashboard
+       and Sessions & Promotion pages match at 1,359 active eligible students.
+     - Transport Fee Multi-Session Dues: Separate "This Month Due" and "Session Due"
+       columns with short range formatting; unified month selector for current and
+       past sessions; removal of redundant session dropdown.
+     - Financial Reports Print Suite: Native Electron PDF export, deduplicated report
+       tiles, 3-signature official layout (Prepared By, Accountant, Principal), and
+       Daily Collection self-hydration.
+     - Zero Scrollbar Verification: Preserved zero-scroll viewport geometry across
+       1920x1080, 1440x900, 1366x768, and 1280x800 desktop resolutions.
+     - Certified against all benchmark datasets (275 up to 3,000 students) and verified
+       100% pass rate across automated regression test suites.
+
+2. [PREVIOUS RELEASE INSTALLER (v2.1.0)]
    Relative Path:  Installer/MD_Convent_SMS_Setup_v2.1.exe
    File Size:      229,124,679 bytes (218.51 MB)
    SHA-256 Hash:   7B7F801BB7A2C45F633EE6ECE2196AADD1420E9F8747DD2B9DDB0EEF67D325EC
    Description:    Official Windows x64 setup wizard with Desktop shortcut,
                    Start Menu integration, and clean uninstallation support.
-   Updates in Build:
-     - Dashboard Fee Collected KPI Optimization: Instant click-to-modal response
-       (<45ms cold, 0ms cached) via in-memory transaction indexing and precomputations.
-     - Dedicated REPORT FILTERS Section in Collected Payments Detail: Interactive filtering
-       by Class, Academic Session, Payment Mode, Date (Presets + Custom Range), and Billing Month.
-     - Dynamic Totals & Counts: Real-time recalculation of total valid fee collections and
-       receipt transaction count reflecting active filter criteria.
-     - Configurable Pagination: Responsive 50-row pagination (with 25/50/100/200 options)
-       eliminating heavy multi-thousand row DOM injection lags.
-     - Filter-Aware Export & Print: CSV Export and Printable Ledger strictly scoped to
-       active filtered transactions with professional headers and subtitles.
-     - Interactive Payment Breakdown: Retained inline expandable allocation particulars
-       table per receipt.
-     - Certified against all benchmark datasets (275 up to 3,000 students) and verified 100%
-       pass rate across existing regression test suites.
 
-2. [PREVIOUS RELEASE INSTALLER (v2.0.0)]
+3. [PREVIOUS RELEASE INSTALLER (v2.0.0)]
    Relative Path:  Installer/MD_Convent_SMS_Setup_v2.0.exe
    File Size:      153,491,006 bytes (146.38 MB)
    SHA-256 Hash:   0B562AE0DC8122754F6A24770443B6CA6029DD8D10E346E663CD623019D5D92E
    Description:    Official Windows x64 setup wizard with Desktop shortcut,
                    Start Menu integration, and clean uninstallation support.
-   Updates in Build:
-     - Complete software-wide UI modernization: Consistent Purple-Lavender theme
-       (#7839D4, #A34DF0, #F1EFFF, #FAF9FE) applied across all pages, Student Profile,
-       Transport modals, Support & Info, and dialogs.
-     - Pixel-perfect zero-scroll Dashboard layout matching reference design with
-       6 soft pastel KPI cards, 15-class enrollment bar chart, monthly revenue
-       visualization, and Top 10 Fee Defaulters ledger.
-     - Hardened navigation container isolation preventing background bleed across pages.
-     - Transport module optimizations: compact modal width, expanded payment ledger,
-       and robust validation preventing duplicate or NaN receipts.
-     - Stress-tested and certified against large demo dataset (1,476 students).
 
-2. [DOCUMENTATION & GUIDES]
+4. [DOCUMENTATION & GUIDES]
    Relative Path:  README.txt
    Purpose:        Overview, system requirements, quick start & contacts
 
@@ -77,10 +79,10 @@ HOW TO VERIFY FILE INTEGRITY ON WINDOWS
 To verify the installer before installing, open Windows PowerShell in this folder
 and run:
 
-  Get-FileHash -Path "Installer\MD_Convent_SMS_Setup_v2.0.exe" -Algorithm SHA256
+  Get-FileHash -Path "Installer\MD_Convent_SMS_Setup_v2.2.exe" -Algorithm SHA256
 
 Compare the output hash to the official release hash:
-  0B562AE0DC8122754F6A24770443B6CA6029DD8D10E346E663CD623019D5D92E
+  F58D7806DF8AC180EE8FDB984D2CAA86BC01BCD7EC6CB628174B1DECEF27CA94
 
 
 PRIVACY & SENSITIVE DATA DECLARATION
