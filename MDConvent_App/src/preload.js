@@ -1,6 +1,16 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('electronAPI', {
+  // Offline Authentication Suite
+  authGetStatus:         ()                  => ipcRenderer.invoke('auth-get-status'),
+  authLogin:             (credentials)       => ipcRenderer.invoke('auth-login', credentials),
+  authVendorSetup:       (credentials)       => ipcRenderer.invoke('auth-vendor-setup', credentials),
+  authCreateAdmin:       (payload)           => ipcRenderer.invoke('auth-create-admin', payload),
+  authLogout:            ()                  => ipcRenderer.invoke('auth-logout'),
+  authGetCurrentUser:    ()                  => ipcRenderer.invoke('auth-get-current-user'),
+  authChangePassword:    (payload)           => ipcRenderer.invoke('auth-change-password', payload),
+
+  // School Data & Operations (Protected)
   loadData:              ()                  => ipcRenderer.invoke('load-data'),
   saveData:              (data)              => ipcRenderer.invoke('save-data', data),
   backupData:            (data)              => ipcRenderer.invoke('backup-data', data),
