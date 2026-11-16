@@ -17,16 +17,17 @@ PACKAGE FILE INVENTORY & SHA-256 CHECKSUMS
 
 1. [OFFICIAL PRODUCTION INSTALLER]
    Relative Path:  Installer/SHIKSHA_School_Management_Setup.exe
-   File Size:      78,150,019 bytes (74.53 MB)
-   SHA-256 Hash:   9F9AF9B2F066F7311D23F94227EF079B58758FD60D7C2A50D35C0F5B58DF9F69
+   File Size:      78,234,970 bytes (74.61 MB)
+   SHA-256 Hash:   F8E7021485752A4FE55C0CF9AD2412525352856FCFF035854B3AFD424D388A75
    Description:    Official Windows x64 setup wizard with Desktop shortcut,
-                   Start Menu integration, and clean uninstallation support.
+                   Start Menu integration, transparent multi-resolution Shiksha icon
+                   (16-256px), and clean uninstallation support.
 
 2. [LEGACY REFERENCE / BACKUP INSTALLER]
-   Relative Path:  Installer/MD_Convent_SMS_Setup_v2.2.exe
+   Relative Path:  Installer/Legacy_Backup/MD_Convent_SMS_Setup_v2.2.exe
    File Size:      77,128,974 bytes (73.56 MB)
    SHA-256 Hash:   46F67E1A62C3FEC834A9297ADE85B6B32E2C83C6F0BE5827F267206F136B882F
-   Description:    Verified pre-rebranding baseline installer preserved as fallback.
+   Description:    Verified pre-rebranding baseline installer preserved in Legacy_Backup.
    Updates in Build:
      - Dashboard Quick Actions Redesign & Sizing: Comfortable vertical spacing,
        34px/31px button heights, 6px gaps, single plus sign on "Add New Student",
@@ -49,19 +50,9 @@ PACKAGE FILE INVENTORY & SHA-256 CHECKSUMS
      - Certified against all benchmark datasets (275 up to 3,000 students) and verified
        100% pass rate across automated regression test suites.
 
-2. [PREVIOUS RELEASE INSTALLER (v2.1.0)]
-   Relative Path:  Installer/MD_Convent_SMS_Setup_v2.1.exe
-   File Size:      229,124,679 bytes (218.51 MB)
-   SHA-256 Hash:   7B7F801BB7A2C45F633EE6ECE2196AADD1420E9F8747DD2B9DDB0EEF67D325EC
-   Description:    Official Windows x64 setup wizard with Desktop shortcut,
-                   Start Menu integration, and clean uninstallation support.
-
-3. [PREVIOUS RELEASE INSTALLER (v2.0.0)]
-   Relative Path:  Installer/MD_Convent_SMS_Setup_v2.0.exe
-   File Size:      153,491,006 bytes (146.38 MB)
-   SHA-256 Hash:   0B562AE0DC8122754F6A24770443B6CA6029DD8D10E346E663CD623019D5D92E
-   Description:    Official Windows x64 setup wizard with Desktop shortcut,
-                   Start Menu integration, and clean uninstallation support.
+3. [HISTORICAL ARCHIVES (GitHub Release Repository)]
+   Note: Previous releases v2.1.0 (7B7F801B...) and v2.0.0 (0B562AE0...) are archived
+   in the official repository release history for audit trail.
 
 4. [DOCUMENTATION & GUIDES]
    Relative Path:  README.txt
@@ -85,10 +76,10 @@ HOW TO VERIFY FILE INTEGRITY ON WINDOWS
 To verify the installer before installing, open Windows PowerShell in this folder
 and run:
 
-  Get-FileHash -Path "Installer\MD_Convent_SMS_Setup_v2.2.exe" -Algorithm SHA256
+  Get-FileHash -Path "Installer\SHIKSHA_School_Management_Setup.exe" -Algorithm SHA256
 
 Compare the output hash to the official release hash:
-  46F67E1A62C3FEC834A9297ADE85B6B32E2C83C6F0BE5827F267206F136B882F
+  F8E7021485752A4FE55C0CF9AD2412525352856FCFF035854B3AFD424D388A75
 
 
 PRIVACY & SENSITIVE DATA DECLARATION

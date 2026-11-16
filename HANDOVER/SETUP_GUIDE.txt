@@ -118,7 +118,7 @@ STEP 5: COLLECTING FEES & PRINTING RECEIPTS
 
 4. UNINSTALLATION & DATA SAFETY
 --------------------------------------------------------------------------------
-If you ever uninstall or reinstall MD Convent SMS from Windows Control Panel:
+If you ever uninstall or reinstall SHIKSHA from Windows Control Panel:
   * The uninstaller deletes ONLY the program files in Program Files.
   * Your school database (Documents\MDConvent_SMS\school_data.json) is NEVER deleted!
   * Reinstalling or updating the app will automatically pick up your existing data.

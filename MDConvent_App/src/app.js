@@ -1129,7 +1129,7 @@ function getConsolidatedPendingStudents(rawRows, targetSession = null) {
 // Default Schema Definition
 let DB = {
   settings: {
-    schoolName: 'MD Convent Public School',
+    schoolName: 'School Management System',
     schoolAddr: 'Amanpur (Kasganj), Uttar Pradesh',
     schoolPhone: '9528371785',
     schoolLogo: '',
@@ -3019,7 +3019,7 @@ function printCollected() {
   <div class="page-container">
     <div class="content-wrap">
       <div class="hdr">
-        <div style="font-size:16px;font-weight:700;color:#27ae60">${escapeHtml(s.schoolName || 'MD Convent Public School')}</div>
+        <div style="font-size:16px;font-weight:700;color:#27ae60">${escapeHtml(s.schoolName || 'School Management System')}</div>
         <div style="font-size:11px;color:#666">${escapeHtml(s.schoolAddr || '')} | Phone: ${escapeHtml(s.schoolPhone || '')}</div>
         <div style="font-size:13px;font-weight:600;margin-top:5px">Fee Collection Ledger Report (Receipt Summary)</div>
         <div style="font-size:10.5px;color:#555;margin-top:3px;font-style:italic">${escapeHtml(filterSummary)}</div>
@@ -3424,7 +3424,7 @@ function printPendingList() {
   <div class="page-container">
     <div class="content-wrap">
       <div class="hdr">
-        <div style="font-size:16px;font-weight:700;color:#c0392b">${escapeHtml(s.schoolName || 'MD Convent Public School')}</div>
+        <div style="font-size:16px;font-weight:700;color:#c0392b">${escapeHtml(s.schoolName || 'School Management System')}</div>
         <div style="font-size:11px;color:#666">${escapeHtml(s.schoolAddr || '')} | Phone: ${escapeHtml(s.schoolPhone || '')}</div>
         <div style="font-size:13px;font-weight:600;margin-top:5px">Pending Fees Summary Report</div>
         <div style="font-size:11px;color:#666">Generated: ${new Date().toLocaleDateString('en-IN')}</div>
@@ -8859,7 +8859,7 @@ function buildReceiptHTML(receiptNo, mode = 'preview') {
 
       <div style="text-align:center;border-bottom:1.5px solid #222;padding-bottom:10px;margin-bottom:12px">
         ${logoHtml}
-        <div style="font-weight:700;font-size:17px;color:#111;letter-spacing:0.3px">${escapeHtml(settings.schoolName || 'MD Convent Public School')}</div>
+        <div style="font-weight:700;font-size:17px;color:#111;letter-spacing:0.3px">${escapeHtml(settings.schoolName || 'School Management System')}</div>
         <div style="font-size:11px;color:#555;margin-top:2px">${escapeHtml(settings.schoolAddr || '')}${settings.schoolPhone ? ` | Contact: ${escapeHtml(settings.schoolPhone)}` : ''}</div>
         <div style="margin-top:8px;display:flex;justify-content:center;gap:6px;align-items:center">
           <span style="display:inline-block;padding:2px 10px;border:1px solid #333;font-size:10.5px;font-weight:700;letter-spacing:0.8px;text-transform:uppercase;color:#111;border-radius:3px">OFFICIAL FEE RECEIPT</span>
@@ -9065,7 +9065,7 @@ function printReceiptByNumber(receiptNo, format = 'a4') {
     </style></head><body>
       <div class="tc">
         ${logoHtml}
-        <div style="font-weight:bold;font-size:13px">${settings.schoolName || 'MD Convent Public School'}</div>
+        <div style="font-weight:bold;font-size:13px">${settings.schoolName || 'School Management System'}</div>
         <div style="font-size:10px">${settings.schoolAddr || ''} | Tel: ${settings.schoolPhone || ''}</div>
         <div class="dash"></div>
         <div style="font-weight:bold;font-size:11px">${isVoid ? '*** VOID / CANCELLED RECEIPT ***' : 'OFFICIAL FEE RECEIPT'}</div>
@@ -9135,7 +9135,7 @@ function printReceiptByNumber(receiptNo, format = 'a4') {
 
         <div class="hdr">
           ${logoHtml}
-          <div style="font-weight:700;font-size:18px;color:#111;letter-spacing:0.3px">${escapeHtml(settings.schoolName || 'MD Convent Public School')}</div>
+          <div style="font-weight:700;font-size:18px;color:#111;letter-spacing:0.3px">${escapeHtml(settings.schoolName || 'School Management System')}</div>
           <div style="font-size:11px;color:#555;margin-top:2px">${escapeHtml(settings.schoolAddr || '')}${settings.schoolPhone ? ` | Contact: ${escapeHtml(settings.schoolPhone)}` : ''}</div>
           <div style="margin-top:8px;display:flex;justify-content:center;gap:8px;align-items:center">
             <span style="display:inline-block;padding:2px 12px;border:1px solid #333;font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:#111;border-radius:3px">OFFICIAL FEE RECEIPT</span>
@@ -12030,7 +12030,7 @@ function printClassOutstandingReport() {
   </style></head>
   <body>
     <div class="hdr">
-      <h1>${escapeHtml(s.schoolName || 'MD Convent Public School')}</h1>
+      <h1>${escapeHtml(s.schoolName || 'School Management System')}</h1>
       <p>${escapeHtml((s.schoolAddr || s.schoolAddress || 'Amanpur, Kasganj Road, Uttar Pradesh'))} | Academic Session: ${curSess}</p>
       <h2 style="font-size:15px;margin:6px 0 0;color:#1e1b4b">Class Outstanding Dues & Defaulter Report: ${clL(cls)}${sec ? ' (Section ' + sec + ')' : ''}</h2>
     </div>
@@ -12346,7 +12346,7 @@ function printMonthlyCollectionReport() {
       <div class="page-container">
         <div class="content-wrap">
           <div class="hdr">
-            <h1>${escapeHtml(s.schoolName || 'MD Convent Public School')}</h1>
+            <h1>${escapeHtml(s.schoolName || 'School Management System')}</h1>
             <p>${escapeHtml((s.schoolAddr || s.schoolAddress || 'Amanpur, Kasganj Road, Uttar Pradesh'))} | Academic Session: ${curSess}</p>
             <h2 style="font-size:15px;margin:6px 0 0;color:#1e293b">Monthly Fee Collection Report</h2>
           </div>
@@ -12550,7 +12550,7 @@ function printClassWiseCollectionReport() {
       <div class="page-container">
         <div class="content-wrap">
           <div class="hdr">
-            <h1>${escapeHtml(s.schoolName || 'MD Convent Public School')}</h1>
+            <h1>${escapeHtml(s.schoolName || 'School Management System')}</h1>
             <p>${escapeHtml((s.schoolAddr || s.schoolAddress || 'Amanpur, Kasganj Road, Uttar Pradesh'))} | Academic Session: ${curSess}</p>
             <h2 style="font-size:15px;margin:6px 0 0;color:#1e293b">Class-wise Collection & Dues Report</h2>
           </div>
@@ -12734,7 +12734,7 @@ function printFeeConcessionReport() {
     </style></head>
     <body>
       <div class="hdr">
-        <h1>${escapeHtml(s.schoolName || 'MD Convent Public School')}</h1>
+        <h1>${escapeHtml(s.schoolName || 'School Management System')}</h1>
         <p>${escapeHtml((s.schoolAddr || s.schoolAddress || 'Amanpur, Kasganj Road, Uttar Pradesh'))} | Academic Session: ${curSess}</p>
         <h2 style="font-size:15px;margin:6px 0 0;color:#1e293b">Fee Concession & Discount Audit Report</h2>
       </div>
@@ -12950,7 +12950,7 @@ function printIncomeSummaryReport() {
       <div class="page-container">
         <div class="content-wrap">
           <div class="hdr">
-            <h1>${escapeHtml(s.schoolName || 'MD Convent Public School')}</h1>
+            <h1>${escapeHtml(s.schoolName || 'School Management System')}</h1>
             <p>${escapeHtml((s.schoolAddr || s.schoolAddress || 'Amanpur, Kasganj Road, Uttar Pradesh'))} | Academic Session: ${curSess}</p>
             <h2 style="font-size:15px;margin:6px 0 0;color:#1e293b">Annual Financial & Income Audit Statement</h2>
           </div>
@@ -13202,7 +13202,7 @@ function printPaymentModeSummary() {
     <div class="page-container">
       <div class="content-wrap">
         <div class="hdr">
-          <h1>${escapeHtml(s.schoolName || 'MD Convent Public School')}</h1>
+          <h1>${escapeHtml(s.schoolName || 'School Management System')}</h1>
           <p>${escapeHtml((s.schoolAddr || s.schoolAddress || 'Amanpur, Kasganj Road, Uttar Pradesh'))} | Academic Session: ${curSess}</p>
           <h2 style="font-size:15px;margin:8px 0 0;color:#1e293b">Payment Mode Distribution & Audit Summary</h2>
         </div>
@@ -13333,7 +13333,7 @@ function getFinancialReportPrintData(curSess) {
   }).join('') : `<tr><td colspan="7" style="text-align:center;padding:12px;color:#64748b">No records found</td></tr>`;
 
   return {
-    sName: s.schoolName || 'MD Convent Public School',
+    sName: s.schoolName || 'School Management System',
     sAddr: (s.schoolAddr || s.schoolAddress || 'Amanpur, Kasganj Road, Uttar Pradesh'),
     pDate: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
     collected, pending, expected, discount, rate,
@@ -13476,7 +13476,7 @@ async function downloadMasterLedgerPDF() {
     <div class="page-container">
       <div class="content-wrap">
         <div class="hdr">
-          <h1>${escapeHtml(s.schoolName || 'MD Convent Public School')}</h1>
+          <h1>${escapeHtml(s.schoolName || 'School Management System')}</h1>
           <p>${escapeHtml((s.schoolAddr || s.schoolAddress || 'Amanpur, Kasganj Road, Uttar Pradesh'))} | Academic Session: ${curSess}</p>
           <h2 style="font-size:14px;margin:4px 0 0;color:#1e1b4b">MASTER FEE COLLECTION & AUDIT LEDGER</h2>
         </div>
@@ -13942,7 +13942,7 @@ function printCustomReport() {
       <div class="page-container">
         <div class="content-wrap">
           <div class="hdr">
-            <h1>${escapeHtml(s.schoolName || 'MD Convent Public School')}</h1>
+            <h1>${escapeHtml(s.schoolName || 'School Management System')}</h1>
             <p>${escapeHtml((s.schoolAddr || s.schoolAddress || 'Amanpur, Kasganj Road, Uttar Pradesh'))} | Academic Session: ${targetSession}</p>
             <h2 style="font-size:15px;margin:6px 0 0;color:#1e293b">${title}</h2>
           </div>
@@ -14245,7 +14245,7 @@ function printDailyCollectionReport() {
     <div class="page-container">
       <div class="content-wrap">
         <div class="hdr">
-          <h1>${escapeHtml(s.schoolName || 'MD Convent Public School')}</h1>
+          <h1>${escapeHtml(s.schoolName || 'School Management System')}</h1>
           <p>${escapeHtml((s.schoolAddr || s.schoolAddress || 'Amanpur, Kasganj Road, Uttar Pradesh'))} | Academic Session: ${curSess}</p>
           <h2 style="font-size:15px;margin:6px 0 0;color:#1e1b4b">DAILY FEE COLLECTION & AUDIT REPORT</h2>
           <div style="font-size:11px;color:#64748B;margin-top:3px">${rangeLabel}</div>
@@ -17130,7 +17130,7 @@ function getStudentTotalOutstandingTransportDues(studentId, activeSession, activ
 
 function populateTransportReceiptModal(rcpt) {
   if (!rcpt) return;
-  const schoolName = (DB && DB.settings && DB.settings.schoolName) || 'MD CONVENT PUBLIC SCHOOL';
+  const schoolName = (DB && DB.settings && DB.settings.schoolName) || 'School Management System';
   const scNameEl = document.getElementById('tr_rcpt_school_name');
   if (scNameEl) scNameEl.textContent = schoolName;
 

@@ -37,8 +37,8 @@ school operations, including:
 --------------------------------------------------------------------------------
   STEP 1: Open the "Installer" folder.
   STEP 2: Double-click "SHIKSHA_School_Management_Setup.exe".
-          (Note: Previous release installer MD_Convent_SMS_Setup_v2.2.exe is also
-          preserved in this folder as a verified fallback backup).
+          (Note: Previous pre-rebrand release installer is safely archived in the
+          "Legacy_Backup" subfolder for reference).
   STEP 3: Follow the setup wizard (keep "Create Desktop Shortcut" checked)
           and click Finish.
 

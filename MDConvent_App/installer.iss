@@ -10,10 +10,13 @@ AppPublisher=Tanmay Soni
 AppPublisherURL=tel:9528371785
 DefaultDirName={autopf}\SHIKSHA
 DefaultGroupName=SHIKSHA
+UsePreviousAppDir=no
+UsePreviousGroup=no
 AllowNoIcons=yes
 OutputDir=dist-installer
 OutputBaseFilename=SHIKSHA_School_Management_Setup
 SetupIconFile=icon.ico
+UninstallIconFile=icon.ico
 Compression=lzma2/ultra64
 SolidCompression=yes
 WizardStyle=modern
@@ -33,11 +36,16 @@ Source: "icon.ico"; DestDir: "{app}"; Flags: ignoreversion
 
 [InstallDelete]
 Type: files; Name: "{autodesktop}\MD Convent SMS.lnk"
+Type: files; Name: "{autodesktop}\SHIKSHA - School Management Software.lnk"
+Type: files; Name: "{commondesktop}\MD Convent SMS.lnk"
+Type: files; Name: "{commondesktop}\SHIKSHA - School Management Software.lnk"
 Type: files; Name: "{group}\MD Convent SMS.lnk"
+Type: filesandordirs; Name: "{userprograms}\MD Convent SMS"
+Type: filesandordirs; Name: "{commonprograms}\MD Convent SMS"
 
 [Icons]
 Name: "{group}\SHIKSHA"; Filename: "{app}\SHIKSHA.exe"; IconFilename: "{app}\icon.ico"
-Name: "{group}\{cm:UninstallProgram,SHIKSHA}"; Filename: "{uninstallexe}"
+Name: "{group}\{cm:UninstallProgram,SHIKSHA}"; Filename: "{uninstallexe}"; IconFilename: "{app}\icon.ico"
 Name: "{autodesktop}\SHIKSHA"; Filename: "{app}\SHIKSHA.exe"; IconFilename: "{app}\icon.ico"; Tasks: desktopicon
 
 [Run]

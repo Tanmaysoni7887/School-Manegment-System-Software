@@ -36,7 +36,7 @@ The application automatically creates and manages timestamped backups in the
 You should perform a manual backup at least once a week, or at the end of every busy
 fee collection day:
 
-1. Open MD Convent SMS.
+1. Open SHIKSHA.
 2. In the left sidebar, click "Data & Backup" under the "SYSTEM" header.
 3. Locate the "Backup & Data Protection" card.
 4. Click the "Backup All Data" button.
@@ -53,7 +53,7 @@ fee collection day:
 To restore your database from a previously saved backup file:
 
 1. Connect your USB flash drive containing your backup file (or browse to Documents\MDConvent_SMS\backups\).
-2. Open MD Convent SMS.
+2. Open SHIKSHA.
 3. In the sidebar, navigate to "System" > "Data & Backup".
 4. Click the "Restore Backup" button.
 5. Browse and select your ".json" backup file.
@@ -85,15 +85,15 @@ STEP 1 (ON OLD COMPUTER):
 3. Copy the file named "school_data.json" onto your USB flash drive.
 
 STEP 2 (ON NEW COMPUTER):
-1. Install and launch MD Convent SMS once, then close it (this creates the folder).
+1. Install and launch SHIKSHA once, then close it (this creates the folder).
 2. Press Windows Key + R, type %USERPROFILE%\Documents\MDConvent_SMS and press Enter.
 3. Paste "school_data.json" from your USB drive into this folder (replace any existing file).
-4. Launch MD Convent SMS. Your entire school database is live!
+4. Launch SHIKSHA. Your entire school database is live!
 
 
 6. DISASTER RECOVERY & AUTOMATIC PROTECTION
 --------------------------------------------------------------------------------
-MD Convent SMS includes built-in safeguards to protect against unexpected events:
+SHIKSHA includes built-in safeguards to protect against unexpected events:
 
 1. POWER FAILURE PROTECTION (ATOMIC SAVES):
    When you save any record or fee payment, the app writes to "school_data.json.tmp"
