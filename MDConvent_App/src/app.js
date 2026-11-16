@@ -1195,15 +1195,6 @@ let isDataCorrupted = false;
 async function loadDB() {
   if (isEl) {
     const d = await window.electronAPI.loadData();
-    if (d && d.error === 'UNAUTHORIZED') {
-      console.warn('Authentication session missing or invalid. Returning to login page.');
-      if (window.electronAPI && window.electronAPI.authLogout) {
-        await window.electronAPI.authLogout();
-      } else {
-        window.location.href = 'login.html';
-      }
-      return;
-    }
     if (d && d.error === 'CORRUPTED_DATA') {
       isDataCorrupted = true;
       setSS('error');
@@ -17581,94 +17572,10 @@ function viewTransportReceiptByNo(receiptNo) {
 }
 
 // ============================================================
-// OFFLINE AUTHENTICATION & SECURITY CONTROLS
-// ============================================================
-async function handleAppLogout() {
-  if (confirm('Are you sure you want to sign out of MD Convent School Management System?')) {
-    try {
-      if (window.electronAPI && window.electronAPI.authLogout) {
-        await window.electronAPI.authLogout();
-      } else {
-        window.location.href = 'login.html';
-      }
-    } catch (_) {
-      window.location.href = 'login.html';
-    }
-  }
-}
-
-function openChangePasswordModal() {
-  const cur = document.getElementById('cp_current');
-  const nw = document.getElementById('cp_new');
-  const cnf = document.getElementById('cp_confirm');
-  const errEl = document.getElementById('cp_error');
-  const succEl = document.getElementById('cp_success');
-  if (cur) cur.value = '';
-  if (nw) nw.value = '';
-  if (cnf) cnf.value = '';
-  if (errEl) errEl.style.display = 'none';
-  if (succEl) succEl.style.display = 'none';
-  openM('modalChangePassword');
-}
-
-async function submitChangePassword() {
-  const cur = document.getElementById('cp_current').value;
-  const nw = document.getElementById('cp_new').value;
-  const cnf = document.getElementById('cp_confirm').value;
-  const errEl = document.getElementById('cp_error');
-  const succEl = document.getElementById('cp_success');
-  errEl.style.display = 'none';
-  succEl.style.display = 'none';
-
-  if (!cur || !nw || !cnf) {
-    errEl.textContent = 'All password fields are required.';
-    errEl.style.display = 'block';
-    return;
-  }
-  if (nw.length < 8) {
-    errEl.textContent = 'New password must be at least 8 characters long.';
-    errEl.style.display = 'block';
-    return;
-  }
-  if (nw !== cnf) {
-    errEl.textContent = 'New password and confirmation do not match.';
-    errEl.style.display = 'block';
-    return;
-  }
-
-  try {
-    if (window.electronAPI && window.electronAPI.authChangePassword) {
-      const res = await window.electronAPI.authChangePassword({ currentPassword: cur, newPassword: nw, confirmPassword: cnf });
-      if (res && res.success) {
-        succEl.textContent = 'Password updated successfully!';
-        succEl.style.display = 'block';
-        toast('Administrator password updated successfully!', 'success');
-        setTimeout(() => closeM('modalChangePassword'), 1200);
-      } else {
-        errEl.textContent = res?.error || 'Failed to update password.';
-        errEl.style.display = 'block';
-      }
-    }
-  } catch (err) {
-    errEl.textContent = 'Error communicating with security service.';
-    errEl.style.display = 'block';
-  }
-}
-
-// ============================================================
 // INITIALIZATION
 // ============================================================
 async function init() {
   await loadDB();
-  try {
-    if (window.electronAPI && window.electronAPI.authGetCurrentUser) {
-      const u = await window.electronAPI.authGetCurrentUser();
-      if (u && u.name) {
-        const topEl = document.getElementById('topSchoolHead');
-        if (topEl) topEl.textContent = 'Admin: ' + u.name;
-      }
-    }
-  } catch (_) {}
   invalidatePerformanceIndices();
   ensurePerformanceIndices();
   fillDDs();

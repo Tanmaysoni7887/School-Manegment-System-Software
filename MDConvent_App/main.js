@@ -36,10 +36,6 @@ function resolveStoragePaths() {
 
 const { userDataPath, dataFilePath, backupsDir, photosDir } = resolveStoragePaths();
 
-// Offline Authentication Manager
-const { createAuthManager } = require('./auth');
-const authManager = createAuthManager({ userDataPath });
-
 let mainWindow;
 function createWindow() {
   mainWindow = new BrowserWindow({
@@ -54,19 +50,12 @@ function createWindow() {
     show: false,
     backgroundColor: '#f4f6f9'
   });
-  // Launch into separate dedicated login screen immediately
-  mainWindow.loadFile(path.join(__dirname, 'src', 'login.html'));
+  mainWindow.loadFile(path.join(__dirname, 'src', 'index.html'));
   mainWindow.once('ready-to-show', () => { mainWindow.show(); mainWindow.maximize(); });
   mainWindow.setMenuBarVisibility(false);
 
-  // Security: Prevent unauthorized window navigation away from the local app or bypassing auth
+  // Security: Prevent unauthorized window navigation away from the local app
   mainWindow.webContents.on('will-navigate', (event, url) => {
-    if (!authManager.isAuthenticated() && !url.includes('login.html')) {
-      console.warn('[Security] Unauthorized navigation prevented:', url);
-      event.preventDefault();
-      mainWindow.loadFile(path.join(__dirname, 'src', 'login.html'));
-      return;
-    }
     if (url !== mainWindow.webContents.getURL()) {
       event.preventDefault();
     }
@@ -282,50 +271,11 @@ function triggerStartupBackupIfNeeded(parsedData) {
 }
 
 // ==============================================================================
-// AUTHENTICATION & ACCESS CONTROL IPC HANDLERS (OFFLINE)
-// ==============================================================================
-
-ipcMain.handle('auth-get-status', () => authManager.getAuthStatus());
-
-ipcMain.handle('auth-login', async (e, credentials) => {
-  const res = authManager.login(credentials && credentials.username, credentials && credentials.password);
-  if (res && res.success) {
-    if (mainWindow && !mainWindow.isDestroyed()) {
-      mainWindow.loadFile(path.join(__dirname, 'src', 'index.html'));
-    }
-  }
-  return res;
-});
-
-ipcMain.handle('auth-vendor-setup', async (e, credentials) => {
-  return authManager.verifyVendorSetup(credentials && credentials.username, credentials && credentials.password);
-});
-
-ipcMain.handle('auth-create-admin', async (e, payload) => {
-  return authManager.createSchoolAdmin(payload);
-});
-
-ipcMain.handle('auth-logout', async () => {
-  authManager.logout();
-  if (mainWindow && !mainWindow.isDestroyed()) {
-    mainWindow.loadFile(path.join(__dirname, 'src', 'login.html'));
-  }
-  return { success: true };
-});
-
-ipcMain.handle('auth-get-current-user', () => authManager.getCurrentUser());
-
-ipcMain.handle('auth-change-password', async (e, { currentPassword, newPassword, confirmPassword }) => {
-  return authManager.changePassword(currentPassword, newPassword, confirmPassword);
-});
-
-// ==============================================================================
-// PROTECTED SCHOOL DATA & SYSTEM IPC HANDLERS
-// All operations require an active authenticated administrator session.
+// IPC HANDLERS
 // ==============================================================================
 
 // Load data with integrity protection
-ipcMain.handle('load-data', authManager.requireAuth(() => {
+ipcMain.handle('load-data', () => {
   try {
     if (fs.existsSync(dataFilePath)) {
       const raw = fs.readFileSync(dataFilePath, 'utf8');
@@ -364,10 +314,10 @@ ipcMain.handle('load-data', authManager.requireAuth(() => {
     } catch(_) {}
     return { error: 'CORRUPTED_DATA', message: e.message };
   }
-}));
+});
 
 // Asynchronous atomic save with payload validation, concurrency queue, and scheduled backup
-ipcMain.handle('save-data', authManager.requireAuth(async (e, data) => {
+ipcMain.handle('save-data', async (e, data) => {
   try {
     if (!isValidDatabasePayload(data)) {
       return { success: false, error: 'Invalid data payload: missing required students or settings structure' };
@@ -403,10 +353,10 @@ ipcMain.handle('save-data', authManager.requireAuth(async (e, data) => {
     console.error('Failed to save data:', e);
     return { success: false, error: e.message };
   }
-}));
+});
 
 // Manual file dialog backup (User export)
-ipcMain.handle('backup-data', authManager.requireAuth(async (e, data) => {
+ipcMain.handle('backup-data', async (e, data) => {
   const dateStr = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
   const schoolName = (data && data.settings && data.settings.schoolName)
     ? data.settings.schoolName.replace(/[^a-zA-Z0-9]/g, '_')
@@ -423,10 +373,10 @@ ipcMain.handle('backup-data', authManager.requireAuth(async (e, data) => {
   } catch(e) {
     return { success: false, error: e.message };
   }
-}));
+});
 
 // Restore backup file selection and parsing
-ipcMain.handle('restore-data', authManager.requireAuth(async () => {
+ipcMain.handle('restore-data', async () => {
   const { canceled, filePaths } = await dialog.showOpenDialog(mainWindow, {
     title: 'Restore Backup File',
     filters: [{ name: 'JSON Backup', extensions: ['json'] }],
@@ -440,15 +390,15 @@ ipcMain.handle('restore-data', authManager.requireAuth(async () => {
   } catch(e) {
     return { error: 'Invalid JSON file: ' + e.message };
   }
-}));
+});
 
 // Handler to list available backups with metadata & schema validation status
-ipcMain.handle('list-backups', authManager.requireAuth(() => {
+ipcMain.handle('list-backups', () => {
   return getAvailableBackupsWithValidation();
-}));
+});
 
 // Handler to safely restore a specific backup from the backups directory
-ipcMain.handle('restore-specific-backup', authManager.requireAuth(async (e, filename) => {
+ipcMain.handle('restore-specific-backup', async (e, filename) => {
   try {
     if (!filename || typeof filename !== 'string') {
       return { success: false, error: 'Invalid backup filename specified' };
@@ -492,10 +442,10 @@ ipcMain.handle('restore-specific-backup', authManager.requireAuth(async (e, file
     console.error('Failed to restore specific backup:', err);
     return { success: false, error: err.message };
   }
-}));
+});
 
 // Pre-restore safety snapshot creation in backups/
-ipcMain.handle('create-safety-backup', authManager.requireAuth(async () => {
+ipcMain.handle('create-safety-backup', async () => {
   try {
     if (fs.existsSync(dataFilePath)) {
       const raw = fs.readFileSync(dataFilePath, 'utf8');
@@ -509,10 +459,10 @@ ipcMain.handle('create-safety-backup', authManager.requireAuth(async () => {
   } catch(e) {
     return { success: false, error: e.message };
   }
-}));
+});
 
 // Explicit automatic backup trigger endpoint (e.g. before promotions, migrations)
-ipcMain.handle('create-automatic-backup', authManager.requireAuth(async (e, { reason }) => {
+ipcMain.handle('create-automatic-backup', async (e, { reason }) => {
   try {
     if (fs.existsSync(dataFilePath)) {
       const raw = fs.readFileSync(dataFilePath, 'utf8');
@@ -523,10 +473,10 @@ ipcMain.handle('create-automatic-backup', authManager.requireAuth(async (e, { re
   } catch(e) {
     return { success: false, error: e.message };
   }
-}));
+});
 
 // Select school logo image file and return base64 data URI
-ipcMain.handle('select-logo', authManager.requireAuth(async () => {
+ipcMain.handle('select-logo', async () => {
   const { canceled, filePaths } = await dialog.showOpenDialog(mainWindow, {
     title: 'Select School Logo',
     filters: [{ name: 'Images', extensions: ['png', 'jpg', 'jpeg', 'webp', 'svg'] }],
@@ -542,10 +492,10 @@ ipcMain.handle('select-logo', authManager.requireAuth(async () => {
   } catch(e) {
     return null;
   }
-}));
+});
 
 // Export CSV
-ipcMain.handle('export-csv', authManager.requireAuth(async (e, { filename, content }) => {
+ipcMain.handle('export-csv', async (e, { filename, content }) => {
   const safeFilename = path.basename(String(filename || 'export.csv')).replace(/[<>:"/\\|?*]/g, '_');
   const { canceled, filePath } = await dialog.showSaveDialog(mainWindow, {
     title: 'Export CSV',
@@ -561,10 +511,10 @@ ipcMain.handle('export-csv', authManager.requireAuth(async (e, { filename, conte
   } catch(e) {
     return { success: false, error: e.message };
   }
-}));
+});
 
 // Export PDF - converts HTML payload to genuine vector PDF
-ipcMain.handle('export-pdf', authManager.requireAuth(async (e, { filename, html, landscape = false }) => {
+ipcMain.handle('export-pdf', async (e, { filename, html, landscape = false }) => {
   const safeFilename = path.basename(String(filename || 'document.pdf')).replace(/[<>:"/\\|?*]/g, '_');
   const win = (mainWindow && !mainWindow.isDestroyed()) ? mainWindow : null;
   const { canceled, filePath } = await dialog.showSaveDialog(win, {
@@ -597,10 +547,10 @@ ipcMain.handle('export-pdf', authManager.requireAuth(async (e, { filename, html,
     if (pdfWin && !pdfWin.isDestroyed()) pdfWin.close();
     return { success: false, error: err.message };
   }
-}));
+});
 
 // PRINT - write temp HTML file and open in default browser for printing
-ipcMain.handle('print-content', authManager.requireAuth(async (e, html) => {
+ipcMain.handle('print-content', async (e, html) => {
   if (typeof html !== 'string') return { success: false, error: 'Invalid HTML payload' };
   try {
     const tmpFile = path.join(os.tmpdir(), 'sms_print_' + Date.now() + '.html');
@@ -612,10 +562,10 @@ ipcMain.handle('print-content', authManager.requireAuth(async (e, html) => {
   } catch(e) {
     return { success: false, error: e.message };
   }
-}));
+});
 
 // Get data path
-ipcMain.handle('get-data-path', authManager.requireAuth(() => dataFilePath));
+ipcMain.handle('get-data-path', () => dataFilePath);
 
 // ==============================================================================
 // STUDENT PHOTOGRAPH MANAGEMENT (OPTIONAL)
@@ -623,7 +573,7 @@ ipcMain.handle('get-data-path', authManager.requireAuth(() => dataFilePath));
 const MAX_PHOTO_BYTES = 5 * 1024 * 1024; // 5 MB maximum
 const ALLOWED_PHOTO_EXTS = ['jpg', 'jpeg', 'png', 'webp'];
 
-ipcMain.handle('select-student-photo', authManager.requireAuth(async () => {
+ipcMain.handle('select-student-photo', async () => {
   const win = (mainWindow && !mainWindow.isDestroyed() && !mainWindow.isMinimized()) 
     ? mainWindow 
     : (BrowserWindow.getFocusedWindow() || null);
@@ -667,9 +617,9 @@ ipcMain.handle('select-student-photo', authManager.requireAuth(async () => {
   } catch (err) {
     return { error: 'Failed to access selected photo: ' + err.message };
   }
-}));
+});
 
-ipcMain.handle('save-student-photo', authManager.requireAuth(async (e, { sourcePath, admNo, existingPhoto }) => {
+ipcMain.handle('save-student-photo', async (e, { sourcePath, admNo, existingPhoto }) => {
   try {
     if (!sourcePath || !fs.existsSync(sourcePath)) {
       return { error: 'Source photo file not found on disk.' };
@@ -712,9 +662,9 @@ ipcMain.handle('save-student-photo', authManager.requireAuth(async (e, { sourceP
     console.error('save-student-photo error:', err);
     return { error: 'Failed to save student photo: ' + err.message };
   }
-}));
+});
 
-ipcMain.handle('delete-student-photo', authManager.requireAuth(async (e, filename) => {
+ipcMain.handle('delete-student-photo', async (e, filename) => {
   try {
     if (!filename || typeof filename !== 'string') return { success: true };
     const safeFilename = path.basename(filename);
@@ -726,9 +676,9 @@ ipcMain.handle('delete-student-photo', authManager.requireAuth(async (e, filenam
   } catch (err) {
     return { error: err.message };
   }
-}));
+});
 
-ipcMain.handle('get-student-photo-data', authManager.requireAuth(async (e, filename) => {
+ipcMain.handle('get-student-photo-data', async (e, filename) => {
   try {
     if (!filename || typeof filename !== 'string') return null;
     const safeFilename = path.basename(filename);
@@ -742,6 +692,6 @@ ipcMain.handle('get-student-photo-data', authManager.requireAuth(async (e, filen
   } catch (_) {
     return null;
   }
-}));
+});
 
-ipcMain.handle('get-student-photos-path', authManager.requireAuth(() => photosDir));
+ipcMain.handle('get-student-photos-path', () => photosDir);

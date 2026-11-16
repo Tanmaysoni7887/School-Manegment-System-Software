@@ -17,17 +17,11 @@ PACKAGE FILE INVENTORY & SHA-256 CHECKSUMS
 
 1. [STANDALONE WINDOWS INSTALLER (v2.2.0)]
    Relative Path:  Installer/MD_Convent_SMS_Setup_v2.2.exe
-   File Size:      77,136,567 bytes (73.56 MB)
-   SHA-256 Hash:   BFCA89C4E70663367780D7A26C906AE6D6C966C1A8BD776C0E6B537EB8FBE520
+   File Size:      77,128,982 bytes (73.56 MB)
+   SHA-256 Hash:   9B10F1B702CCC1192CDA25388C1D91192D61E98B2199AAE7CB47139D4E387A09
    Description:    Official Windows x64 setup wizard with Desktop shortcut,
                    Start Menu integration, and clean uninstallation support.
    Updates in Build:
-     - Offline Authentication & Security Suite: Dedicated standalone Login screen
-       appearing immediately at startup with zero dashboard exposure; vendor-only
-       initial setup provisioning; school administrator account creation; secure
-       scrypt password hashing with unique random salts; timing-safe comparisons;
-       session management in Electron main process; backend IPC protection blocking
-       unauthorized requests; offline brute-force rate-limiting.
      - Dashboard Quick Actions Redesign & Sizing: Comfortable vertical spacing,
        34px/31px button heights, 6px gaps, single plus sign on "Add New Student",
        and fully visible 3-row Academic Overview sub-card.
@@ -88,7 +82,7 @@ and run:
   Get-FileHash -Path "Installer\MD_Convent_SMS_Setup_v2.2.exe" -Algorithm SHA256
 
 Compare the output hash to the official release hash:
-  BFCA89C4E70663367780D7A26C906AE6D6C966C1A8BD776C0E6B537EB8FBE520
+  9B10F1B702CCC1192CDA25388C1D91192D61E98B2199AAE7CB47139D4E387A09
 
 
 PRIVACY & SENSITIVE DATA DECLARATION
