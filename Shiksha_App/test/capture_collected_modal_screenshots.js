@@ -18,13 +18,13 @@ app.whenReady().then(async () => {
     height: 900,
     show: false,
     webPreferences: {
-      preload: path.resolve(__dirname, '../MDConvent_App/src/preload.js'),
+      preload: path.resolve(__dirname, '../src/preload.js'),
       contextIsolation: true,
       nodeIntegration: false
     }
   });
 
-  await win.loadFile(path.resolve(__dirname, '../MDConvent_App/src/index.html'));
+  await win.loadFile(path.resolve(__dirname, '../src/index.html'));
   await new Promise(r => setTimeout(r, 800));
 
   console.log('--- CAPTURE 1: Click Fee Collected KPI & Initial Paginated View ---');

@@ -2,7 +2,7 @@
  * MD CONVENT PUBLIC SCHOOL — REALISTIC LARGE DEMO DATA GENERATOR
  * ==============================================================================
  * Generates configurable, varied, reproducible, and 100% synthetic school database
- * strictly matching the schema of MDConvent_App (src/app.js & main.js).
+ * strictly matching the schema of Shiksha_App (src/app.js & main.js).
  * ==============================================================================
  */
 

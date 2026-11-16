@@ -1,5 +1,5 @@
 /**
- * MD CONVENT SMS — SCHOOL FEE RECEIPT REFINEMENT VERIFICATION
+ * SHIKSHA — SCHOOL FEE RECEIPT REFINEMENT VERIFICATION
  * 
  * Verifies:
  * 1. A4 Print Width & Side-Cutting fix: box-sizing: border-box, max-width: 680px,

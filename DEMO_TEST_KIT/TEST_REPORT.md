@@ -89,7 +89,7 @@ Validation executed via: `node DEMO_TEST_KIT/test_demo_dataset.js`
 - [x] 100% Payment & Transport Receipt Numbers are unique (6,239 total receipts).
 - [x] 0 orphan payments detected; all map to existing students.
 - [x] 0 orphan transport records detected; all map to existing students and valid stops.
-- [x] Schema structure completely matches `isValidDatabasePayload()` in `MDConvent_App/main.js`.
+- [x] Schema structure completely matches `isValidDatabasePayload()` in `Shiksha_App/main.js`.
 - [x] Zero validation errors discovered.
 
 ---

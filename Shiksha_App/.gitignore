@@ -1,4 +1,4 @@
-# MDConvent_App .gitignore
+# Shiksha_App .gitignore
 node_modules/
 dist/
 dist-installer/

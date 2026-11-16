@@ -1,5 +1,5 @@
 /**
- * MD CONVENT PUBLIC SCHOOL — LARGE DEMO DATASET COMPREHENSIVE REGRESSION TEST
+ * SHIKSHA — LARGE DEMO DATASET COMPREHENSIVE REGRESSION TEST
  * ==============================================================================
  * Tests loading the newly generated 1,476-student dataset in an isolated Electron
  * window, verifying all 13 pages, dashboard KPI computation, search, modals, and

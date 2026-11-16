@@ -1,5 +1,5 @@
 # ==============================================================================
-# MD Convent SMS — Official .gitignore
+# SHIKSHA — School Management Software Official .gitignore
 # Prevents large binaries, node_modules, and sensitive user data from Git repository
 # ==============================================================================
 
@@ -30,8 +30,8 @@ installer_backup/
 scratch/
 test-data/
 DEMO_TEST_KIT/demo_data/
-MDConvent_App/test/benchmark_datasets/
-MDConvent_App/test/benchmark_results_current.json
+Shiksha_App/test/benchmark_datasets/
+Shiksha_App/test/benchmark_results_current.json
 benchmark_datasets/
 .system_generated/
 *.bak
@@ -88,7 +88,7 @@ $RECYCLE.BIN/
 !HANDOVER/DATA_BACKUP_GUIDE.txt
 !HANDOVER/RELEASE_MANIFEST.txt
 !HANDOVER/checksums.sha256
-!MDConvent_App/icon.ico
-!MDConvent_App/src/logo.png
-!MDConvent_App/src/assets/shiksha-logo.png
-!MDConvent_App/assets/shiksha-logo.png
+!Shiksha_App/icon.ico
+!Shiksha_App/src/logo.png
+!Shiksha_App/src/assets/shiksha-logo.png
+!Shiksha_App/assets/shiksha-logo.png

@@ -1,5 +1,5 @@
 /**
- * MD CONVENT SMS — GLOBAL MODAL & POPUP BACKGROUND BLUR VERIFICATION
+ * SHIKSHA — GLOBAL MODAL & POPUP BACKGROUND BLUR VERIFICATION
  * Tests all modal categories, nested modals, Escape key, backdrop filter styling,
  * and captures visual screenshot artifacts.
  */

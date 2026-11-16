@@ -97,7 +97,7 @@ createMockElement('collectedTableContainer', 'div');
 // Load app.js functions in isolated context
 const appCandidates = [
   path.resolve(__dirname, '../src/app.js'),
-  path.resolve(__dirname, '../MDConvent_App/src/app.js'),
+  path.resolve(__dirname, '../src/app.js'),
   path.resolve(__dirname, 'src/app.js')
 ];
 const appJsPath = appCandidates.find(p => fs.existsSync(p));

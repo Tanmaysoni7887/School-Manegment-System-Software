@@ -1,5 +1,5 @@
 /**
- * Comprehensive End-to-End Test Suite for MDConvent_App Key Modules:
+ * Comprehensive End-to-End Test Suite for Shiksha_App Key Modules:
  * 1. Student Management (Active student filtering, admission numbering)
  * 2. Fee Collection & Receipt Generation
  * 3. Transport Fees (Multi-session dues, ledger, receipt modal)

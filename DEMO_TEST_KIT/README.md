@@ -1,6 +1,6 @@
 # SHIKSHA – Large Demo Dataset & Test Kit
 
-Standalone testing suite for generating and validating large, synthetic school management databases for `MDConvent_App`.
+Standalone testing suite for generating and validating large, synthetic school management databases for `Shiksha_App`.
 
 ## Current Dataset Details
 - **Filename**: `demo_school_data_large.json`

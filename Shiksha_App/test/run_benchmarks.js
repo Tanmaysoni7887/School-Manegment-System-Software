@@ -1,5 +1,5 @@
 /**
- * MD CONVENT SMS — COMPREHENSIVE PERFORMANCE BENCHMARK HARNESS (v2.0)
+ * SHIKSHA — SCHOOL MANAGEMENT SOFTWARE PERFORMANCE BENCHMARK HARNESS (v2.0)
  * Evaluates all 14 performance metrics across 6 dataset sizes:
  * A: 275, B: 1000, C: 1476, D: 2000, E: 2500, F: 3000 students
  */
