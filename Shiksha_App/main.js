@@ -37,6 +37,10 @@ function resolveStoragePaths() {
 
 const { userDataPath, dataFilePath, backupsDir, photosDir } = resolveStoragePaths();
 
+// Offline Authentication Manager
+const { createAuthManager } = require('./auth');
+const authManager = createAuthManager({ userDataPath });
+
 let mainWindow;
 function createWindow() {
   mainWindow = new BrowserWindow({
@@ -51,12 +55,19 @@ function createWindow() {
     show: false,
     backgroundColor: '#f4f6f9'
   });
-  mainWindow.loadFile(path.join(__dirname, 'src', 'index.html'));
+  // Launch into separate dedicated login screen immediately
+  mainWindow.loadFile(path.join(__dirname, 'src', 'login.html'));
   mainWindow.once('ready-to-show', () => { mainWindow.show(); mainWindow.maximize(); });
   mainWindow.setMenuBarVisibility(false);
 
-  // Security: Prevent unauthorized window navigation away from the local app
+  // Security: Prevent unauthorized window navigation away from the local app or bypassing auth
   mainWindow.webContents.on('will-navigate', (event, url) => {
+    if (!authManager.isAuthenticated() && !url.includes('login.html')) {
+      console.warn('[Security] Unauthorized navigation prevented:', url);
+      event.preventDefault();
+      mainWindow.loadFile(path.join(__dirname, 'src', 'login.html'));
+      return;
+    }
     if (url !== mainWindow.webContents.getURL()) {
       event.preventDefault();
     }
@@ -270,6 +281,44 @@ function triggerStartupBackupIfNeeded(parsedData) {
     }
   } catch(_) {}
 }
+
+// ==============================================================================
+// AUTHENTICATION & ACCESS CONTROL IPC HANDLERS (OFFLINE)
+// ==============================================================================
+
+ipcMain.handle('auth-get-status', () => authManager.getAuthStatus());
+
+ipcMain.handle('auth-login', async (e, credentials) => {
+  const res = authManager.login(credentials && credentials.username, credentials && credentials.password);
+  if (res && res.success) {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.loadFile(path.join(__dirname, 'src', 'index.html'));
+    }
+  }
+  return res;
+});
+
+ipcMain.handle('auth-vendor-setup', async (e, credentials) => {
+  return authManager.verifyVendorSetup(credentials && credentials.username, credentials && credentials.password);
+});
+
+ipcMain.handle('auth-create-admin', async (e, payload) => {
+  return authManager.createSchoolAdmin(payload);
+});
+
+ipcMain.handle('auth-logout', async () => {
+  authManager.logout();
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.loadFile(path.join(__dirname, 'src', 'login.html'));
+  }
+  return { success: true };
+});
+
+ipcMain.handle('auth-get-current-user', () => authManager.getCurrentUser());
+
+ipcMain.handle('auth-change-password', async (e, { currentPassword, newPassword, confirmPassword }) => {
+  return authManager.changePassword(currentPassword, newPassword, confirmPassword);
+});
 
 // ==============================================================================
 // IPC HANDLERS

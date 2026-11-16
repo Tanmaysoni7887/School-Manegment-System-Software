@@ -17588,6 +17588,131 @@ function viewTransportReceiptByNo(receiptNo) {
 }
 
 // ============================================================
+// AUTHENTICATION & MANDATORY FIRST-LOGIN PASSWORD ENFORCEMENT
+// ============================================================
+async function checkAuthAndEnforcePasswordChange() {
+  try {
+    if (!window.electronAPI || !window.electronAPI.authGetStatus) return;
+    const status = await window.electronAPI.authGetStatus();
+    if (!status || !status.isAuthenticated) {
+      if (window.electronAPI.authLogout) {
+        await window.electronAPI.authLogout();
+      }
+      return;
+    }
+    const usernameEl = document.getElementById('topUsername');
+    if (usernameEl && status.user && status.user.username) {
+      usernameEl.textContent = status.user.username;
+    }
+    if (status.mustChangePassword) {
+      showFirstLoginPasswordModal();
+    }
+  } catch (err) {
+    console.warn('Auth status check error:', err);
+  }
+}
+
+function showFirstLoginPasswordModal() {
+  const overlay = document.getElementById('firstLoginOverlay');
+  if (overlay) {
+    overlay.style.display = 'flex';
+    setTimeout(() => {
+      document.getElementById('flCurrentPwd')?.focus();
+    }, 100);
+  }
+}
+
+function toggleFlPwd(id, btn) {
+  const input = document.getElementById(id);
+  if (!input) return;
+  const isPwd = input.type === 'password';
+  input.type = isPwd ? 'text' : 'password';
+  btn.innerHTML = isPwd
+    ? '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>'
+    : '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>';
+}
+
+async function handleFirstLoginPasswordChange(event) {
+  event.preventDefault();
+  const currentPassword = document.getElementById('flCurrentPwd').value;
+  const newPassword = document.getElementById('flNewPwd').value;
+  const confirmPassword = document.getElementById('flConfirmPwd').value;
+  const errBox = document.getElementById('flErrorBox');
+  const submitBtn = document.getElementById('flSubmitBtn');
+
+  if (errBox) errBox.style.display = 'none';
+
+  if (!currentPassword) {
+    if (errBox) {
+      errBox.textContent = 'Please enter your current password.';
+      errBox.style.display = 'block';
+    }
+    return;
+  }
+
+  if (newPassword.length < 8) {
+    if (errBox) {
+      errBox.textContent = 'New password must be at least 8 characters long.';
+      errBox.style.display = 'block';
+    }
+    return;
+  }
+
+  if (newPassword !== confirmPassword) {
+    if (errBox) {
+      errBox.textContent = 'Repeat password does not match new password.';
+      errBox.style.display = 'block';
+    }
+    return;
+  }
+
+  submitBtn.disabled = true;
+  submitBtn.textContent = 'Saving...';
+
+  try {
+    const res = await window.electronAPI.authChangePassword({ currentPassword, newPassword, confirmPassword });
+    if (res && res.success) {
+      const overlay = document.getElementById('firstLoginOverlay');
+      if (overlay) overlay.style.display = 'none';
+      if (typeof toast === 'function') {
+        toast('Password updated successfully! Welcome to Shiksha.', 'success');
+      }
+    } else {
+      submitBtn.disabled = false;
+      submitBtn.textContent = 'Save password';
+      if (errBox) {
+        errBox.textContent = res?.error || 'Failed to update password.';
+        errBox.style.display = 'block';
+      }
+    }
+  } catch (err) {
+    submitBtn.disabled = false;
+    submitBtn.textContent = 'Save password';
+    if (errBox) {
+      errBox.textContent = 'Error connecting to authentication service.';
+      errBox.style.display = 'block';
+    }
+  }
+}
+
+async function handleAppLogout() {
+  if (confirm('Are you sure you want to sign out?')) {
+    if (window.electronAPI && window.electronAPI.authLogout) {
+      await window.electronAPI.authLogout();
+    }
+  }
+}
+
+// Trap Escape key to prevent closing mandatory password change modal
+window.addEventListener('keydown', (e) => {
+  const overlay = document.getElementById('firstLoginOverlay');
+  if (overlay && overlay.style.display === 'flex' && e.key === 'Escape') {
+    e.preventDefault();
+    e.stopPropagation();
+  }
+}, true);
+
+// ============================================================
 // INITIALIZATION
 // ============================================================
 async function init() {
@@ -17596,6 +17721,7 @@ async function init() {
   ensurePerformanceIndices();
   fillDDs();
   renderDB();
+  await checkAuthAndEnforcePasswordChange();
 }
 
 init();

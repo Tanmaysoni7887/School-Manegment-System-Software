@@ -1,0 +1,454 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:;">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SHIKSHA – School Management Software</title>
+<style>
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+
+:root {
+  --primary-purple: #581c87;
+  --primary-purple-hover: #4a156f;
+  --purple-gradient: linear-gradient(135deg, #4c1d95 0%, #6d28d9 100%);
+  --purple-gradient-hover: linear-gradient(135deg, #3b0764 0%, #581c87 100%);
+  --purple-glow: rgba(109, 40, 217, 0.22);
+  --lavender-bg: #f1edfe;
+  --card-bg: #ffffff;
+  --card-bdr: rgba(221, 214, 254, 0.8);
+  --txt-heading: #1e1b4b;
+  --txt-body: #1f2937;
+  --txt-muted: #6b7280;
+  --input-bg: #faf8ff;
+  --input-bdr: #c4b5fd;
+  --input-focus: #6d28d9;
+  --danger: #b91c1c;
+  --danger-bg: #fef2f2;
+  --danger-bdr: #fca5a5;
+}
+
+html, body {
+  width: 100vw;
+  height: 100vh;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  background-color: var(--lavender-bg);
+  background-image: url('assets/shiksha-login-bg.jpg');
+  background-size: cover;
+  background-position: left center;
+  background-repeat: no-repeat;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.login-viewport {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding-right: 9.5vw;
+  box-sizing: border-box;
+}
+
+.login-card {
+  width: 395px;
+  max-width: 420px;
+  background: var(--card-bg);
+  border: 1px solid var(--card-bdr);
+  border-radius: 20px;
+  box-shadow: 0 16px 40px rgba(76, 29, 149, 0.12), 0 3px 12px rgba(0, 0, 0, 0.04);
+  padding: 32px 30px 28px;
+  position: relative;
+  box-sizing: border-box;
+}
+
+/* Card Header Brand */
+.brand-header {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.brand-emblem {
+  width: 46px;
+  height: 46px;
+  object-fit: contain;
+  flex-shrink: 0;
+}
+
+.brand-titles {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
+}
+
+.brand-title {
+  font-size: 23px;
+  font-weight: 800;
+  color: #3b0764;
+  letter-spacing: 0.5px;
+  line-height: 1;
+}
+
+.brand-pill {
+  background: #581c87;
+  color: #ffffff;
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2.5px 8.5px;
+  border-radius: 12px;
+  letter-spacing: 0.2px;
+  line-height: 1.2;
+}
+
+.card-title {
+  font-size: 24px;
+  font-weight: 800;
+  color: var(--txt-heading);
+  letter-spacing: -0.3px;
+  text-align: center;
+  margin-bottom: 4px;
+}
+
+.card-subtitle {
+  font-size: 13px;
+  color: var(--txt-muted);
+  font-weight: 500;
+  text-align: center;
+  margin-bottom: 22px;
+}
+
+/* Feedback Alerts */
+.alert-box {
+  border-radius: 9px;
+  padding: 9px 12px;
+  font-size: 12.5px;
+  font-weight: 500;
+  line-height: 1.4;
+  margin-bottom: 16px;
+  display: none;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.alert-danger {
+  background-color: var(--danger-bg);
+  border: 1px solid var(--danger-bdr);
+  color: var(--danger);
+}
+
+.alert-icon {
+  width: 15px;
+  height: 15px;
+  flex-shrink: 0;
+  margin-top: 1.5px;
+}
+
+/* Form Groups */
+.form-group {
+  margin-bottom: 16px;
+}
+
+.form-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #374151;
+  margin-bottom: 6px;
+}
+
+.label-icon {
+  width: 14px;
+  height: 14px;
+  color: #6b7280;
+}
+
+.input-container {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.input-icon {
+  position: absolute;
+  left: 12px;
+  width: 16px;
+  height: 16px;
+  color: #7c3aed;
+  pointer-events: none;
+}
+
+.form-input {
+  width: 100%;
+  height: 42px;
+  padding: 0 40px 0 36px;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--txt-heading);
+  background: var(--input-bg);
+  border: 1.5px solid var(--input-bdr);
+  border-radius: 9px;
+  outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s, background-color 0.15s;
+}
+
+.form-input::placeholder {
+  color: #9ca3af;
+  font-weight: 400;
+}
+
+.form-input:focus {
+  background-color: #ffffff;
+  border-color: var(--input-focus);
+  box-shadow: 0 0 0 3px var(--purple-glow);
+}
+
+.toggle-pwd {
+  position: absolute;
+  right: 10px;
+  background: none;
+  border: none;
+  padding: 6px;
+  cursor: pointer;
+  color: #6b7280;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  transition: color 0.15s;
+}
+
+.toggle-pwd:hover {
+  color: var(--primary-purple);
+}
+
+/* Button */
+.btn-primary {
+  width: 100%;
+  height: 44px;
+  background: var(--purple-gradient);
+  color: #ffffff;
+  border: none;
+  border-radius: 9px;
+  font-size: 14.5px;
+  font-weight: 700;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  box-shadow: 0 4px 14px rgba(76, 29, 149, 0.28);
+  transition: all 0.15s ease-in-out;
+  margin-top: 20px;
+}
+
+.btn-primary:hover:not(:disabled) {
+  background: var(--purple-gradient-hover);
+  box-shadow: 0 6px 18px rgba(76, 29, 149, 0.38);
+  transform: translateY(-1px);
+}
+
+.btn-primary:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.btn-primary:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.btn-spinner {
+  width: 15px;
+  height: 15px;
+  border: 2px solid rgba(255, 255, 255, 0.35);
+  border-top-color: #ffffff;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  display: none;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+@media (max-width: 900px) {
+  body {
+    background-size: cover;
+    justify-content: center;
+  }
+  .login-viewport {
+    justify-content: center;
+    padding-right: 0;
+  }
+}
+</style>
+</head>
+<body>
+
+<div class="login-viewport">
+  <div class="login-card">
+    
+    <!-- Header Brand with Emblem and Name -->
+    <div class="brand-header">
+      <img src="assets/shiksha-emblem.png" alt="SHIKSHA Emblem" class="brand-emblem">
+      <div class="brand-titles">
+        <div class="brand-title">SHIKSHA</div>
+        <div class="brand-pill">School Management Software</div>
+      </div>
+    </div>
+
+    <!-- Title and Subtitle -->
+    <h2 class="card-title">Sign In</h2>
+    <div class="card-subtitle">Access your School Management System</div>
+
+    <!-- Feedback Alerts -->
+    <div class="alert-box alert-danger" id="errorBox">
+      <svg class="alert-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+      <div id="errorMessage">Invalid username or password</div>
+    </div>
+
+    <!-- Administrator Login Form -->
+    <form id="formAdminLogin" onsubmit="handleAdminLogin(event)">
+      <div class="form-group">
+        <label class="form-label" for="loginUsername">
+          <svg class="label-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+          Username
+        </label>
+        <div class="input-container">
+          <svg class="input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+          <input type="text" id="loginUsername" class="form-input" value="admin" placeholder="Enter username" autocomplete="username" required autofocus>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label" for="loginPassword">
+          <svg class="label-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+          Password
+        </label>
+        <div class="input-container">
+          <svg class="input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+          <input type="password" id="loginPassword" class="form-input" placeholder="••••••••••••" autocomplete="current-password" required>
+          <button type="button" class="toggle-pwd" onclick="togglePasswordVisibility('loginPassword', this)" title="Show/Hide Password">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+          </button>
+        </div>
+      </div>
+
+      <button type="submit" id="btnAdminLogin" class="btn-primary">
+        <span class="btn-spinner" id="spinnerAdmin"></span>
+        <span id="btnTextAdmin">➔ Sign In</span>
+      </button>
+    </form>
+
+  </div>
+</div>
+
+<script>
+let lockoutTimerInterval = null;
+
+function showError(msg) {
+  const box = document.getElementById('errorBox');
+  const msgEl = document.getElementById('errorMessage');
+  msgEl.textContent = msg;
+  box.style.display = 'flex';
+}
+
+function clearError() {
+  document.getElementById('errorBox').style.display = 'none';
+}
+
+function togglePasswordVisibility(inputId, btn) {
+  const input = document.getElementById(inputId);
+  if (!input) return;
+  const isPwd = input.type === 'password';
+  input.type = isPwd ? 'text' : 'password';
+  btn.innerHTML = isPwd
+    ? '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>'
+    : '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>';
+}
+
+function startLockoutCountdown(seconds) {
+  clearInterval(lockoutTimerInterval);
+  let remaining = seconds;
+  const btn = document.getElementById('btnAdminLogin');
+  btn.disabled = true;
+
+  showError(`Too many failed attempts. Account temporarily locked. Try again in ${remaining}s.`);
+
+  lockoutTimerInterval = setInterval(() => {
+    remaining--;
+    if (remaining <= 0) {
+      clearInterval(lockoutTimerInterval);
+      btn.disabled = false;
+      clearError();
+    } else {
+      showError(`Too many failed attempts. Account temporarily locked. Try again in ${remaining}s.`);
+    }
+  }, 1000);
+}
+
+async function handleAdminLogin(event) {
+  event.preventDefault();
+  clearError();
+
+  const username = document.getElementById('loginUsername').value.trim();
+  const password = document.getElementById('loginPassword').value;
+  if (!username || !password) {
+    showError('Please enter both username and password.');
+    return;
+  }
+
+  const btn = document.getElementById('btnAdminLogin');
+  const spinner = document.getElementById('spinnerAdmin');
+  const btnText = document.getElementById('btnTextAdmin');
+
+  btn.disabled = true;
+  spinner.style.display = 'inline-block';
+  btnText.textContent = 'Verifying...';
+
+  try {
+    if (window.electronAPI && window.electronAPI.authLogin) {
+      const res = await window.electronAPI.authLogin({ username, password });
+      if (res && res.success) {
+        btnText.textContent = 'Authenticated! Loading...';
+      } else {
+        btn.disabled = false;
+        spinner.style.display = 'none';
+        btnText.textContent = '➔ Sign In';
+        if (res && res.lockoutSeconds) {
+          startLockoutCountdown(res.lockoutSeconds);
+        } else {
+          showError(res?.error || 'Invalid username or password');
+        }
+      }
+    } else {
+      showError('Authentication service unavailable.');
+      btn.disabled = false;
+      spinner.style.display = 'none';
+      btnText.textContent = '➔ Sign In';
+    }
+  } catch (err) {
+    btn.disabled = false;
+    spinner.style.display = 'none';
+    btnText.textContent = '➔ Sign In';
+    showError('Error connecting to authentication service.');
+  }
+}
+</script>
+</body>
+</html>

@@ -27,6 +27,7 @@
     },
     "files": [
       "main.js",
+      "auth.js",
       "src/**/*",
       "icon.ico"
     ]
