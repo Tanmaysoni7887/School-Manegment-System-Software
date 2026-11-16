@@ -16,19 +16,17 @@ PACKAGE FILE INVENTORY & SHA-256 CHECKSUMS
 --------------------------------------------------------------------------------
 
 1. [OFFICIAL PRODUCTION INSTALLER]
-   Relative Path:  Installer/SHIKSHA_School_Management_Setup.exe
-   File Size:      78,234,970 bytes (74.61 MB)
-   SHA-256 Hash:   F8E7021485752A4FE55C0CF9AD2412525352856FCFF035854B3AFD424D388A75
+   Relative Path:  Installer/Shiksha_School_Management_Setup.exe
+   File Size:      78,083,923 bytes (74.47 MB)
+   SHA-256 Hash:   BC7DB64D2CDB84F971F5F3978C1CA6F208A7B2C23EFCE5DB3723EC12DC9F7ED6
    Description:    Official Windows x64 setup wizard with Desktop shortcut,
                    Start Menu integration, transparent multi-resolution Shiksha icon
                    (16-256px), and clean uninstallation support.
-
-2. [LEGACY REFERENCE / BACKUP INSTALLER]
-   Relative Path:  Installer/Legacy_Backup/MD_Convent_SMS_Setup_v2.2.exe
-   File Size:      77,128,974 bytes (73.56 MB)
-   SHA-256 Hash:   46F67E1A62C3FEC834A9297ADE85B6B32E2C83C6F0BE5827F267206F136B882F
-   Description:    Verified pre-rebranding baseline installer preserved in Legacy_Backup.
    Updates in Build:
+     - Full Shiksha Rebranding: Clean application identity across all screens,
+       window titles, shortcut icons, and report footers.
+     - True Alpha Transparent Icon: 7-layer Windows ICO (16px to 256px) and high-res
+       32bpp ARGB PNG with smooth sub-pixel anti-aliasing (zero black halo).
      - Dashboard Quick Actions Redesign & Sizing: Comfortable vertical spacing,
        34px/31px button heights, 6px gaps, single plus sign on "Add New Student",
        and fully visible 3-row Academic Overview sub-card.
@@ -76,10 +74,10 @@ HOW TO VERIFY FILE INTEGRITY ON WINDOWS
 To verify the installer before installing, open Windows PowerShell in this folder
 and run:
 
-  Get-FileHash -Path "Installer\SHIKSHA_School_Management_Setup.exe" -Algorithm SHA256
+  Get-FileHash -Path "Installer\Shiksha_School_Management_Setup.exe" -Algorithm SHA256
 
 Compare the output hash to the official release hash:
-  F8E7021485752A4FE55C0CF9AD2412525352856FCFF035854B3AFD424D388A75
+  BC7DB64D2CDB84F971F5F3978C1CA6F208A7B2C23EFCE5DB3723EC12DC9F7ED6
 
 
 PRIVACY & SENSITIVE DATA DECLARATION

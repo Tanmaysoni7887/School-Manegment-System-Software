@@ -36,9 +36,7 @@ school operations, including:
 3. QUICK START (3 SIMPLE STEPS)
 --------------------------------------------------------------------------------
   STEP 1: Open the "Installer" folder.
-  STEP 2: Double-click "SHIKSHA_School_Management_Setup.exe".
-          (Note: Previous pre-rebrand release installer is safely archived in the
-          "Legacy_Backup" subfolder for reference).
+  STEP 2: Double-click "Shiksha_School_Management_Setup.exe".
   STEP 3: Follow the setup wizard (keep "Create Desktop Shortcut" checked)
           and click Finish.
 
