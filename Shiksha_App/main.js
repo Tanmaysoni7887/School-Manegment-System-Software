@@ -44,7 +44,7 @@ const authManager = createAuthManager({ userDataPath });
 let mainWindow;
 function createWindow() {
   mainWindow = new BrowserWindow({
-    width: 1280, height: 820, minWidth: 1024, minHeight: 680,
+    width: 1650, height: 900, minWidth: 1024, minHeight: 576,
     title: 'SHIKSHA – School Management Software',
     icon: path.join(__dirname, 'icon.ico'),
     webPreferences: {
@@ -53,7 +53,7 @@ function createWindow() {
       preload: path.join(__dirname, 'src', 'preload.js')
     },
     show: false,
-    backgroundColor: '#f4f6f9'
+    backgroundColor: '#f1edfe'
   });
   // Launch into separate dedicated login screen immediately
   mainWindow.loadFile(path.join(__dirname, 'src', 'login.html'));

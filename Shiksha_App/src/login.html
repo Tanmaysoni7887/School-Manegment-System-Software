@@ -19,9 +19,8 @@
   --purple-gradient: linear-gradient(135deg, #4c1d95 0%, #6d28d9 100%);
   --purple-gradient-hover: linear-gradient(135deg, #3b0764 0%, #581c87 100%);
   --purple-glow: rgba(109, 40, 217, 0.22);
-  --lavender-bg: #f1edfe;
   --card-bg: #ffffff;
-  --card-bdr: rgba(221, 214, 254, 0.8);
+  --card-bdr: rgba(221, 214, 254, 0.7);
   --txt-heading: #1e1b4b;
   --txt-body: #1f2937;
   --txt-muted: #6b7280;
@@ -39,35 +38,32 @@ html, body {
   margin: 0;
   padding: 0;
   overflow: hidden;
-  background-color: var(--lavender-bg);
-  background-image: url('assets/shiksha-login-bg.jpg');
-  background-size: cover;
-  background-position: left center;
+  background-color: #f1edfe;
+  background-image: url("assets/shiksha-login-bg.jpg");
+  background-size: 100% 100%;
+  background-position: center;
   background-repeat: no-repeat;
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
+  position: relative;
 }
 
 .login-viewport {
   width: 100%;
   height: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  padding-right: 9.5vw;
-  box-sizing: border-box;
+  position: relative;
 }
 
 .login-card {
-  width: 395px;
-  max-width: 420px;
+  position: absolute;
+  top: 50%;
+  left: 71%;
+  transform: translate(-50%, -50%);
+  width: 470px;
+  max-width: 90vw;
   background: var(--card-bg);
   border: 1px solid var(--card-bdr);
-  border-radius: 20px;
-  box-shadow: 0 16px 40px rgba(76, 29, 149, 0.12), 0 3px 12px rgba(0, 0, 0, 0.04);
-  padding: 32px 30px 28px;
-  position: relative;
+  border-radius: 24px;
+  box-shadow: 0 20px 50px rgba(60, 20, 120, 0.12), 0 4px 16px rgba(0, 0, 0, 0.04);
+  padding: 42px 38px 38px;
   box-sizing: border-box;
 }
 
@@ -76,13 +72,13 @@ html, body {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 12px;
-  margin-bottom: 18px;
+  gap: 14px;
+  margin-bottom: 22px;
 }
 
 .brand-emblem {
-  width: 46px;
-  height: 46px;
+  width: 60px;
+  height: 60px;
   object-fit: contain;
   flex-shrink: 0;
 }
@@ -95,52 +91,52 @@ html, body {
 }
 
 .brand-title {
-  font-size: 23px;
+  font-size: 29px;
   font-weight: 800;
   color: #3b0764;
-  letter-spacing: 0.5px;
+  letter-spacing: 0.6px;
   line-height: 1;
 }
 
 .brand-pill {
   background: #581c87;
   color: #ffffff;
-  font-size: 10px;
-  font-weight: 600;
-  padding: 2.5px 8.5px;
-  border-radius: 12px;
+  font-size: 11.5px;
+  font-weight: 700;
+  padding: 3.5px 12px;
+  border-radius: 14px;
   letter-spacing: 0.2px;
   line-height: 1.2;
 }
 
 .card-title {
-  font-size: 24px;
+  font-size: 30px;
   font-weight: 800;
   color: var(--txt-heading);
-  letter-spacing: -0.3px;
+  letter-spacing: -0.4px;
   text-align: center;
-  margin-bottom: 4px;
+  margin-bottom: 6px;
 }
 
 .card-subtitle {
-  font-size: 13px;
+  font-size: 14.5px;
   color: var(--txt-muted);
   font-weight: 500;
   text-align: center;
-  margin-bottom: 22px;
+  margin-bottom: 26px;
 }
 
 /* Feedback Alerts */
 .alert-box {
-  border-radius: 9px;
-  padding: 9px 12px;
-  font-size: 12.5px;
+  border-radius: 10px;
+  padding: 10px 14px;
+  font-size: 13px;
   font-weight: 500;
   line-height: 1.4;
-  margin-bottom: 16px;
+  margin-bottom: 18px;
   display: none;
   align-items: flex-start;
-  gap: 8px;
+  gap: 9px;
 }
 
 .alert-danger {
@@ -150,30 +146,30 @@ html, body {
 }
 
 .alert-icon {
-  width: 15px;
-  height: 15px;
+  width: 16px;
+  height: 16px;
   flex-shrink: 0;
-  margin-top: 1.5px;
+  margin-top: 2px;
 }
 
 /* Form Groups */
 .form-group {
-  margin-bottom: 16px;
+  margin-bottom: 20px;
 }
 
 .form-label {
   display: flex;
   align-items: center;
-  gap: 6px;
-  font-size: 12px;
+  gap: 7px;
+  font-size: 13.5px;
   font-weight: 700;
   color: #374151;
-  margin-bottom: 6px;
+  margin-bottom: 8px;
 }
 
 .label-icon {
-  width: 14px;
-  height: 14px;
+  width: 15px;
+  height: 15px;
   color: #6b7280;
 }
 
@@ -185,23 +181,23 @@ html, body {
 
 .input-icon {
   position: absolute;
-  left: 12px;
-  width: 16px;
-  height: 16px;
+  left: 14px;
+  width: 18px;
+  height: 18px;
   color: #7c3aed;
   pointer-events: none;
 }
 
 .form-input {
   width: 100%;
-  height: 42px;
-  padding: 0 40px 0 36px;
-  font-size: 14px;
+  height: 50px;
+  padding: 0 46px 0 42px;
+  font-size: 15.5px;
   font-weight: 500;
   color: var(--txt-heading);
   background: var(--input-bg);
   border: 1.5px solid var(--input-bdr);
-  border-radius: 9px;
+  border-radius: 12px;
   outline: none;
   transition: border-color 0.15s, box-shadow 0.15s, background-color 0.15s;
 }
@@ -214,12 +210,12 @@ html, body {
 .form-input:focus {
   background-color: #ffffff;
   border-color: var(--input-focus);
-  box-shadow: 0 0 0 3px var(--purple-glow);
+  box-shadow: 0 0 0 3.5px var(--purple-glow);
 }
 
 .toggle-pwd {
   position: absolute;
-  right: 10px;
+  right: 12px;
   background: none;
   border: none;
   padding: 6px;
@@ -236,29 +232,29 @@ html, body {
   color: var(--primary-purple);
 }
 
-/* Button */
+/* Action Button */
 .btn-primary {
   width: 100%;
-  height: 44px;
+  height: 52px;
   background: var(--purple-gradient);
   color: #ffffff;
   border: none;
-  border-radius: 9px;
-  font-size: 14.5px;
+  border-radius: 12px;
+  font-size: 16.5px;
   font-weight: 700;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 8px;
-  box-shadow: 0 4px 14px rgba(76, 29, 149, 0.28);
+  box-shadow: 0 6px 18px rgba(76, 29, 149, 0.3);
   transition: all 0.15s ease-in-out;
-  margin-top: 20px;
+  margin-top: 26px;
 }
 
 .btn-primary:hover:not(:disabled) {
   background: var(--purple-gradient-hover);
-  box-shadow: 0 6px 18px rgba(76, 29, 149, 0.38);
+  box-shadow: 0 8px 24px rgba(76, 29, 149, 0.4);
   transform: translateY(-1px);
 }
 
@@ -273,8 +269,8 @@ html, body {
 }
 
 .btn-spinner {
-  width: 15px;
-  height: 15px;
+  width: 16px;
+  height: 16px;
   border: 2px solid rgba(255, 255, 255, 0.35);
   border-top-color: #ffffff;
   border-radius: 50%;
@@ -286,14 +282,21 @@ html, body {
   to { transform: rotate(360deg); }
 }
 
-@media (max-width: 900px) {
-  body {
-    background-size: cover;
-    justify-content: center;
+@media (max-width: 1100px) {
+  .login-card {
+    left: auto;
+    right: 5vw;
+    transform: translateY(-50%);
+    width: min(450px, 90vw);
   }
-  .login-viewport {
-    justify-content: center;
-    padding-right: 0;
+}
+
+@media (max-width: 850px) {
+  .login-card {
+    left: 50%;
+    right: auto;
+    transform: translate(-50%, -50%);
+    width: min(440px, 92vw);
   }
 }
 </style>
@@ -303,7 +306,7 @@ html, body {
 <div class="login-viewport">
   <div class="login-card">
     
-    <!-- Header Brand with Emblem and Name -->
+    <!-- Header Brand with Laurel Emblem and Product Identity -->
     <div class="brand-header">
       <img src="assets/shiksha-emblem.png" alt="SHIKSHA Emblem" class="brand-emblem">
       <div class="brand-titles">
@@ -344,7 +347,7 @@ html, body {
           <svg class="input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
           <input type="password" id="loginPassword" class="form-input" placeholder="••••••••••••" autocomplete="current-password" required>
           <button type="button" class="toggle-pwd" onclick="togglePasswordVisibility('loginPassword', this)" title="Show/Hide Password">
-            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
           </button>
         </div>
       </div>
@@ -378,8 +381,8 @@ function togglePasswordVisibility(inputId, btn) {
   const isPwd = input.type === 'password';
   input.type = isPwd ? 'text' : 'password';
   btn.innerHTML = isPwd
-    ? '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>'
-    : '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>';
+    ? '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>'
+    : '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>';
 }
 
 function startLockoutCountdown(seconds) {
