@@ -1,4 +1,5 @@
 const { app, BrowserWindow, ipcMain, dialog, shell } = require('electron');
+app.name = 'SHIKSHA – School Management Software';
 const path = require('path');
 const fs = require('fs');
 const os = require('os');
@@ -40,7 +41,7 @@ let mainWindow;
 function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1280, height: 820, minWidth: 1024, minHeight: 680,
-    title: 'School Management System',
+    title: 'SHIKSHA – School Management Software',
     icon: path.join(__dirname, 'icon.ico'),
     webPreferences: {
       nodeIntegration: false,
@@ -180,7 +181,7 @@ function getAvailableBackupsWithValidation() {
             if (isValidDatabasePayload(parsed)) {
               isValid = true;
               studentCount = Array.isArray(parsed.students) ? parsed.students.length : 0;
-              schoolName = (parsed.settings && parsed.settings.schoolName) || 'School Management System';
+              schoolName = (parsed.settings && parsed.settings.schoolName) || 'SHIKSHA – School Management Software';
             }
           } catch (_) {
             isValid = false;

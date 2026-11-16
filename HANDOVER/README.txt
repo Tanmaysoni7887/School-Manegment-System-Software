@@ -1,12 +1,12 @@
 ================================================================================
-MD CONVENT PUBLIC SCHOOL — SCHOOL MANAGEMENT SYSTEM (SMS)
+SHIKSHA – SCHOOL MANAGEMENT SOFTWARE
 Official Standalone Windows Desktop Application | Version 2.2.0
 ================================================================================
 
 1. OVERVIEW
 --------------------------------------------------------------------------------
 This handover package contains the official, verified Windows installer for
-MD Convent SMS.
+SHIKSHA – School Management Software.
 
 The application is completely offline, self-contained, and engineered for daily
 school operations, including:
@@ -36,11 +36,13 @@ school operations, including:
 3. QUICK START (3 SIMPLE STEPS)
 --------------------------------------------------------------------------------
   STEP 1: Open the "Installer" folder.
-  STEP 2: Double-click "MD_Convent_SMS_Setup_v2.2.exe".
+  STEP 2: Double-click "SHIKSHA_School_Management_Setup.exe".
+          (Note: Previous release installer MD_Convent_SMS_Setup_v2.2.exe is also
+          preserved in this folder as a verified fallback backup).
   STEP 3: Follow the setup wizard (keep "Create Desktop Shortcut" checked)
           and click Finish.
 
-The app will launch immediately and place a shortcut named "MD Convent SMS"
+The app will launch immediately and place a shortcut named "SHIKSHA"
 on your Windows Desktop and Start Menu.
 
 

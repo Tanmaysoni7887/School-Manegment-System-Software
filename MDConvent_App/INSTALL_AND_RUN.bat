@@ -1,10 +1,9 @@
 @echo off
-title MD Convent SMS - Setup
+title SHIKSHA - Setup
 color 0C
 echo.
 echo  ============================================
-echo   MD Convent Public School - SMS Setup
-echo   Amanpur (Kasganj)
+echo   SHIKSHA - School Management Software Setup
 echo  ============================================
 echo.
 
@@ -38,6 +37,6 @@ if %errorlevel% neq 0 (
 
 echo.
 echo  [OK] Installation complete!
-echo  Starting MD Convent SMS...
+echo  Starting SHIKSHA...
 echo.
 npm start

@@ -1,4 +1,4 @@
 @echo off
-title MD Convent SMS
+title SHIKSHA - School Management Software
 cd /d "%~dp0"
 npm start

@@ -1,5 +1,5 @@
-# MD Convent Public School - School Management System
-## Amanpur (Kasganj) | CBSE Pattern
+# SHIKSHA - School Management Software
+## Complete Offline Desktop Application for Windows
 
 ---
 
@@ -18,12 +18,13 @@
 
 ### STEP 3 - Agle baar se
 - Sirf `START_APP.bat` pe double click karo
+- Ya Desktop shortcut "SHIKSHA - School Management Software" pe double click karo
 - App seedha khul jayegi
 
 ---
 
 ## DATA KAHAAN SAVE HOTA HAI?
-- Tera data yahan save hota hai:
+- Data yahan save hota hai:
   Documents > MDConvent_SMS > school_data.json
 - App band karo toh bhi data safe rahega
 - App kholo toh sab wapas milega
@@ -31,22 +32,21 @@
 ---
 
 ## BACKUP LENA
-- App ke andar > Reports > "Backup All Data"
-- Ek .json file Desktop pe save hogi
+- App ke andar > Data & Backup > "Create Full Backup"
+- Ek .json file Desktop/Downloads pe save hogi
 - Ye file safe rakh - isme sara data hoga
 
 ---
 
 ## FEATURES:
-✓ Student Management (Add/Edit/Delete)
-✓ Classes NC to 12 with Subjects
-✓ Marks Entry (UT1, Half Yearly, UT2, Annual)
-✓ Monthly Attendance Grid
-✓ Fee Collection with Receipts
-✓ Report Cards (Printable)
-✓ CSV Export
-✓ Data Backup & Restore
-✓ All data saved automatically
+✓ Student Management (Add/Edit/Delete, NC to 12)
+✓ Fee Collection with Multi-Month Selection & Instant Receipts
+✓ Transport Fees & Bus Stop Routing
+✓ Attendance Registers & Monthly Summaries
+✓ Marks Entry & Report Cards (Printable)
+✓ Comprehensive Financial & Audit Reports
+✓ Built-in Automatic Data Persistence & Backups
+✓ 100% Offline (No Internet Required)
 
 ---
 
@@ -62,8 +62,8 @@
 - App will open automatically
 
 ### Step 3 - From next time
-- Double-click `START_APP.bat`
+- Double-click `START_APP.bat` or Desktop shortcut
 
 ---
-Principal: Divyansh Parashar | Ph: 6397049941
-College Road, Infront of Devi Mata Mandir, Amanpur (Kasganj)
+Developer & Support: Tanmay Soni | Ph: 9528371785
+Official Software: SHIKSHA - School Management Software

@@ -1,4 +1,4 @@
-# MD Convent SMS — Large Demo Dataset & Test Kit
+# SHIKSHA – Large Demo Dataset & Test Kit
 
 Standalone testing suite for generating and validating large, synthetic school management databases for `MDConvent_App`.
 

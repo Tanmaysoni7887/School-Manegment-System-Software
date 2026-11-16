@@ -1,11 +1,11 @@
 ================================================================================
-MD CONVENT PUBLIC SCHOOL — SCHOOL MANAGEMENT SYSTEM (SMS)
+SHIKSHA – SCHOOL MANAGEMENT SOFTWARE
 Data Protection, Backup & Disaster Recovery Guide
 ================================================================================
 
 1. DATA STORAGE OVERVIEW
 --------------------------------------------------------------------------------
-Because MD Convent SMS works completely offline without depending on internet
+Because SHIKSHA works completely offline without depending on internet
 cloud servers, your school records are stored locally on your hard drive:
 
   LIVE DATABASE FILE:

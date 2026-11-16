@@ -1,18 +1,18 @@
-; Inno Setup Script for MD Convent SMS
+; Inno Setup Script for SHIKSHA – School Management Software
 ; Generates standalone Windows .exe installer with Desktop and Start Menu shortcuts
 ; Safe for updates (preserves %USERPROFILE%\Documents\MDConvent_SMS)
 
 [Setup]
 AppId={{5E97D4B6-61D3-4702-8DF6-1A25B4C723D4}
-AppName=MD Convent SMS
+AppName=SHIKSHA – School Management Software
 AppVersion=2.2.0
 AppPublisher=Tanmay Soni
 AppPublisherURL=tel:9528371785
-DefaultDirName={autopf}\MD Convent SMS
-DefaultGroupName=MD Convent SMS
+DefaultDirName={autopf}\SHIKSHA
+DefaultGroupName=SHIKSHA
 AllowNoIcons=yes
 OutputDir=dist-installer
-OutputBaseFilename=MD_Convent_SMS_Setup_v2.2
+OutputBaseFilename=SHIKSHA_School_Management_Setup
 SetupIconFile=icon.ico
 Compression=lzma2/ultra64
 SolidCompression=yes
@@ -25,16 +25,20 @@ DisableDirPage=no
 Name: "english"; MessagesFile: "compiler:Default.isl"
 
 [Tasks]
-Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
+Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"
 
 [Files]
-Source: "dist\MD Convent SMS-win32-x64\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "dist\SHIKSHA-win32-x64\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "icon.ico"; DestDir: "{app}"; Flags: ignoreversion
 
+[InstallDelete]
+Type: files; Name: "{autodesktop}\MD Convent SMS.lnk"
+Type: files; Name: "{group}\MD Convent SMS.lnk"
+
 [Icons]
-Name: "{group}\MD Convent SMS"; Filename: "{app}\MD Convent SMS.exe"; IconFilename: "{app}\icon.ico"
-Name: "{group}\{cm:UninstallProgram,MD Convent SMS}"; Filename: "{uninstallexe}"
-Name: "{autodesktop}\MD Convent SMS"; Filename: "{app}\MD Convent SMS.exe"; IconFilename: "{app}\icon.ico"; Tasks: desktopicon
+Name: "{group}\SHIKSHA"; Filename: "{app}\SHIKSHA.exe"; IconFilename: "{app}\icon.ico"
+Name: "{group}\{cm:UninstallProgram,SHIKSHA}"; Filename: "{uninstallexe}"
+Name: "{autodesktop}\SHIKSHA"; Filename: "{app}\SHIKSHA.exe"; IconFilename: "{app}\icon.ico"; Tasks: desktopicon
 
 [Run]
-Filename: "{app}\MD Convent SMS.exe"; Description: "{cm:LaunchProgram,MD Convent SMS}"; Flags: nowait postinstall skipifsilent
+Filename: "{app}\SHIKSHA.exe"; Description: "{cm:LaunchProgram,SHIKSHA}"; Flags: nowait postinstall skipifsilent

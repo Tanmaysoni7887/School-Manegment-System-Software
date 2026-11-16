@@ -1529,9 +1529,11 @@ function applyBranding() {
   const sPhone = s.schoolPhone || '';
   const curSess = s.currentSession || '2026–27';
 
-  document.title = sName + ' - SMS';
+  const appBrand = 'SHIKSHA – School Management Software';
+  const fullTitle = sName ? `${sName} — SHIKSHA – School Management Software` : appBrand;
+  document.title = fullTitle;
   const hTitle = document.getElementById('htmlAppTitle');
-  if (hTitle) hTitle.textContent = sName + ' - SMS';
+  if (hTitle) hTitle.textContent = fullTitle;
 
   const sbName = document.getElementById('sbSchoolName');
   if (sbName) sbName.textContent = sName;
@@ -3058,6 +3060,7 @@ function printCollected() {
       </table>
     </div>
     <div class="footer">
+      <span>Student Fee Ledger | SHIKSHA – School Management Software</span>
       <span>Authorized Signatory: <strong>${escapeHtml(s.principalName || 'Principal')}</strong></span>
       <span>Printed on: ${new Date().toLocaleString('en-IN')}</span>
     </div>
@@ -3429,6 +3432,7 @@ function printPendingList() {
       ${body.innerHTML}
     </div>
     <div class="footer">
+      <span>Pending Fee Defaulters List | SHIKSHA – School Management Software</span>
       <span>Authorized Signatory: <strong>${escapeHtml(s.principalName || 'Principal')}</strong></span>
       <span>Printed on: ${new Date().toLocaleString('en-IN')}</span>
     </div>
@@ -12027,7 +12031,7 @@ function printClassOutstandingReport() {
   <body>
     <div class="hdr">
       <h1>${escapeHtml(s.schoolName || 'MD Convent Public School')}</h1>
-      <p>${escapeHtml(s.schoolAddress || 'Amanpur, Kasganj Road, Uttar Pradesh')} | Academic Session: ${curSess}</p>
+      <p>${escapeHtml((s.schoolAddr || s.schoolAddress || 'Amanpur, Kasganj Road, Uttar Pradesh'))} | Academic Session: ${curSess}</p>
       <h2 style="font-size:15px;margin:6px 0 0;color:#1e1b4b">Class Outstanding Dues & Defaulter Report: ${clL(cls)}${sec ? ' (Section ' + sec + ')' : ''}</h2>
     </div>
 
@@ -12063,7 +12067,7 @@ function printClassOutstandingReport() {
     </table>
 
     <div class="footer">
-      <div>Class-wise Fee Accounts Summary | MD Convent SMS</div>
+      <div>Class-wise Fee Accounts Summary | SHIKSHA – School Management Software</div>
       <div>Printed on: ${new Date().toLocaleString('en-IN')}</div>
     </div>
   </body></html>`;
@@ -12343,7 +12347,7 @@ function printMonthlyCollectionReport() {
         <div class="content-wrap">
           <div class="hdr">
             <h1>${escapeHtml(s.schoolName || 'MD Convent Public School')}</h1>
-            <p>${escapeHtml(s.schoolAddress || 'Amanpur, Kasganj Road, Uttar Pradesh')} | Academic Session: ${curSess}</p>
+            <p>${escapeHtml((s.schoolAddr || s.schoolAddress || 'Amanpur, Kasganj Road, Uttar Pradesh'))} | Academic Session: ${curSess}</p>
             <h2 style="font-size:15px;margin:6px 0 0;color:#1e293b">Monthly Fee Collection Report</h2>
           </div>
           <table>
@@ -12371,7 +12375,7 @@ function printMonthlyCollectionReport() {
           <div class="sig-line">Principal</div>
         </div>
         <div class="footer">
-          <div>Monthly Accounts Summary | MD Convent SMS</div>
+          <div>Monthly Accounts Summary | SHIKSHA – School Management Software</div>
           <div>Printed on: ${new Date().toLocaleString('en-IN')}</div>
         </div>
       </div>
@@ -12547,7 +12551,7 @@ function printClassWiseCollectionReport() {
         <div class="content-wrap">
           <div class="hdr">
             <h1>${escapeHtml(s.schoolName || 'MD Convent Public School')}</h1>
-            <p>${escapeHtml(s.schoolAddress || 'Amanpur, Kasganj Road, Uttar Pradesh')} | Academic Session: ${curSess}</p>
+            <p>${escapeHtml((s.schoolAddr || s.schoolAddress || 'Amanpur, Kasganj Road, Uttar Pradesh'))} | Academic Session: ${curSess}</p>
             <h2 style="font-size:15px;margin:6px 0 0;color:#1e293b">Class-wise Collection & Dues Report</h2>
           </div>
           <table>
@@ -12575,7 +12579,7 @@ function printClassWiseCollectionReport() {
           <div class="sig-line">Principal</div>
         </div>
         <div class="footer">
-          <div>Class-wise Fee Accounts Summary | MD Convent SMS</div>
+          <div>Class-wise Fee Accounts Summary | SHIKSHA – School Management Software</div>
           <div>Printed on: ${new Date().toLocaleString('en-IN')}</div>
         </div>
       </div>
@@ -12731,7 +12735,7 @@ function printFeeConcessionReport() {
     <body>
       <div class="hdr">
         <h1>${escapeHtml(s.schoolName || 'MD Convent Public School')}</h1>
-        <p>${escapeHtml(s.schoolAddress || 'Amanpur, Kasganj Road, Uttar Pradesh')} | Academic Session: ${curSess}</p>
+        <p>${escapeHtml((s.schoolAddr || s.schoolAddress || 'Amanpur, Kasganj Road, Uttar Pradesh'))} | Academic Session: ${curSess}</p>
         <h2 style="font-size:15px;margin:6px 0 0;color:#1e293b">Fee Concession & Discount Audit Report</h2>
       </div>
       <table>
@@ -12750,7 +12754,7 @@ function printFeeConcessionReport() {
         </tfoot>
       </table>
       <div class="footer">
-        <div>Fee Concessions & Waivers Register | MD Convent SMS</div>
+        <div>Fee Concessions & Waivers Register | SHIKSHA – School Management Software</div>
         <div>Printed on: ${new Date().toLocaleString('en-IN')}</div>
       </div>
     </body></html>
@@ -12947,7 +12951,7 @@ function printIncomeSummaryReport() {
         <div class="content-wrap">
           <div class="hdr">
             <h1>${escapeHtml(s.schoolName || 'MD Convent Public School')}</h1>
-            <p>${escapeHtml(s.schoolAddress || 'Amanpur, Kasganj Road, Uttar Pradesh')} | Academic Session: ${curSess}</p>
+            <p>${escapeHtml((s.schoolAddr || s.schoolAddress || 'Amanpur, Kasganj Road, Uttar Pradesh'))} | Academic Session: ${curSess}</p>
             <h2 style="font-size:15px;margin:6px 0 0;color:#1e293b">Annual Financial & Income Audit Statement</h2>
           </div>
 
@@ -12976,6 +12980,10 @@ function printIncomeSummaryReport() {
           <div class="sig-line">Prepared By (Accounts)</div>
           <div class="sig-line">Checked & Verified</div>
           <div class="sig-line">Principal Signature</div>
+        </div>
+        <div class="footer">
+          <div>Annual Institutional Revenue Statement | SHIKSHA – School Management Software</div>
+          <div>Printed on: ${new Date().toLocaleString('en-IN')}</div>
         </div>
       </div>
     </body></html>
@@ -13195,7 +13203,7 @@ function printPaymentModeSummary() {
       <div class="content-wrap">
         <div class="hdr">
           <h1>${escapeHtml(s.schoolName || 'MD Convent Public School')}</h1>
-          <p>${escapeHtml(s.schoolAddress || 'Amanpur, Kasganj Road, Uttar Pradesh')} | Academic Session: ${curSess}</p>
+          <p>${escapeHtml((s.schoolAddr || s.schoolAddress || 'Amanpur, Kasganj Road, Uttar Pradesh'))} | Academic Session: ${curSess}</p>
           <h2 style="font-size:15px;margin:8px 0 0;color:#1e293b">Payment Mode Distribution & Audit Summary</h2>
         </div>
         <div class="kpis">
@@ -13233,6 +13241,10 @@ function printPaymentModeSummary() {
         <div class="sig-line">Prepared By (Cashier)</div>
         <div class="sig-line">Verified By (Accountant)</div>
         <div class="sig-line">Principal Signature</div>
+      </div>
+      <div class="footer">
+        <div>Payment Mode Distribution & Audit Summary | SHIKSHA – School Management Software</div>
+        <div>Printed on: ${new Date().toLocaleString('en-IN')}</div>
       </div>
     </div>
   </body></html>`;
@@ -13322,7 +13334,7 @@ function getFinancialReportPrintData(curSess) {
 
   return {
     sName: s.schoolName || 'MD Convent Public School',
-    sAddr: s.schoolAddress || 'Amanpur, Kasganj Road, Uttar Pradesh',
+    sAddr: (s.schoolAddr || s.schoolAddress || 'Amanpur, Kasganj Road, Uttar Pradesh'),
     pDate: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
     collected, pending, expected, discount, rate,
     txCount: sessionTx.length,
@@ -13377,10 +13389,14 @@ function printFinancialReportSummary() {
       <div class="sec-title" style="margin-top:10px">4. Recent Collections Audit Register (Latest 8 Receipts)</div>
       <table><thead><tr><th style="width:25px;text-align:center">#</th><th>Receipt No.</th><th style="text-align:center">Date</th><th>Student Name</th><th>Class</th><th style="text-align:center">Mode</th><th style="text-align:right">Amount (₹)</th></tr></thead><tbody>${d.recRows}</tbody></table>
       <div style="border:1px solid #e2e8f0;border-radius:6px;padding:8px 12px;background:#fdfdff;font-size:9.5px;line-height:1.5;color:#334155;margin-top:8px;page-break-inside:avoid">
-        <strong>Official Executive Financial Declaration:</strong> This report reflects verified accounting ledgers for Academic Session ${curSess} at MD Convent Public School. Verified collections stand at <strong>₹${d.collected.toLocaleString('en-IN')}</strong> with an institutional realization recovery rate of <strong>${d.rate}%</strong>.
+        <strong>Official Executive Financial Declaration:</strong> This report reflects verified accounting ledgers for Academic Session ${curSess} at ${escapeHtml(d.sName)}. Verified collections stand at <strong>₹${d.collected.toLocaleString('en-IN')}</strong> with an institutional realization recovery rate of <strong>${d.rate}%</strong>.
       </div>
     </div>
     <div class="sig"><div class="sig-line">Prepared By (Accountant)</div><div class="sig-line">Checked & Verified By</div><div class="sig-line">Principal Signature</div></div>
+    <div class="footer" style="margin-top:10px;display:flex;justify-content:space-between;font-size:9.5px;color:#64748b;border-top:1px solid #e2e8f0;padding-top:6px">
+      <div>Executive Financial Summary | SHIKSHA – School Management Software</div>
+      <div>Printed on: ${d.pDate}</div>
+    </div>
     </div></body></html>`;
 
   if (isEl && window.electronAPI && window.electronAPI.printContent) {
@@ -13461,7 +13477,7 @@ async function downloadMasterLedgerPDF() {
       <div class="content-wrap">
         <div class="hdr">
           <h1>${escapeHtml(s.schoolName || 'MD Convent Public School')}</h1>
-          <p>${escapeHtml(s.schoolAddress || 'Amanpur, Kasganj Road, Uttar Pradesh')} | Academic Session: ${curSess}</p>
+          <p>${escapeHtml((s.schoolAddr || s.schoolAddress || 'Amanpur, Kasganj Road, Uttar Pradesh'))} | Academic Session: ${curSess}</p>
           <h2 style="font-size:14px;margin:4px 0 0;color:#1e1b4b">MASTER FEE COLLECTION & AUDIT LEDGER</h2>
         </div>
 
@@ -13501,7 +13517,7 @@ async function downloadMasterLedgerPDF() {
       </div>
 
       <div class="footer">
-        <div>Master Fee Accounts Register | Official School Document</div>
+        <div>Master Fee Accounts Register | SHIKSHA – School Management Software</div>
         <div>Authorized Signatory: <strong>${escapeHtml(s.principalName || 'Principal')}</strong></div>
         <div>Generated on: ${new Date().toLocaleString('en-IN')}</div>
       </div>
@@ -13927,7 +13943,7 @@ function printCustomReport() {
         <div class="content-wrap">
           <div class="hdr">
             <h1>${escapeHtml(s.schoolName || 'MD Convent Public School')}</h1>
-            <p>${escapeHtml(s.schoolAddress || 'Amanpur, Kasganj Road, Uttar Pradesh')} | Academic Session: ${targetSession}</p>
+            <p>${escapeHtml((s.schoolAddr || s.schoolAddress || 'Amanpur, Kasganj Road, Uttar Pradesh'))} | Academic Session: ${targetSession}</p>
             <h2 style="font-size:15px;margin:6px 0 0;color:#1e293b">${title}</h2>
           </div>
           <table>
@@ -13937,8 +13953,8 @@ function printCustomReport() {
           </table>
         </div>
         <div class="footer">
-          <div>Custom Accounts Query | Authorized Signatory: <strong>${escapeHtml(s.principalName || 'Principal')}</strong></div>
-          <div>Printed on: ${new Date().toLocaleString('en-IN')}</div>
+          <div>Custom Accounts Query | SHIKSHA – School Management Software</div>
+          <div>Authorized Signatory: <strong>${escapeHtml(s.principalName || 'Principal')}</strong> | Printed on: ${new Date().toLocaleString('en-IN')}</div>
         </div>
       </div>
     </body></html>
@@ -14230,7 +14246,7 @@ function printDailyCollectionReport() {
       <div class="content-wrap">
         <div class="hdr">
           <h1>${escapeHtml(s.schoolName || 'MD Convent Public School')}</h1>
-          <p>${escapeHtml(s.schoolAddress || 'Amanpur, Kasganj Road, Uttar Pradesh')} | Academic Session: ${curSess}</p>
+          <p>${escapeHtml((s.schoolAddr || s.schoolAddress || 'Amanpur, Kasganj Road, Uttar Pradesh'))} | Academic Session: ${curSess}</p>
           <h2 style="font-size:15px;margin:6px 0 0;color:#1e1b4b">DAILY FEE COLLECTION & AUDIT REPORT</h2>
           <div style="font-size:11px;color:#64748B;margin-top:3px">${rangeLabel}</div>
         </div>
@@ -14276,7 +14292,7 @@ function printDailyCollectionReport() {
       </div>
 
       <div class="footer">
-        <div>Daily Fee Audit Register | MD Convent SMS</div>
+        <div>Daily Fee Audit Register | SHIKSHA – School Management Software</div>
         <div>Printed on: ${new Date().toLocaleString('en-IN')}</div>
       </div>
     </div>

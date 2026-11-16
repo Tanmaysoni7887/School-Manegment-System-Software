@@ -1,13 +1,13 @@
-# MD Convent School Management System (SMS)
+# SHIKSHA – School Management Software
 ### Offline Desktop Application for Windows (Electron + JavaScript)
 
 [![Release](https://img.shields.io/badge/Release-v2.2.0-blue.svg)](https://github.com/Tanmaysoni7887/School-Manegment-System-Software/releases/tag/v2.2.0)
-[![Download Installer](https://img.shields.io/badge/Download-Windows%20Setup%20(73.6%20MB)-green.svg)](https://github.com/Tanmaysoni7887/School-Manegment-System-Software/releases/download/v2.2.0/MD_Convent_SMS_Setup_v2.2.exe)
+[![Download Installer](https://img.shields.io/badge/Download-Windows%20Setup-green.svg)](https://github.com/Tanmaysoni7887/School-Manegment-System-Software/releases/download/v2.2.0/SHIKSHA_School_Management_Setup.exe)
 
-> 📥 **[Download Latest Windows Installer (`MD_Convent_SMS_Setup_v2.2.exe`)](https://github.com/Tanmaysoni7887/School-Manegment-System-Software/releases/download/v2.2.0/MD_Convent_SMS_Setup_v2.2.exe)**  
+> 📥 **[Download Latest Windows Installer (`SHIKSHA_School_Management_Setup.exe`)](https://github.com/Tanmaysoni7887/School-Manegment-System-Software/releases/download/v2.2.0/SHIKSHA_School_Management_Setup.exe)**  
 > **Direct Release Page**: [https://github.com/Tanmaysoni7887/School-Manegment-System-Software/releases/tag/v2.2.0](https://github.com/Tanmaysoni7887/School-Manegment-System-Software/releases/tag/v2.2.0)
 
-This repository contains the complete offline school management system developed for **MD Convent Public School, Amanpur (Kasganj)**.
+**SHIKSHA** is a comprehensive, production-grade, 100% offline School Management System built for Windows desktop environments. Engineered with Electron and local atomic JSON persistence, SHIKSHA delivers instant, zero-latency administration for student admissions, class fee ledgers, transport routing, multi-session academic promotions, marks entry, and printable bilingual financial receipts.
 
 ---
 
@@ -15,9 +15,10 @@ This repository contains the complete offline school management system developed
 
 ```
 MDConvent_FINAL/
-├── HANDOVER/                               # Client Distribution & Handover Package
+├── HANDOVER/                               # Distribution & Client Handover Package
 │   ├── Installer/
-│   │   └── MD_Convent_SMS_Setup_v2.2.exe   # Standalone Windows x64 Installer (Inno Setup)
+│   │   ├── SHIKSHA_School_Management_Setup.exe # Official Standalone Windows Installer
+│   │   └── MD_Convent_SMS_Setup_v2.2.exe   # Preserved Production Baseline Backup
 │   ├── README.txt                          # System overview, requirements & quick start
 │   ├── SETUP_GUIDE.txt                     # First-run setup lifecycle & walkthrough
 │   ├── DATA_BACKUP_GUIDE.txt               # Machine migration & safety backup recovery
@@ -28,7 +29,7 @@ MDConvent_FINAL/
 │   ├── src/
 │   │   ├── app.js                          # UI controllers, fee logic & transport routing
 │   │   ├── index.html                      # Single-page application markup & styling
-│   │   ├── logo.png                        # School logo brand asset
+│   │   ├── logo.png                        # Application branding logo asset
 │   │   └── preload.js                      # Context-isolated secure IPC bridge
 │   ├── dist/                               # Packaged application binaries for Inno Setup
 │   ├── dist-installer/                     # Master compiled installer executable
@@ -58,5 +59,5 @@ npm start
 
 To install the application on a school computer:
 1. Navigate to `HANDOVER/Installer/`
-2. Run `MD_Convent_SMS_Setup_v2.2.exe`
+2. Run `SHIKSHA_School_Management_Setup.exe`
 3. Follow the instructions in `HANDOVER/SETUP_GUIDE.txt`

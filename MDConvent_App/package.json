@@ -1,18 +1,19 @@
 {
-  "name": "mdconvent-sms",
+  "name": "shiksha-sms",
   "version": "2.2.0",
-  "description": "MD Convent Public School - School Management System",
+  "productName": "SHIKSHA – School Management Software",
+  "description": "SHIKSHA – School Management Software",
   "main": "main.js",
   "scripts": {
     "start": "electron .",
-    "package": "electron-packager . \"MD Convent SMS\" --platform=win32 --arch=x64 --out=dist --icon=icon.ico --overwrite --asar --ignore=\"dist-installer|test\"",
+    "package": "electron-packager . \"SHIKSHA\" --platform=win32 --arch=x64 --out=dist --icon=icon.ico --overwrite --asar --ignore=\"dist-installer|test|installer\\.iss|\\.bat$|\\.vbs$|README\\.txt|\\.gitignore\"",
     "build:installer": "innosetup-compiler installer.iss",
     "dist": "npm run package && npm run build:installer",
     "build": "electron-builder --win --x64"
   },
   "build": {
-    "appId": "com.mdconvent.sms",
-    "productName": "MD Convent SMS",
+    "appId": "com.shiksha.sms",
+    "productName": "SHIKSHA – School Management Software",
     "win": {
       "target": "nsis",
       "icon": "icon.ico"
@@ -22,7 +23,7 @@
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "shortcutName": "MD Convent SMS"
+      "shortcutName": "SHIKSHA – School Management Software"
     },
     "files": [
       "main.js",

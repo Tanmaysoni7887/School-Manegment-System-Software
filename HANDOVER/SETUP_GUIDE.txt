@@ -1,20 +1,20 @@
 ================================================================================
-MD CONVENT PUBLIC SCHOOL — SCHOOL MANAGEMENT SYSTEM (SMS)
+SHIKSHA – SCHOOL MANAGEMENT SOFTWARE
 Installation & First-Time Setup Guide
 ================================================================================
 
 1. INSTALLATION ON A WINDOWS PC
 --------------------------------------------------------------------------------
-1. Connect the USB drive or open the "MDConvent_Handover" folder on your PC.
+1. Connect the USB drive or open the "Handover" folder on your PC.
 2. Open the "Installer" subfolder.
-3. Double-click "MD_Convent_SMS_Setup_v2.2.exe".
+3. Double-click "SHIKSHA_School_Management_Setup.exe".
 4. The Inno Setup wizard will start:
    - Installation Location: By default, installs to:
-     C:\Program Files\MD Convent SMS
+     C:\Program Files\SHIKSHA
      (Or user local directory if running without administrator rights).
    - Desktop Shortcut: Check "Create a desktop icon".
 5. Click "Install". Installation completes in approximately 10 to 15 seconds.
-6. Check "Launch MD Convent SMS" and click "Finish".
+6. Check "Launch SHIKSHA" and click "Finish".
 
 
 2. HOW THE DATABASE INITIALIZES (FIRST RUN)
