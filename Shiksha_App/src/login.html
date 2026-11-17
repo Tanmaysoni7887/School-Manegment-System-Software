@@ -444,6 +444,11 @@ function attachInputListeners() {
         this.focus();
       }
     });
+    el.addEventListener('click', function() {
+      if (!this.disabled && !this.readOnly) {
+        this.focus();
+      }
+    });
   });
 }
 
@@ -459,7 +464,16 @@ window.addEventListener('pageshow', () => {
 });
 
 window.addEventListener('focus', () => {
-  resetLoginForm();
+  const uInput = document.getElementById('loginUsername');
+  const pInput = document.getElementById('loginPassword');
+  if (uInput) {
+    uInput.disabled = false;
+    uInput.readOnly = false;
+  }
+  if (pInput) {
+    pInput.disabled = false;
+    pInput.readOnly = false;
+  }
 });
 
 // Click delegation on input-container to guarantee input focus registration

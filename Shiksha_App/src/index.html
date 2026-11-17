@@ -6682,6 +6682,19 @@ input:checked+.slider:before{transform:translateX(18px)}
   </div>
 </div>
 
+<!-- Logout Confirmation Modal (Reliable HTML Modal replacing native confirm) -->
+<div id="logoutConfirmOverlay" style="display:none;position:fixed;top:0;left:0;width:100vw;height:100vh;background:rgba(15, 10, 30, 0.65);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);z-index:999999;align-items:center;justify-content:center;">
+  <div style="width:390px;max-width:92vw;background:#ffffff;border-radius:18px;box-shadow:0 24px 60px rgba(0,0,0,0.35);padding:30px 28px;box-sizing:border-box;text-align:center;">
+    <div style="width:52px;height:52px;border-radius:50%;background:rgba(220,38,38,0.1);color:#dc2626;display:flex;align-items:center;justify-content:center;margin:0 auto 16px;font-size:24px;">⏻</div>
+    <h3 style="margin:0 0 8px 0;font-size:20px;font-weight:800;color:#1e1b4b;">Sign Out</h3>
+    <p style="margin:0 0 24px 0;font-size:14px;color:#6b7280;line-height:1.45;">Are you sure you want to sign out of SHIKSHA?</p>
+    <div style="display:flex;gap:12px;justify-content:center;">
+      <button type="button" onclick="cancelAppLogout()" style="flex:1;height:42px;background:#f3f4f6;color:#374151;border:1px solid #d1d5db;border-radius:10px;font-size:14px;font-weight:600;cursor:pointer;transition:all 0.15s;">Cancel</button>
+      <button type="button" onclick="confirmAppLogout()" id="btnConfirmSignOut" style="flex:1;height:42px;background:linear-gradient(135deg, #b91c1c 0%, #dc2626 100%);color:#ffffff;border:none;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;box-shadow:0 4px 12px rgba(220,38,38,0.3);transition:all 0.15s;">Sign Out</button>
+    </div>
+  </div>
+</div>
+
 <div class="tw2" id="tw2"></div>
 
 <script src="app.js"></script>

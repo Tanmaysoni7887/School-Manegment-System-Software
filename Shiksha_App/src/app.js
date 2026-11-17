@@ -17736,23 +17736,46 @@ async function handleFirstLoginPasswordChange(event) {
   }
 }
 
-async function handleAppLogout() {
-  if (confirm('Are you sure you want to sign out?')) {
-    // Allow Windows message queue 60ms to tear down the modal dialog and restore HWND state
-    setTimeout(async () => {
-      if (window.electronAPI && window.electronAPI.authLogout) {
-        await window.electronAPI.authLogout();
-      }
-    }, 60);
+function handleAppLogout() {
+  const overlay = document.getElementById('logoutConfirmOverlay');
+  if (overlay) {
+    overlay.style.display = 'flex';
+  } else {
+    confirmAppLogout();
   }
 }
 
-// Trap Escape key to prevent closing mandatory password change modal
+function cancelAppLogout() {
+  const overlay = document.getElementById('logoutConfirmOverlay');
+  if (overlay) {
+    overlay.style.display = 'none';
+  }
+}
+
+async function confirmAppLogout() {
+  const overlay = document.getElementById('logoutConfirmOverlay');
+  if (overlay) {
+    overlay.style.display = 'none';
+  }
+  if (window.electronAPI && window.electronAPI.authLogout) {
+    await window.electronAPI.authLogout();
+  }
+}
+
+// Trap Escape key to handle modals
 window.addEventListener('keydown', (e) => {
-  const overlay = document.getElementById('firstLoginOverlay');
-  if (overlay && overlay.style.display === 'flex' && e.key === 'Escape') {
+  const flOverlay = document.getElementById('firstLoginOverlay');
+  if (flOverlay && flOverlay.style.display === 'flex' && e.key === 'Escape') {
     e.preventDefault();
     e.stopPropagation();
+    return;
+  }
+  const loOverlay = document.getElementById('logoutConfirmOverlay');
+  if (loOverlay && loOverlay.style.display === 'flex' && e.key === 'Escape') {
+    e.preventDefault();
+    e.stopPropagation();
+    cancelAppLogout();
+    return;
   }
 }, true);
 

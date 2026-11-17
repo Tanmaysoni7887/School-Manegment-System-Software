@@ -42,6 +42,42 @@ const { createAuthManager } = require('./auth');
 const authManager = createAuthManager({ userDataPath });
 
 let mainWindow;
+
+function setupWindowSecurity(win) {
+  if (!win || win.isDestroyed()) return;
+  win.setMenuBarVisibility(false);
+
+  // Security: Prevent unauthorized window navigation away from the local app or bypassing auth
+  win.webContents.on('will-navigate', (event, url) => {
+    if (!authManager.isAuthenticated() && !url.includes('login.html')) {
+      console.warn('[Security] Unauthorized navigation prevented:', url);
+      event.preventDefault();
+      win.loadFile(path.join(__dirname, 'src', 'login.html'));
+      return;
+    }
+    if (url !== win.webContents.getURL()) {
+      event.preventDefault();
+    }
+  });
+
+  // Security: Open external links in default system browser, deny popup windows
+  win.webContents.setWindowOpenHandler(({ url }) => {
+    if (url.startsWith('http://') || url.startsWith('https://')) {
+      shell.openExternal(url);
+    }
+    return { action: 'deny' };
+  });
+
+  // Security: Disable DevTools shortcut in production packaged app
+  if (app.isPackaged) {
+    win.webContents.on('before-input-event', (event, input) => {
+      if ((input.control && input.shift && input.key.toLowerCase() === 'i') || input.key === 'F12') {
+        event.preventDefault();
+      }
+    });
+  }
+}
+
 function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1650, height: 900, minWidth: 1024, minHeight: 576,
@@ -55,40 +91,12 @@ function createWindow() {
     show: false,
     backgroundColor: '#f1edfe'
   });
+
+  setupWindowSecurity(mainWindow);
+
   // Launch into separate dedicated login screen immediately
   mainWindow.loadFile(path.join(__dirname, 'src', 'login.html'));
   mainWindow.once('ready-to-show', () => { mainWindow.show(); mainWindow.maximize(); });
-  mainWindow.setMenuBarVisibility(false);
-
-  // Security: Prevent unauthorized window navigation away from the local app or bypassing auth
-  mainWindow.webContents.on('will-navigate', (event, url) => {
-    if (!authManager.isAuthenticated() && !url.includes('login.html')) {
-      console.warn('[Security] Unauthorized navigation prevented:', url);
-      event.preventDefault();
-      mainWindow.loadFile(path.join(__dirname, 'src', 'login.html'));
-      return;
-    }
-    if (url !== mainWindow.webContents.getURL()) {
-      event.preventDefault();
-    }
-  });
-
-  // Security: Open external links in default system browser, deny popup windows
-  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
-    if (url.startsWith('http://') || url.startsWith('https://')) {
-      shell.openExternal(url);
-    }
-    return { action: 'deny' };
-  });
-
-  // Security: Disable DevTools shortcut in production packaged app
-  if (app.isPackaged) {
-    mainWindow.webContents.on('before-input-event', (event, input) => {
-      if ((input.control && input.shift && input.key.toLowerCase() === 'i') || input.key === 'F12') {
-        event.preventDefault();
-      }
-    });
-  }
 
   mainWindow.on('closed', () => { mainWindow = null; });
 }
@@ -309,14 +317,47 @@ ipcMain.handle('auth-create-admin', async (e, payload) => {
 ipcMain.handle('auth-logout', async () => {
   authManager.logout();
   if (mainWindow && !mainWindow.isDestroyed()) {
-    try {
-      mainWindow.webContents.stop();
-    } catch (_) {}
-    await mainWindow.loadFile(path.join(__dirname, 'src', 'login.html'));
-    if (mainWindow && !mainWindow.isDestroyed()) {
-      mainWindow.show();
-      mainWindow.focus();
-      mainWindow.webContents.focus();
+    const wasMaximized = mainWindow.isMaximized();
+    const bounds = mainWindow.getBounds();
+
+    const newWindow = new BrowserWindow({
+      width: bounds.width || 1650,
+      height: bounds.height || 900,
+      x: bounds.x,
+      y: bounds.y,
+      minWidth: 1024,
+      minHeight: 576,
+      title: 'SHIKSHA – School Management Software',
+      icon: path.join(__dirname, 'icon.ico'),
+      webPreferences: {
+        nodeIntegration: false,
+        contextIsolation: true,
+        preload: path.join(__dirname, 'src', 'preload.js')
+      },
+      show: false,
+      backgroundColor: '#f1edfe'
+    });
+
+    setupWindowSecurity(newWindow);
+
+    await newWindow.loadFile(path.join(__dirname, 'src', 'login.html'));
+
+    const oldWindow = mainWindow;
+    mainWindow = newWindow;
+
+    mainWindow.on('closed', () => {
+      if (mainWindow === newWindow) mainWindow = null;
+    });
+
+    if (wasMaximized) {
+      newWindow.maximize();
+    }
+    newWindow.show();
+    newWindow.focus();
+    newWindow.webContents.focus();
+
+    if (oldWindow && !oldWindow.isDestroyed()) {
+      oldWindow.destroy();
     }
   }
   return { success: true };
