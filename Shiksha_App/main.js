@@ -254,7 +254,7 @@ function createAutomaticBackup(data, reason = 'auto') {
     const targetFile = path.join(backupsDir, filename);
 
     // Atomic write
-    safeAtomicWriteSync(targetFile, JSON.stringify(data, null, 2));
+    safeAtomicWriteSync(targetFile, JSON.stringify(data));
 
     // Verify
     const raw = fs.readFileSync(targetFile, 'utf8');
@@ -310,6 +310,12 @@ ipcMain.handle('auth-logout', async () => {
   authManager.logout();
   if (mainWindow && !mainWindow.isDestroyed()) {
     mainWindow.loadFile(path.join(__dirname, 'src', 'login.html'));
+    mainWindow.webContents.once('did-finish-load', () => {
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.focus();
+        mainWindow.webContents.focus();
+      }
+    });
   }
   return { success: true };
 });
@@ -333,7 +339,13 @@ ipcMain.handle('load-data', () => {
       if (!isValidDatabasePayload(parsed)) {
         return { error: 'INVALID_DATABASE', message: 'school_data.json exists but does not contain valid school data structure.' };
       }
-      triggerStartupBackupIfNeeded(parsed);
+      setImmediate(() => {
+        try {
+          triggerStartupBackupIfNeeded(parsed);
+        } catch(e) {
+          console.warn('[Startup Backup] Deferred background notice:', e.message);
+        }
+      });
       return parsed;
     }
 

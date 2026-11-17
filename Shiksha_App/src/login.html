@@ -43,8 +43,8 @@ html, body {
   background-size: 100% 100%;
   background-position: center;
   background-repeat: no-repeat;
+  image-rendering: auto;
   image-rendering: -webkit-optimize-contrast;
-  image-rendering: crisp-edges;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   position: relative;
@@ -346,7 +346,7 @@ html, body {
         </label>
         <div class="input-container">
           <svg class="input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-          <input type="text" id="loginUsername" class="form-input" value="admin" placeholder="Enter username" autocomplete="username" required autofocus>
+          <input type="text" id="loginUsername" class="form-input" value="admin" placeholder="Enter username" autocomplete="off" spellcheck="false" required autofocus>
         </div>
       </div>
 
@@ -357,9 +357,9 @@ html, body {
         </label>
         <div class="input-container">
           <svg class="input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-          <input type="password" id="loginPassword" class="form-input" placeholder="••••••••••••" autocomplete="current-password" required>
+          <input type="password" id="loginPassword" class="form-input" placeholder="Enter password" autocomplete="off" spellcheck="false" required>
           <button type="button" class="toggle-pwd" onclick="togglePasswordVisibility('loginPassword', this)" title="Show/Hide Password">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
           </button>
         </div>
       </div>
@@ -375,6 +375,72 @@ html, body {
 
 <script>
 let lockoutTimerInterval = null;
+
+function resetLoginForm() {
+  clearError();
+  const uInput = document.getElementById('loginUsername');
+  const pInput = document.getElementById('loginPassword');
+  const btn = document.getElementById('btnAdminLogin');
+  const spinner = document.getElementById('spinnerAdmin');
+  const btnText = document.getElementById('btnTextAdmin');
+
+  if (uInput) {
+    uInput.disabled = false;
+    uInput.readOnly = false;
+    if (!uInput.value) uInput.value = 'admin';
+  }
+  if (pInput) {
+    pInput.disabled = false;
+    pInput.readOnly = false;
+    pInput.value = '';
+    pInput.type = 'password';
+  }
+  if (btn) {
+    btn.disabled = false;
+  }
+  if (spinner) {
+    spinner.style.display = 'none';
+  }
+  if (btnText) {
+    btnText.textContent = '➔ Sign In';
+  }
+
+  // Restore active focus to username input with slight delay for Electron window transition
+  setTimeout(() => {
+    if (uInput && document.activeElement !== pInput) {
+      uInput.focus();
+      uInput.select();
+    }
+  }, 60);
+}
+
+// Window & DOM Lifecycle event handlers ensuring inputs are responsive after logout or window re-focus
+window.addEventListener('DOMContentLoaded', resetLoginForm);
+window.addEventListener('pageshow', resetLoginForm);
+window.addEventListener('focus', () => {
+  const uInput = document.getElementById('loginUsername');
+  const pInput = document.getElementById('loginPassword');
+  const btn = document.getElementById('btnAdminLogin');
+  if (pInput && btn && !btn.disabled) {
+    pInput.disabled = false;
+    pInput.readOnly = false;
+    if (uInput) {
+      uInput.disabled = false;
+      uInput.readOnly = false;
+    }
+  }
+});
+
+// Click delegation on input-container to guarantee input focus registration
+document.addEventListener('click', (e) => {
+  const container = e.target.closest('.input-container');
+  if (container && !e.target.closest('button')) {
+    const inp = container.querySelector('input');
+    if (inp && !inp.disabled && !inp.readOnly) {
+      inp.focus();
+    }
+  }
+});
 
 function showError(msg) {
   const box = document.getElementById('errorBox');
@@ -394,7 +460,7 @@ function togglePasswordVisibility(inputId, btn) {
   input.type = isPwd ? 'text' : 'password';
   btn.innerHTML = isPwd
     ? '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>'
-    : '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>';
+    : '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>';
 }
 
 function startLockoutCountdown(seconds) {
@@ -402,6 +468,9 @@ function startLockoutCountdown(seconds) {
   let remaining = seconds;
   const btn = document.getElementById('btnAdminLogin');
   btn.disabled = true;
+
+  const pInput = document.getElementById('loginPassword');
+  if (pInput) pInput.value = '';
 
   showError(`Too many failed attempts. Account temporarily locked. Try again in ${remaining}s.`);
 
@@ -445,6 +514,11 @@ async function handleAdminLogin(event) {
         btn.disabled = false;
         spinner.style.display = 'none';
         btnText.textContent = '➔ Sign In';
+        const pInput = document.getElementById('loginPassword');
+        if (pInput) {
+          pInput.value = '';
+          pInput.focus();
+        }
         if (res && res.lockoutSeconds) {
           startLockoutCountdown(res.lockoutSeconds);
         } else {
@@ -461,6 +535,10 @@ async function handleAdminLogin(event) {
     btn.disabled = false;
     spinner.style.display = 'none';
     btnText.textContent = '➔ Sign In';
+    const pInput = document.getElementById('loginPassword');
+    if (pInput) {
+      pInput.value = '';
+    }
     showError('Error connecting to authentication service.');
   }
 }

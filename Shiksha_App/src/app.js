@@ -33,6 +33,12 @@ let _indicesDirty = true;
 let _dashboardMetricsCache = null;
 let _top10DefaultersCache = null;
 let _cachedValidTransactions = null;
+let _idxStudentCurrentSessionDue = new Map();
+let _idxStudentPreviousArrears = new Map();
+let _idxStudentArrearsBreakdown = new Map();
+let _idxPendingFeesDueList = new Map();
+let _monthlyRevenueCache = null;
+
 let _cachedFilteredTransactions = null;
 let _colCurrentPage = 1;
 let _colPageSize = 50;
@@ -105,6 +111,11 @@ function ensurePerformanceIndices() {
 
 function invalidatePerformanceIndices() {
   _indicesDirty = true;
+  _idxStudentCurrentSessionDue.clear();
+  _idxStudentPreviousArrears.clear();
+  _idxStudentArrearsBreakdown.clear();
+  _idxPendingFeesDueList.clear();
+  _monthlyRevenueCache = null;
   _dashboardMetricsCache = null;
   _top10DefaultersCache = null;
   _finPageMetricsCache = null;
@@ -2103,20 +2114,24 @@ function renderDB() {
     }).join('');
   }
 
-  // Monthly revenue chart (April to March) - single pass O(K) aggregation
-  const revByMonth = {};
-  MONTHS_LIST.forEach(m => { revByMonth[m] = 0; });
-  if (DB.fees && typeof DB.fees === 'object') {
-    Object.entries(DB.fees).forEach(([key, arr]) => {
-      if (!Array.isArray(arr)) return;
-      const parts = key.split('_');
-      const mo = parts[1];
-      if (revByMonth[mo] !== undefined) {
-        arr.forEach(f => {
-          if (f.paid && f.enabled !== false) revByMonth[mo] += (Number(f.amount) || 0);
-        });
-      }
-    });
+  // Monthly revenue chart (April to March) - single pass O(K) aggregation cached
+  let revByMonth = _monthlyRevenueCache;
+  if (!revByMonth || _indicesDirty) {
+    revByMonth = {};
+    MONTHS_LIST.forEach(m => { revByMonth[m] = 0; });
+    if (DB.fees && typeof DB.fees === 'object') {
+      Object.entries(DB.fees).forEach(([key, arr]) => {
+        if (!Array.isArray(arr)) return;
+        const parts = key.split('_');
+        const mo = parts[1];
+        if (revByMonth[mo] !== undefined) {
+          arr.forEach(f => {
+            if (f.paid && f.enabled !== false) revByMonth[mo] += (Number(f.amount) || 0);
+          });
+        }
+      });
+    }
+    _monthlyRevenueCache = revByMonth;
   }
   const revData = MONTHS_LIST.map(mo => ({
     mo: mo.substring(0, 3),
@@ -3090,6 +3105,11 @@ function getPendingFeesDueList(options = {}) {
   const selMonth = options.month || '';
   const selYear = options.year ? parseInt(options.year) : null;
 
+  const cacheKey = `${curSess}_${selCls}_${selSessMode}_${selDueType}_${selMonth}_${selYear || ''}`;
+  if (_idxPendingFeesDueList.has(cacheKey) && !_indicesDirty) {
+    return _idxPendingFeesDueList.get(cacheKey);
+  }
+
   let rows = [];
   const activeStudents = getActiveStudents();
   const targetStudents = selCls ? activeStudents.filter(s => s.cls === selCls) : activeStudents;
@@ -3261,6 +3281,7 @@ function getPendingFeesDueList(options = {}) {
     return a.name.localeCompare(b.name);
   });
 
+  _idxPendingFeesDueList.set(cacheKey, rows);
   return rows;
 }
 
@@ -5504,7 +5525,12 @@ function setStudentPreviousArrears(sid, amt) {
 }
 
 function getStudentPreviousArrearsBreakdown(s, curSess = null) {
+  if (!s) return [];
   const sess = curSess || s?.session || (DB.settings && DB.settings.currentSession) || '2026–27';
+  const cKey = `${s.id}_${sess}`;
+  if (_idxStudentArrearsBreakdown.has(cKey)) {
+    return _idxStudentArrearsBreakdown.get(cKey);
+  }
   const [curStartY] = parseSessionYears(sess);
   const items = [];
 
@@ -5649,6 +5675,7 @@ function getStudentPreviousArrearsBreakdown(s, curSess = null) {
     }
   }
 
+  _idxStudentArrearsBreakdown.set(cKey, items);
   return items;
 }
 
@@ -5742,16 +5769,30 @@ function showArrearsDetailModal() {
 }
 
 function calcStudentPreviousArrears(s, curSess = null) {
+  if (!s) return 0;
   const sess = curSess || s?.session || (DB.settings && DB.settings.currentSession) || '2026–27';
+  const cKey = `${s.id}_${sess}`;
+  if (_idxStudentPreviousArrears.has(cKey)) {
+    return _idxStudentPreviousArrears.get(cKey);
+  }
   const breakdown = getStudentPreviousArrearsBreakdown(s, sess);
-  return breakdown.reduce((sum, it) => sum + it.remainingAmount, 0);
+  const total = breakdown.reduce((sum, it) => sum + it.remainingAmount, 0);
+  _idxStudentPreviousArrears.set(cKey, total);
+  return total;
 }
 
 function calcStudentCurrentSessionDue(s, curSess = null) {
   if (!s) return 0;
   const sess = curSess || s.session || (DB.settings && DB.settings.currentSession) || '2026–27';
+  const cKey = `${s.id}_${sess}`;
+  if (_idxStudentCurrentSessionDue.has(cKey)) {
+    return _idxStudentCurrentSessionDue.get(cKey);
+  }
+
   const [startY, endY] = parseSessionYears(sess);
   let total = 0;
+  ensurePerformanceIndices();
+  const stPayments = _idxPaymentsByStudent.get(s.id) || [];
 
   MONTHS_LIST.forEach((mo, idx) => {
     const yr = (idx < 9) ? startY : endY;
@@ -5777,15 +5818,15 @@ function calcStudentCurrentSessionDue(s, curSess = null) {
         const eff = getEffectiveFeesForStudent(s, mo, yr);
         eff.forEach(effItem => {
           if (effItem.enabled !== false && !existingTypes.has(effItem.type) && effItem.type !== 'Van Fee' && effItem.type !== 'Transport Fee') {
-            // Check if covered by DB.payments
             let isCovered = false;
-            if (Array.isArray(DB.payments)) {
-              isCovered = DB.payments.some(p =>
-                !p.reversed &&
-                String(p.studentId) === String(s.id) &&
-                Array.isArray(p.items) &&
-                p.items.some(it => it.month === mo && Number(it.year) === Number(yr) && it.type === effItem.type)
-              );
+            if (stPayments.length > 0) {
+              isCovered = stPayments.some(p => {
+                if (p.reversed) return false;
+                if (Array.isArray(p.items)) {
+                  return p.items.some(it => it.month === mo && Number(it.year) === Number(yr) && it.type === effItem.type);
+                }
+                return p.category === effItem.type && p.period && p.period.includes(mo);
+              });
             }
             if (!isCovered) {
               total += (Number(effItem.amount) || 0);
@@ -5798,9 +5839,9 @@ function calcStudentCurrentSessionDue(s, curSess = null) {
         eff.forEach(f => {
           if (f.enabled !== false && f.type !== 'Van Fee' && f.type !== 'Transport Fee') {
             let paidAmt = 0;
-            if (Array.isArray(DB.payments)) {
-              DB.payments.forEach(p => {
-                if (!p.reversed && String(p.studentId) === String(s.id)) {
+            if (stPayments.length > 0) {
+              stPayments.forEach(p => {
+                if (!p.reversed) {
                   if (Array.isArray(p.items)) {
                     p.items.forEach(it => {
                       if (it.month === mo && Number(it.year) === Number(yr) && it.type === f.type) {
@@ -5821,14 +5862,18 @@ function calcStudentCurrentSessionDue(s, curSess = null) {
     }
   });
 
+  _idxStudentCurrentSessionDue.set(cKey, total);
   return total;
 }
 
 function calcStudentSessionPaid(s, curSess = null) {
+  if (!s) return 0;
   const sess = curSess || s?.session || (DB.settings && DB.settings.currentSession) || '2026–27';
   let total = 0;
-  Object.entries(DB.fees || {}).forEach(([k, arr]) => {
-    if (!k.startsWith(s.id + '_') || !Array.isArray(arr)) return;
+  ensurePerformanceIndices();
+  const stFees = _idxFeesByStudent.get(s.id) || [];
+  stFees.forEach(({ key: k, arr }) => {
+    if (!Array.isArray(arr)) return;
     const parts = k.split('_');
     const mo = parts[1], yr = parseInt(parts[2]);
     if (isFeeInAcademicSession(mo, yr, sess)) {
@@ -5929,7 +5974,7 @@ function initFeeLedger(s, targetMonth = null, targetYear = null) {
     // Only persist auto-generated empty fee records if they belong to valid active session
     if (isValidSession) {
       DB.fees[key] = effective;
-      saveDB();
+      // Passive ledger initialization - do not trigger synchronous auto-save
     }
     return effective;
   } else {
@@ -10912,19 +10957,17 @@ function getRemindersDueList() {
           const schoolAmt = (cfg.customTuition !== null && cfg.customTuition !== undefined && cfg.customTuition !== '' && !isNaN(Number(cfg.customTuition)))
             ? Number(cfg.customTuition) : struct.tuition;
           let paidAmt = 0;
-          if (Array.isArray(DB.payments)) {
-            DB.payments.forEach(p => {
-              if (!p.reversed && String(p.studentId) === String(s.id)) {
-                if (Array.isArray(p.items)) {
-                  p.items.forEach(it => {
-                    if (it.month === mo && Number(it.year) === Number(yr) && (it.type === 'School Fee' || it.type === 'Tuition')) {
-                      paidAmt += (Number(it.baseAmount || it.amount) || 0);
-                    }
-                  });
+          ensurePerformanceIndices();
+          const stPayments = _idxPaymentsByStudent.get(s.id) || [];
+          stPayments.forEach(p => {
+            if (!p.reversed && Array.isArray(p.items)) {
+              p.items.forEach(it => {
+                if (it.month === mo && Number(it.year) === Number(yr) && (it.type === 'School Fee' || it.type === 'Tuition')) {
+                  paidAmt += (Number(it.baseAmount || it.amount) || 0);
                 }
-              }
-            });
-          }
+              });
+            }
+          });
           schoolDue = Math.max(0, schoolAmt - paidAmt);
         }
       }
@@ -11038,19 +11081,17 @@ function getRemindersDueList() {
             const schoolAmt = (cfg.customTuition !== null && cfg.customTuition !== undefined && cfg.customTuition !== '' && !isNaN(Number(cfg.customTuition)))
               ? Number(cfg.customTuition) : struct.tuition;
             let paidAmt = 0;
-            if (Array.isArray(DB.payments)) {
-              DB.payments.forEach(p => {
-                if (!p.reversed && String(p.studentId) === String(s.id)) {
-                  if (Array.isArray(p.items)) {
-                    p.items.forEach(it => {
-                      if (it.month === m && Number(it.year) === Number(y) && (it.type === 'School Fee' || it.type === 'Tuition')) {
-                        paidAmt += (Number(it.baseAmount || it.amount) || 0);
-                      }
-                    });
+            ensurePerformanceIndices();
+            const stPayments = _idxPaymentsByStudent.get(s.id) || [];
+            stPayments.forEach(p => {
+              if (!p.reversed && Array.isArray(p.items)) {
+                p.items.forEach(it => {
+                  if (it.month === m && Number(it.year) === Number(y) && (it.type === 'School Fee' || it.type === 'Tuition')) {
+                    paidAmt += (Number(it.baseAmount || it.amount) || 0);
                   }
-                }
-              });
-            }
+                });
+              }
+            });
             rem = Math.max(0, schoolAmt - paidAmt);
           }
         }
