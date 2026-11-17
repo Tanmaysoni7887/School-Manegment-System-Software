@@ -18,8 +18,30 @@ fs.mkdirSync(testDir, { recursive: true });
 const { createAuthManager } = require('../auth');
 const testAuthManager = createAuthManager({ userDataPath: testDir });
 
+// Set mustChangePassword: false for testing to prevent first-login modal from interfering with dashboard
+const authJsonPath = path.join(testDir, 'auth.json');
+if (fs.existsSync(authJsonPath)) {
+  try {
+    const d = JSON.parse(fs.readFileSync(authJsonPath, 'utf8'));
+    if (d.users && d.users[0]) {
+      d.users[0].mustChangePassword = false;
+      fs.writeFileSync(authJsonPath, JSON.stringify(d, null, 2));
+    }
+  } catch (_) {}
+}
+
 let mainWindow = null;
 let allTestsPassed = true;
+
+async function typeIntoField(win, id, text) {
+  win.webContents.focus();
+  await win.webContents.executeJavaScript(`document.getElementById('${id}').focus()`);
+  await new Promise(r => setTimeout(r, 40));
+  for (const ch of text) {
+    win.webContents.sendInputEvent({ type: 'char', keyCode: ch });
+  }
+  await new Promise(r => setTimeout(r, 40));
+}
 
 function logPass(testName, details) {
   console.log(`[PASS] ${testName}: ${details}`);
@@ -83,6 +105,7 @@ app.whenReady().then(async () => {
     ipcMain.handle('load-data', () => ({ students: [], settings: { schoolName: 'Test School' } }));
     ipcMain.handle('get-data-path', () => path.join(testDir, 'school_data.json'));
     ipcMain.handle('save-data', () => ({ success: true }));
+    ipcMain.handle('auth-change-password', async (e, p) => testAuthManager.changePassword(p.currentPassword, p.newPassword, p.confirmPassword));
 
     console.log('\n======================================================');
     console.log('STARTING SHIKSHA LOGIN VERIFICATION SUITE (TESTS A-H)');
@@ -124,16 +147,8 @@ app.whenReady().then(async () => {
     // ----------------------------------------------------
     // TEST B: Successful Login
     // ----------------------------------------------------
-    // Type credentials via real keyboard input events!
-    await mainWindow.webContents.executeJavaScript(`document.getElementById('loginUsername').focus()`);
-    for (const ch of 'admin') {
-      mainWindow.webContents.sendInputEvent({ type: 'char', keyCode: ch });
-    }
-    await mainWindow.webContents.executeJavaScript(`document.getElementById('loginPassword').focus()`);
-    for (const ch of 'admin123') {
-      mainWindow.webContents.sendInputEvent({ type: 'char', keyCode: ch });
-    }
-    await new Promise(r => setTimeout(r, 100));
+    await typeIntoField(mainWindow, 'loginUsername', 'admin');
+    await typeIntoField(mainWindow, 'loginPassword', 'admin123');
 
     // Verify values were typed via keyboard
     const typedB = await mainWindow.webContents.executeJavaScript(`
@@ -145,11 +160,9 @@ app.whenReady().then(async () => {
     assert.strictEqual(typedB.u, 'admin', 'Keyboard input must reach username field');
     assert.strictEqual(typedB.p, 'admin123', 'Keyboard input must reach password field');
 
-    // Click Sign In
+    // Click real Sign In button
     await mainWindow.webContents.executeJavaScript(`
-      (async () => {
-        await handleAdminLogin({ preventDefault: () => {} });
-      })()
+      setTimeout(() => document.getElementById('btnAdminLogin').click(), 0);
     `);
     await new Promise(r => setTimeout(r, 600));
     assert(mainWindow.webContents.getURL().includes('index.html'), 'Successful login must load index.html');
@@ -158,13 +171,17 @@ app.whenReady().then(async () => {
     // ----------------------------------------------------
     // TEST C: Logout and Login Again (with Real Keyboard Typing)
     // ----------------------------------------------------
-    // In index.html, click logout
-    await mainWindow.webContents.executeJavaScript(`
-      (async () => {
-        if (window.electronAPI && window.electronAPI.authLogout) {
-          await window.electronAPI.authLogout();
-        }
+    // In index.html, click real Sign Out button -> verify modal opens -> click Sign Out confirm button
+    const modalOpened = await mainWindow.webContents.executeJavaScript(`
+      (() => {
+        handleAppLogout();
+        const ov = document.getElementById('logoutConfirmOverlay');
+        return ov && ov.style.display === 'flex';
       })()
+    `);
+    assert.strictEqual(modalOpened, true, 'In-app logout confirmation modal must open');
+    await mainWindow.webContents.executeJavaScript(`
+      setTimeout(() => document.getElementById('btnConfirmSignOut').click(), 0);
     `);
     await new Promise(r => setTimeout(r, 500));
     assert(mainWindow.webContents.getURL().includes('login.html'), 'Logout must navigate to login.html');
@@ -189,16 +206,8 @@ app.whenReady().then(async () => {
     assert.strictEqual(testC_fields.uDisabled, false, 'Username must be enabled');
     assert.strictEqual(testC_fields.uReadOnly, false, 'Username must be editable');
 
-    // Test real keyboard typing after logout!
-    await mainWindow.webContents.executeJavaScript(`document.getElementById('loginUsername').focus()`);
-    for (const ch of 'admin') {
-      mainWindow.webContents.sendInputEvent({ type: 'char', keyCode: ch });
-    }
-    await mainWindow.webContents.executeJavaScript(`document.getElementById('loginPassword').focus()`);
-    for (const ch of 'admin123') {
-      mainWindow.webContents.sendInputEvent({ type: 'char', keyCode: ch });
-    }
-    await new Promise(r => setTimeout(r, 100));
+    await typeIntoField(mainWindow, 'loginUsername', 'admin');
+    await typeIntoField(mainWindow, 'loginPassword', 'admin123');
 
     const typedC = await mainWindow.webContents.executeJavaScript(`
       (() => ({
@@ -209,11 +218,9 @@ app.whenReady().then(async () => {
     assert.strictEqual(typedC.u, 'admin', 'Real keyboard input must type into username after logout');
     assert.strictEqual(typedC.p, 'admin123', 'Real keyboard input must type into password after logout');
 
-    // Log in second time
+    // Log in second time via real Sign In button
     await mainWindow.webContents.executeJavaScript(`
-      (async () => {
-        await handleAdminLogin({ preventDefault: () => {} });
-      })()
+      setTimeout(() => document.getElementById('btnAdminLogin').click(), 0);
     `);
     await new Promise(r => setTimeout(r, 600));
     assert(mainWindow.webContents.getURL().includes('index.html'), 'Second login after logout must succeed');
@@ -224,15 +231,12 @@ app.whenReady().then(async () => {
     // ----------------------------------------------------
     console.log('Testing 10 consecutive login/logout cycles with real keyboard input...');
     for (let i = 1; i <= 10; i++) {
-      // 1. Logout
+      // 1. Logout via real UI modal
       await mainWindow.webContents.executeJavaScript(`
-        (async () => {
-          if (window.electronAPI && window.electronAPI.authLogout) {
-            await window.electronAPI.authLogout();
-          }
-        })()
+        handleAppLogout();
+        setTimeout(() => document.getElementById('btnConfirmSignOut').click(), 10);
       `);
-      await new Promise(r => setTimeout(r, 300));
+      await new Promise(r => setTimeout(r, 500));
 
       // 2. Verify empty and editable
       const cCheck = await mainWindow.webContents.executeJavaScript(`
@@ -250,16 +254,8 @@ app.whenReady().then(async () => {
       assert(cCheck.uEmpty && cCheck.pEmpty && cCheck.uEditable && cCheck.pEditable,
         `Cycle ${i}: inputs must be empty and editable`);
 
-      // 3. Send REAL keyboard input
-      await mainWindow.webContents.executeJavaScript(`document.getElementById('loginUsername').focus()`);
-      for (const ch of 'admin') {
-        mainWindow.webContents.sendInputEvent({ type: 'char', keyCode: ch });
-      }
-      await mainWindow.webContents.executeJavaScript(`document.getElementById('loginPassword').focus()`);
-      for (const ch of 'admin123') {
-        mainWindow.webContents.sendInputEvent({ type: 'char', keyCode: ch });
-      }
-      await new Promise(r => setTimeout(r, 50));
+      await typeIntoField(mainWindow, 'loginUsername', 'admin');
+      await typeIntoField(mainWindow, 'loginPassword', 'admin123');
 
       const cTyped = await mainWindow.webContents.executeJavaScript(`
         (() => ({
@@ -270,37 +266,27 @@ app.whenReady().then(async () => {
       assert.strictEqual(cTyped.u, 'admin', `Cycle ${i}: keyboard input failed on username`);
       assert.strictEqual(cTyped.p, 'admin123', `Cycle ${i}: keyboard input failed on password`);
 
-      // 4. Submit login
+      // 4. Submit login via real button
       await mainWindow.webContents.executeJavaScript(`
-        (async () => {
-          await handleAdminLogin({ preventDefault: () => {} });
-        })()
+        setTimeout(() => document.getElementById('btnAdminLogin').click(), 0);
       `);
-      await new Promise(r => setTimeout(r, 300));
+      await new Promise(r => setTimeout(r, 500));
       assert(mainWindow.webContents.getURL().includes('index.html'), `Cycle ${i}: login failed`);
     }
     logPass('TEST D (Repeated Cycles)', 'Completed 10/10 consecutive login/logout cycles. Real keyboard typing verified on EVERY cycle with zero freezing.');
 
     // Return to login screen for remaining tests
     await mainWindow.webContents.executeJavaScript(`
-      (async () => {
-        await window.electronAPI.authLogout();
-      })()
+      handleAppLogout();
+      setTimeout(() => document.getElementById('btnConfirmSignOut').click(), 10);
     `);
     await new Promise(r => setTimeout(r, 400));
 
     // ----------------------------------------------------
     // TEST E: Failed Login Handling
     // ----------------------------------------------------
-    await mainWindow.webContents.executeJavaScript(`document.getElementById('loginUsername').focus()`);
-    for (const ch of 'admin') {
-      mainWindow.webContents.sendInputEvent({ type: 'char', keyCode: ch });
-    }
-    await mainWindow.webContents.executeJavaScript(`document.getElementById('loginPassword').focus()`);
-    for (const ch of 'wrongpwd') {
-      mainWindow.webContents.sendInputEvent({ type: 'char', keyCode: ch });
-    }
-    await new Promise(r => setTimeout(r, 50));
+    await typeIntoField(mainWindow, 'loginUsername', 'admin');
+    await typeIntoField(mainWindow, 'loginPassword', 'wrongpwd');
 
     // Submit invalid credentials
     await mainWindow.webContents.executeJavaScript(`
@@ -330,27 +316,19 @@ app.whenReady().then(async () => {
     assert.strictEqual(testE.uEditable, true, 'Username remains editable');
     assert.strictEqual(testE.pEditable, true, 'Password remains editable');
 
-    // Type correct password and retry
-    await mainWindow.webContents.executeJavaScript(`document.getElementById('loginPassword').focus()`);
-    for (const ch of 'admin123') {
-      mainWindow.webContents.sendInputEvent({ type: 'char', keyCode: ch });
-    }
-    await new Promise(r => setTimeout(r, 50));
+    await typeIntoField(mainWindow, 'loginPassword', 'admin123');
 
     await mainWindow.webContents.executeJavaScript(`
-      (async () => {
-        await handleAdminLogin({ preventDefault: () => {} });
-      })()
+      setTimeout(() => document.getElementById('btnAdminLogin').click(), 0);
     `);
-    await new Promise(r => setTimeout(r, 500));
+    await new Promise(r => setTimeout(r, 600));
     assert(mainWindow.webContents.getURL().includes('index.html'), 'Valid credentials after error must succeed');
     logPass('TEST E (Failed Login)', 'Invalid login shows error, clears password, keeps inputs editable, and keyboard retry succeeds.');
 
     // Return to login screen
     await mainWindow.webContents.executeJavaScript(`
-      (async () => {
-        await window.electronAPI.authLogout();
-      })()
+      handleAppLogout();
+      setTimeout(() => document.getElementById('btnConfirmSignOut').click(), 10);
     `);
     await new Promise(r => setTimeout(r, 400));
 
@@ -429,17 +407,8 @@ app.whenReady().then(async () => {
     mainWindow.focus();
     await new Promise(r => setTimeout(r, 100));
 
-    // Test real keyboard input after window minimize/restore/focus
-    await mainWindow.webContents.executeJavaScript(`
-      (() => {
-        document.getElementById('loginUsername').value = '';
-        document.getElementById('loginUsername').focus();
-      })()
-    `);
-    for (const ch of 'focused') {
-      mainWindow.webContents.sendInputEvent({ type: 'char', keyCode: ch });
-    }
-    await new Promise(r => setTimeout(r, 50));
+    await mainWindow.webContents.executeJavaScript(`document.getElementById('loginUsername').value = ''`);
+    await typeIntoField(mainWindow, 'loginUsername', 'focused');
 
     const testH = await mainWindow.webContents.executeJavaScript(`
       (() => ({
