@@ -17738,9 +17738,12 @@ async function handleFirstLoginPasswordChange(event) {
 
 async function handleAppLogout() {
   if (confirm('Are you sure you want to sign out?')) {
-    if (window.electronAPI && window.electronAPI.authLogout) {
-      await window.electronAPI.authLogout();
-    }
+    // Allow Windows message queue 60ms to tear down the modal dialog and restore HWND state
+    setTimeout(async () => {
+      if (window.electronAPI && window.electronAPI.authLogout) {
+        await window.electronAPI.authLogout();
+      }
+    }, 60);
   }
 }
 

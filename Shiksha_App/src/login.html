@@ -69,6 +69,8 @@ html, body {
   box-shadow: 0 20px 50px rgba(60, 20, 120, 0.12), 0 4px 16px rgba(0, 0, 0, 0.04);
   padding: 40px 38px 36px;
   box-sizing: border-box;
+  z-index: 10;
+  pointer-events: auto;
 }
 
 /* Card Header Branding: Logo LEFT, Text RIGHT */
@@ -189,6 +191,7 @@ html, body {
   position: relative;
   display: flex;
   align-items: center;
+  pointer-events: auto;
 }
 
 .input-icon {
@@ -212,6 +215,9 @@ html, body {
   border-radius: 12px;
   outline: none;
   transition: border-color 0.15s, box-shadow 0.15s, background-color 0.15s;
+  pointer-events: auto;
+  user-select: text;
+  -webkit-user-select: text;
 }
 
 .form-input::placeholder {
@@ -338,7 +344,7 @@ html, body {
     </div>
 
     <!-- Administrator Login Form -->
-    <form id="formAdminLogin" onsubmit="handleAdminLogin(event)">
+    <form id="formAdminLogin" onsubmit="handleAdminLogin(event)" autocomplete="off">
       <div class="form-group">
         <label class="form-label" for="loginUsername">
           <svg class="label-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
@@ -346,7 +352,7 @@ html, body {
         </label>
         <div class="input-container">
           <svg class="input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-          <input type="text" id="loginUsername" class="form-input" value="admin" placeholder="Enter username" autocomplete="off" spellcheck="false" required autofocus>
+          <input type="text" id="loginUsername" class="form-input" value="" placeholder="Enter username" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" required tabindex="1">
         </div>
       </div>
 
@@ -357,14 +363,14 @@ html, body {
         </label>
         <div class="input-container">
           <svg class="input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-          <input type="password" id="loginPassword" class="form-input" placeholder="Enter password" autocomplete="off" spellcheck="false" required>
-          <button type="button" class="toggle-pwd" onclick="togglePasswordVisibility('loginPassword', this)" title="Show/Hide Password">
+          <input type="password" id="loginPassword" class="form-input" value="" placeholder="Enter password" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" required tabindex="2">
+          <button type="button" class="toggle-pwd" onclick="togglePasswordVisibility('loginPassword', this)" title="Show/Hide Password" tabindex="3">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
           </button>
         </div>
       </div>
 
-      <button type="submit" id="btnAdminLogin" class="btn-primary">
+      <button type="submit" id="btnAdminLogin" class="btn-primary" tabindex="4">
         <span class="btn-spinner" id="spinnerAdmin"></span>
         <span id="btnTextAdmin">➔ Sign In</span>
       </button>
@@ -385,17 +391,22 @@ function resetLoginForm() {
   const btnText = document.getElementById('btnTextAdmin');
 
   if (uInput) {
+    uInput.removeAttribute('disabled');
+    uInput.removeAttribute('readonly');
     uInput.disabled = false;
     uInput.readOnly = false;
-    if (!uInput.value) uInput.value = 'admin';
+    uInput.value = '';
   }
   if (pInput) {
+    pInput.removeAttribute('disabled');
+    pInput.removeAttribute('readonly');
     pInput.disabled = false;
     pInput.readOnly = false;
     pInput.value = '';
     pInput.type = 'password';
   }
   if (btn) {
+    btn.removeAttribute('disabled');
     btn.disabled = false;
   }
   if (spinner) {
@@ -405,30 +416,50 @@ function resetLoginForm() {
     btnText.textContent = '➔ Sign In';
   }
 
-  // Restore active focus to username input with slight delay for Electron window transition
+  // Restore active focus to username input without selecting text
   setTimeout(() => {
     if (uInput && document.activeElement !== pInput) {
       uInput.focus();
-      uInput.select();
     }
   }, 60);
 }
 
+function attachInputListeners() {
+  ['loginUsername', 'loginPassword'].forEach(id => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.removeAttribute('disabled');
+    el.removeAttribute('readonly');
+    el.disabled = false;
+    el.readOnly = false;
+
+    // Explicitly activate focus on pointer/mouse interactions
+    el.addEventListener('pointerdown', function() {
+      if (!this.disabled && !this.readOnly) {
+        this.focus();
+      }
+    });
+    el.addEventListener('mousedown', function() {
+      if (!this.disabled && !this.readOnly) {
+        this.focus();
+      }
+    });
+  });
+}
+
 // Window & DOM Lifecycle event handlers ensuring inputs are responsive after logout or window re-focus
-window.addEventListener('DOMContentLoaded', resetLoginForm);
-window.addEventListener('pageshow', resetLoginForm);
+window.addEventListener('DOMContentLoaded', () => {
+  attachInputListeners();
+  resetLoginForm();
+});
+
+window.addEventListener('pageshow', () => {
+  attachInputListeners();
+  resetLoginForm();
+});
+
 window.addEventListener('focus', () => {
-  const uInput = document.getElementById('loginUsername');
-  const pInput = document.getElementById('loginPassword');
-  const btn = document.getElementById('btnAdminLogin');
-  if (pInput && btn && !btn.disabled) {
-    pInput.disabled = false;
-    pInput.readOnly = false;
-    if (uInput) {
-      uInput.disabled = false;
-      uInput.readOnly = false;
-    }
-  }
+  resetLoginForm();
 });
 
 // Click delegation on input-container to guarantee input focus registration
@@ -461,6 +492,7 @@ function togglePasswordVisibility(inputId, btn) {
   btn.innerHTML = isPwd
     ? '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>'
     : '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>';
+  input.focus();
 }
 
 function startLockoutCountdown(seconds) {

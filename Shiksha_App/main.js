@@ -309,13 +309,15 @@ ipcMain.handle('auth-create-admin', async (e, payload) => {
 ipcMain.handle('auth-logout', async () => {
   authManager.logout();
   if (mainWindow && !mainWindow.isDestroyed()) {
-    mainWindow.loadFile(path.join(__dirname, 'src', 'login.html'));
-    mainWindow.webContents.once('did-finish-load', () => {
-      if (mainWindow && !mainWindow.isDestroyed()) {
-        mainWindow.focus();
-        mainWindow.webContents.focus();
-      }
-    });
+    try {
+      mainWindow.webContents.stop();
+    } catch (_) {}
+    await mainWindow.loadFile(path.join(__dirname, 'src', 'login.html'));
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.show();
+      mainWindow.focus();
+      mainWindow.webContents.focus();
+    }
   }
   return { success: true };
 });
