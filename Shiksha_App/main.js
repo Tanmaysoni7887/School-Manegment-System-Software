@@ -94,8 +94,8 @@ function createWindow() {
 
   setupWindowSecurity(mainWindow);
 
-  // Launch into separate dedicated login screen immediately
-  mainWindow.loadFile(path.join(__dirname, 'src', 'login.html'));
+  // Load unified application shell once (Single-Window State-Gated Architecture)
+  mainWindow.loadFile(path.join(__dirname, 'src', 'index.html'));
   mainWindow.once('ready-to-show', () => { mainWindow.show(); mainWindow.maximize(); });
 
   mainWindow.on('closed', () => { mainWindow = null; });
@@ -332,13 +332,7 @@ function triggerStartupBackupIfNeeded(parsedData) {
 ipcMain.handle('auth-get-status', () => authManager.getAuthStatus());
 
 ipcMain.handle('auth-login', async (e, credentials) => {
-  const res = authManager.login(credentials && credentials.username, credentials && credentials.password);
-  if (res && res.success) {
-    if (mainWindow && !mainWindow.isDestroyed()) {
-      mainWindow.loadFile(path.join(__dirname, 'src', 'index.html'));
-    }
-  }
-  return res;
+  return authManager.login(credentials && credentials.username, credentials && credentials.password);
 });
 
 ipcMain.handle('auth-vendor-setup', async (e, credentials) => {
@@ -351,50 +345,6 @@ ipcMain.handle('auth-create-admin', async (e, payload) => {
 
 ipcMain.handle('auth-logout', async () => {
   authManager.logout();
-  if (mainWindow && !mainWindow.isDestroyed()) {
-    const wasMaximized = mainWindow.isMaximized();
-    const bounds = mainWindow.getBounds();
-
-    const newWindow = new BrowserWindow({
-      width: bounds.width || 1650,
-      height: bounds.height || 900,
-      x: bounds.x,
-      y: bounds.y,
-      minWidth: 1024,
-      minHeight: 576,
-      title: 'SHIKSHA – School Management Software',
-      icon: path.join(__dirname, 'icon.ico'),
-      webPreferences: {
-        nodeIntegration: false,
-        contextIsolation: true,
-        preload: path.join(__dirname, 'src', 'preload.js')
-      },
-      show: false,
-      backgroundColor: '#f1edfe'
-    });
-
-    setupWindowSecurity(newWindow);
-
-    await newWindow.loadFile(path.join(__dirname, 'src', 'login.html'));
-
-    const oldWindow = mainWindow;
-    mainWindow = newWindow;
-
-    mainWindow.on('closed', () => {
-      if (mainWindow === newWindow) mainWindow = null;
-    });
-
-    if (wasMaximized) {
-      newWindow.maximize();
-    }
-    newWindow.show();
-    newWindow.focus();
-    newWindow.webContents.focus();
-
-    if (oldWindow && !oldWindow.isDestroyed()) {
-      oldWindow.destroy();
-    }
-  }
   return { success: true };
 });
 

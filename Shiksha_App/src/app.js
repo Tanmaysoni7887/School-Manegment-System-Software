@@ -17621,22 +17621,269 @@ function viewTransportReceiptByNo(receiptNo) {
 }
 
 // ============================================================
-// AUTHENTICATION & MANDATORY FIRST-LOGIN PASSWORD ENFORCEMENT
+// SINGLE-WINDOW STATE-GATED AUTHENTICATION & LOGIN CONTROLLER
 // ============================================================
+let _isAppAuthenticated = false;
+let _hasLoadedDashboardData = false;
+let _currentAuthUser = null;
+let _lockoutTimerInterval = null;
+
+function setAppAuthState(isAuthenticated, user = null) {
+  _isAppAuthenticated = Boolean(isAuthenticated);
+  _currentAuthUser = user;
+
+  const authView = document.getElementById('authView');
+  const appShell = document.getElementById('appShell');
+
+  if (_isAppAuthenticated) {
+    if (authView) authView.style.display = 'none';
+    if (appShell) appShell.style.display = 'block';
+
+    const usernameEl = document.getElementById('topUsername');
+    if (usernameEl && user && user.username) {
+      usernameEl.textContent = user.username;
+    }
+  } else {
+    if (appShell) appShell.style.display = 'none';
+    if (authView) authView.style.display = 'flex';
+    resetLoginForm();
+  }
+}
+
+function resetLoginForm() {
+  clearLoginError();
+  const uInput = document.getElementById('loginUsername');
+  const pInput = document.getElementById('loginPassword');
+  const btn = document.getElementById('btnAdminLogin');
+  const spinner = document.getElementById('spinnerAdmin');
+  const btnText = document.getElementById('btnTextAdmin');
+
+  if (uInput) {
+    uInput.removeAttribute('disabled');
+    uInput.removeAttribute('readonly');
+    uInput.disabled = false;
+    uInput.readOnly = false;
+    uInput.value = '';
+  }
+  if (pInput) {
+    pInput.removeAttribute('disabled');
+    pInput.removeAttribute('readonly');
+    pInput.disabled = false;
+    pInput.readOnly = false;
+    pInput.value = '';
+    pInput.type = 'password';
+  }
+  if (btn) {
+    btn.removeAttribute('disabled');
+    btn.disabled = false;
+  }
+  if (spinner) {
+    spinner.style.display = 'none';
+  }
+  if (btnText) {
+    btnText.textContent = '➔ Sign In';
+  }
+
+  // Restore active focus to username input without selecting text
+  setTimeout(() => {
+    if (uInput && document.activeElement !== pInput) {
+      uInput.focus();
+    }
+  }, 60);
+}
+
+function attachLoginInputListeners() {
+  ['loginUsername', 'loginPassword'].forEach(id => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.removeAttribute('disabled');
+    el.removeAttribute('readonly');
+    el.disabled = false;
+    el.readOnly = false;
+
+    // Explicitly activate focus on pointer/mouse interactions
+    el.addEventListener('pointerdown', function() {
+      if (!this.disabled && !this.readOnly) {
+        this.focus();
+      }
+    });
+    el.addEventListener('mousedown', function() {
+      if (!this.disabled && !this.readOnly) {
+        this.focus();
+      }
+    });
+    el.addEventListener('click', function() {
+      if (!this.disabled && !this.readOnly) {
+        this.focus();
+      }
+    });
+  });
+}
+
+function showLoginError(msg) {
+  const box = document.getElementById('errorBox');
+  const msgEl = document.getElementById('errorMessage');
+  if (msgEl) msgEl.textContent = msg;
+  if (box) box.style.display = 'flex';
+}
+
+function clearLoginError() {
+  const box = document.getElementById('errorBox');
+  if (box) box.style.display = 'none';
+}
+
+function togglePasswordVisibility(inputId, btn) {
+  const input = document.getElementById(inputId);
+  if (!input) return;
+  const isPwd = input.type === 'password';
+  input.type = isPwd ? 'text' : 'password';
+  btn.innerHTML = isPwd
+    ? '<svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0 -11 -8 -11 -8a18.45 18.45 0 0 1 5.06 -5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1 -2.16 3.19m-6.72 -1.07a3 3 0 1 1 -4.24 -4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>'
+    : '<svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8 -4 8 -11 8 -11 -8z"/><circle cx="12" cy="12" r="3"/></svg>';
+  input.focus();
+}
+
+function startLockoutCountdown(seconds) {
+  clearInterval(_lockoutTimerInterval);
+  let remaining = seconds;
+  const btn = document.getElementById('btnAdminLogin');
+  if (btn) btn.disabled = true;
+
+  const pInput = document.getElementById('loginPassword');
+  if (pInput) pInput.value = '';
+
+  showLoginError(`Too many failed attempts. Account temporarily locked. Try again in ${remaining}s.`);
+
+  _lockoutTimerInterval = setInterval(() => {
+    remaining--;
+    if (remaining <= 0) {
+      clearInterval(_lockoutTimerInterval);
+      if (btn) btn.disabled = false;
+      clearLoginError();
+    } else {
+      showLoginError(`Too many failed attempts. Account temporarily locked. Try again in ${remaining}s.`);
+    }
+  }, 1000);
+}
+
+async function handleAdminLogin(event) {
+  if (event) event.preventDefault();
+  clearLoginError();
+
+  const uInput = document.getElementById('loginUsername');
+  const pInput = document.getElementById('loginPassword');
+  const username = (uInput?.value || '').trim();
+  const password = pInput?.value || '';
+
+  if (!username || !password) {
+    showLoginError('Please enter both username and password.');
+    return;
+  }
+
+  const btn = document.getElementById('btnAdminLogin');
+  const spinner = document.getElementById('spinnerAdmin');
+  const btnText = document.getElementById('btnTextAdmin');
+
+  if (btn) btn.disabled = true;
+  if (spinner) spinner.style.display = 'inline-block';
+  if (btnText) btnText.textContent = 'Verifying...';
+
+  try {
+    if (window.electronAPI && window.electronAPI.authLogin) {
+      const res = await window.electronAPI.authLogin({ username, password });
+      if (res && res.success) {
+        // Switch view immediately to dashboard!
+        setAppAuthState(true, res.user);
+
+        // Reset button for next session
+        if (btn) btn.disabled = false;
+        if (spinner) spinner.style.display = 'none';
+        if (btnText) btnText.textContent = '➔ Sign In';
+
+        // Load data asynchronously if not already loaded
+        if (!_hasLoadedDashboardData) {
+          try {
+            await loadDB();
+            fillDDs();
+            renderDB();
+            _hasLoadedDashboardData = true;
+          } catch (dbErr) {
+            console.error('Failed to load dashboard data:', dbErr);
+            alert('Error loading school database: ' + dbErr.message);
+          }
+        } else {
+          renderDB();
+        }
+
+        if (res.user && res.user.mustChangePassword) {
+          showFirstLoginPasswordModal();
+        }
+      } else {
+        if (btn) btn.disabled = false;
+        if (spinner) spinner.style.display = 'none';
+        if (btnText) btnText.textContent = '➔ Sign In';
+        if (pInput) {
+          pInput.value = '';
+          pInput.focus();
+        }
+        if (res && res.lockoutSeconds) {
+          startLockoutCountdown(res.lockoutSeconds);
+        } else {
+          showLoginError(res?.error || 'Invalid username or password');
+        }
+      }
+    } else {
+      showLoginError('Authentication service unavailable.');
+      if (btn) btn.disabled = false;
+      if (spinner) spinner.style.display = 'none';
+      if (btnText) btnText.textContent = '➔ Sign In';
+    }
+  } catch (err) {
+    if (btn) btn.disabled = false;
+    if (spinner) spinner.style.display = 'none';
+    if (btnText) btnText.textContent = '➔ Sign In';
+    showLoginError('Error connecting to authentication service.');
+  }
+}
+
+// Window & DOM Lifecycle event handlers ensuring inputs are responsive after logout or window re-focus
+window.addEventListener('focus', () => {
+  if (!_isAppAuthenticated) {
+    const uInput = document.getElementById('loginUsername');
+    const pInput = document.getElementById('loginPassword');
+    if (uInput) {
+      uInput.disabled = false;
+      uInput.readOnly = false;
+    }
+    if (pInput) {
+      pInput.disabled = false;
+      pInput.readOnly = false;
+    }
+  }
+});
+
+// Click delegation on input-container to guarantee input focus registration
+document.addEventListener('click', (e) => {
+  if (!_isAppAuthenticated) {
+    const container = e.target.closest('.input-container');
+    if (container && !e.target.closest('button')) {
+      const inp = container.querySelector('input');
+      if (inp && !inp.disabled && !inp.readOnly) {
+        inp.focus();
+      }
+    }
+  }
+});
+
 async function checkAuthAndEnforcePasswordChange() {
   try {
     if (!window.electronAPI || !window.electronAPI.authGetStatus) return;
     const status = await window.electronAPI.authGetStatus();
     if (!status || !status.isAuthenticated) {
-      if (window.electronAPI.authLogout) {
-        await window.electronAPI.authLogout();
-      }
+      setAppAuthState(false);
       return;
     }
-    const usernameEl = document.getElementById('topUsername');
-    if (usernameEl && status.user && status.user.username) {
-      usernameEl.textContent = status.user.username;
-    }
+    setAppAuthState(true, status.user);
     if (status.mustChangePassword) {
       showFirstLoginPasswordModal();
     }
@@ -17661,8 +17908,8 @@ function toggleFlPwd(id, btn) {
   const isPwd = input.type === 'password';
   input.type = isPwd ? 'text' : 'password';
   btn.innerHTML = isPwd
-    ? '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>'
-    : '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>';
+    ? '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0 -11 -8 -11 -8a18.45 18.45 0 0 1 5.06 -5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1 -2.16 3.19m-6.72 -1.07a3 3 0 1 1 -4.24 -4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>'
+    : '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8 -4 8 -11 8 -11 -8z"/><circle cx="12" cy="12" r="3"/></svg>';
 }
 
 async function handleFirstLoginPasswordChange(event) {
@@ -17749,9 +17996,14 @@ async function confirmAppLogout() {
   if (overlay) {
     overlay.style.display = 'none';
   }
-  if (window.electronAPI && window.electronAPI.authLogout) {
-    await window.electronAPI.authLogout();
-  }
+  try {
+    if (window.electronAPI && window.electronAPI.authLogout) {
+      await window.electronAPI.authLogout();
+    }
+  } catch (_) {}
+
+  // Instant state-gated view switch back to login screen!
+  setAppAuthState(false);
 }
 
 // Trap Escape key to handle modals
@@ -17775,10 +18027,27 @@ window.addEventListener('keydown', (e) => {
 // INITIALIZATION
 // ============================================================
 async function init() {
-  await loadDB();
-  fillDDs();
-  renderDB();
-  await checkAuthAndEnforcePasswordChange();
+  attachLoginInputListeners();
+
+  // 1. Check initial authentication status
+  let status = null;
+  if (window.electronAPI && window.electronAPI.authGetStatus) {
+    status = await window.electronAPI.authGetStatus();
+  }
+
+  if (status && status.isAuthenticated) {
+    setAppAuthState(true, status.user);
+    await loadDB();
+    fillDDs();
+    renderDB();
+    _hasLoadedDashboardData = true;
+    if (status.mustChangePassword) {
+      showFirstLoginPasswordModal();
+    }
+  } else {
+    // Unauthenticated: present Login View immediately!
+    setAppAuthState(false);
+  }
 }
 
 init();
