@@ -17637,14 +17637,20 @@ function setAppAuthState(isAuthenticated, user = null) {
 
   if (_isAppAuthenticated) {
     if (authView) authView.style.display = 'none';
-    if (appShell) appShell.style.display = 'block';
+    if (appShell) {
+      appShell.style.display = 'flex';
+      appShell.classList.add('active');
+    }
 
     const usernameEl = document.getElementById('topUsername');
     if (usernameEl && user && user.username) {
       usernameEl.textContent = user.username;
     }
   } else {
-    if (appShell) appShell.style.display = 'none';
+    if (appShell) {
+      appShell.style.display = 'none';
+      appShell.classList.remove('active');
+    }
     if (authView) authView.style.display = 'flex';
     resetLoginForm();
   }

@@ -115,6 +115,22 @@
 
 body{font-family:'Segoe UI',Tahoma,sans-serif;background:var(--bg);color:var(--txt);font-size:14px;display:flex;height:100vh;overflow:hidden}
 
+/* Unified Application Shell (Single-Window State-Gated Host) */
+#appShell {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+#appShell.active,
+#appShell[style*="display: flex"],
+#appShell[style*="display: block"] {
+  display: flex !important;
+  flex-direction: row !important;
+  width: 100% !important;
+  height: 100% !important;
+  overflow: hidden !important;
+}
+
 /* Left Sidebar - Premium Deep Navy/Purple Gradient */
 .sidebar{width:236px;background:linear-gradient(180deg,#29245F 0%,#362875 40%,#49308B 100%) !important;display:flex;flex-direction:column;flex-shrink:0;position:relative !important;overflow:hidden !important}
 .sidebar::-webkit-scrollbar{width:3px}.sidebar::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.2)}
@@ -3259,7 +3275,7 @@ input:checked+.slider:before{transform:translateX(18px)}
   </div>
 </div>
 
-<div id="appShell" style="display:none; width:100%; height:100%;">
+<div id="appShell" class="app-shell" style="display:none; width:100%; height:100%; flex-direction:row; overflow:hidden;">
 
 <div class="sidebar">
   <div class="logo-area">
