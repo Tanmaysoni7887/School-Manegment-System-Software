@@ -101,7 +101,42 @@ function createWindow() {
   mainWindow.on('closed', () => { mainWindow = null; });
 }
 
-app.whenReady().then(createWindow);
+// ==============================================================================
+// ASYNCHRONOUS DATABASE PRELOAD & IN-MEMORY CACHE
+// ==============================================================================
+let _dbDataCache = null;
+let _dbDataMtime = 0;
+let _dbPreloadPromise = null;
+
+async function loadDataFromDiskAsync() {
+  if (!fs.existsSync(dataFilePath)) return null;
+  const stat = await fs.promises.stat(dataFilePath);
+  if (_dbDataCache && _dbDataMtime === stat.mtimeMs) {
+    return _dbDataCache;
+  }
+  const raw = await fs.promises.readFile(dataFilePath, 'utf8');
+  const parsed = JSON.parse(raw);
+  if (isValidDatabasePayload(parsed)) {
+    _dbDataCache = parsed;
+    _dbDataMtime = stat.mtimeMs;
+    return _dbDataCache;
+  }
+  return parsed;
+}
+
+function startDatabasePreload() {
+  if (fs.existsSync(dataFilePath)) {
+    _dbPreloadPromise = loadDataFromDiskAsync().catch(err => {
+      console.warn('[Data Preload] Background preload notice:', err.message);
+      return null;
+    });
+  }
+}
+
+app.whenReady().then(() => {
+  startDatabasePreload();
+  createWindow();
+});
 app.on('window-all-closed', () => app.quit());
 app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow(); });
 
@@ -373,12 +408,27 @@ ipcMain.handle('auth-change-password', async (e, { currentPassword, newPassword,
 // IPC HANDLERS
 // ==============================================================================
 
-// Load data with integrity protection
-ipcMain.handle('load-data', () => {
+// Load data with integrity protection and in-memory cache acceleration
+ipcMain.handle('load-data', async () => {
   try {
     if (fs.existsSync(dataFilePath)) {
-      const raw = fs.readFileSync(dataFilePath, 'utf8');
-      const parsed = JSON.parse(raw);
+      let parsed = null;
+      if (_dbPreloadPromise) {
+        parsed = await _dbPreloadPromise;
+        _dbPreloadPromise = null;
+      }
+      if (!parsed && _dbDataCache) {
+        try {
+          const stat = await fs.promises.stat(dataFilePath);
+          if (_dbDataMtime === stat.mtimeMs) {
+            parsed = _dbDataCache;
+          }
+        } catch (_) {}
+      }
+      if (!parsed) {
+        parsed = await loadDataFromDiskAsync();
+      }
+
       if (!isValidDatabasePayload(parsed)) {
         return { error: 'INVALID_DATABASE', message: 'school_data.json exists but does not contain valid school data structure.' };
       }
@@ -441,6 +491,8 @@ ipcMain.handle('save-data', async (e, data) => {
     }
 
     // Compact serialization is ~35% smaller and ~3x faster, keeping UI responsive
+    _dbDataCache = data;
+    _dbDataMtime = Date.now();
     const serialized = JSON.stringify(data);
     _saveQueue = _saveQueue.then(async () => {
       await safeAtomicWriteAsync(dataFilePath, serialized);
@@ -542,6 +594,8 @@ ipcMain.handle('restore-specific-backup', async (e, filename) => {
       return { success: false, error: 'Restored database verification failed after writing to disk' };
     }
 
+    _dbDataCache = verifyParsed;
+    _dbDataMtime = Date.now();
     return { success: true, filename: safeName, data: verifyParsed };
   } catch (err) {
     console.error('Failed to restore specific backup:', err);

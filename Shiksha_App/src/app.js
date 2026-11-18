@@ -1347,23 +1347,15 @@ function ensureDefaultState() {
     if (!DB.classSections[c] || !DB.classSections[c].length) DB.classSections[c] = [{ name: 'A', teacher: '' }];
   });
 
-  const maxIssued = typeof getMaxIssuedAdmissionNumber === 'function' ? getMaxIssuedAdmissionNumber() : 0;
   if (!DB.nextAdm || isNaN(parseInt(DB.nextAdm, 10))) {
+    const maxIssued = typeof getMaxIssuedAdmissionNumber === 'function' ? getMaxIssuedAdmissionNumber() : 0;
     DB.nextAdm = (maxIssued > 0) ? (maxIssued + 1) : 1;
-  } else if (maxIssued > 0 && parseInt(DB.nextAdm, 10) <= maxIssued) {
-    DB.nextAdm = maxIssued + 1;
   }
-  const maxReceiptIssued = typeof getMaxIssuedReceiptNumber === 'function' ? getMaxIssuedReceiptNumber() : 0;
   if (!DB.nextReceiptSeq || isNaN(parseInt(DB.nextReceiptSeq, 10))) {
+    const maxReceiptIssued = typeof getMaxIssuedReceiptNumber === 'function' ? getMaxIssuedReceiptNumber() : 0;
     DB.nextReceiptSeq = (maxReceiptIssued > 0) ? (maxReceiptIssued + 1) : 1;
-  } else if (maxReceiptIssued > 0 && parseInt(DB.nextReceiptSeq, 10) <= maxReceiptIssued) {
-    DB.nextReceiptSeq = maxReceiptIssued + 1;
   }
   if (!DB.nextId) DB.nextId = (DB.students.length ? Math.max(...DB.students.map(s => s.id || 0)) + 1 : 1);
-
-  (DB.students || []).forEach(s => {
-    getStudentEnrollments(s);
-  });
   if (!DB.transport || typeof DB.transport !== 'object') {
     DB.transport = {
       stops: [],
@@ -17784,8 +17776,6 @@ window.addEventListener('keydown', (e) => {
 // ============================================================
 async function init() {
   await loadDB();
-  invalidatePerformanceIndices();
-  ensurePerformanceIndices();
   fillDDs();
   renderDB();
   await checkAuthAndEnforcePasswordChange();
