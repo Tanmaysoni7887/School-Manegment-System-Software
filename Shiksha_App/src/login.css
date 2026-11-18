@@ -229,7 +229,7 @@
 
 .login-card .toggle-pwd {
   position: absolute;
-  right: 12px;
+  right: 14px;
   top: 50%;
   transform: translateY(-50%);
   width: 34px;
@@ -247,6 +247,8 @@
   transition: color 0.15s, background-color 0.15s;
   z-index: 5;
   overflow: visible;
+  line-height: 0;
+  box-sizing: border-box;
 }
 
 .login-card .toggle-pwd:hover {
@@ -260,8 +262,9 @@
 }
 
 .login-card .toggle-pwd svg {
-  width: 19px;
-  height: 19px;
+  width: 20px;
+  height: 20px;
+  display: block;
   overflow: visible;
   flex-shrink: 0;
   pointer-events: none;
