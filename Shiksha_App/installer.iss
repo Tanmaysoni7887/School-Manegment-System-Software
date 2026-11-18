@@ -5,7 +5,7 @@
 [Setup]
 AppId={{5E97D4B6-61D3-4702-8DF6-1A25B4C723D4}
 AppName=Shiksha School Management Software
-AppVersion=2.2.0
+AppVersion=2.2.1
 AppPublisher=Tanmay Soni
 AppPublisherURL=tel:9528371785
 DefaultDirName={autopf}\Shiksha
