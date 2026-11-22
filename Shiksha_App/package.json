@@ -1,12 +1,12 @@
 {
   "name": "shiksha-sms",
-  "version": "2.2.1",
+  "version": "2.3.0",
   "productName": "SHIKSHA – School Management Software",
   "description": "SHIKSHA – School Management Software",
   "main": "main.js",
   "scripts": {
     "start": "electron .",
-    "package": "electron-packager . \"SHIKSHA\" --platform=win32 --arch=x64 --out=dist --icon=icon.ico --overwrite --asar --ignore=\"dist-installer|test|installer\\.iss|\\.bat$|\\.vbs$|README\\.txt|\\.gitignore\"",
+    "package": "electron-packager . \"SHIKSHA\" --platform=win32 --arch=x64 --out=dist --icon=icon.ico --overwrite --asar --ignore=\"dist-installer|test|installer\\.iss|\\.bat$|\\.vbs$|README\\.txt|\\.gitignore|auth\\.json\"",
     "build:installer": "innosetup-compiler installer.iss",
     "dist": "npm run package && npm run build:installer",
     "build": "electron-builder --win --x64"

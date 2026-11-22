@@ -6,9 +6,9 @@ Release Package Manifest & Verification Checksums
 RELEASE METADATA
 --------------------------------------------------------------------------------
 Application Name:      SHIKSHA – School Management Software
-Release Version:       2.2.1 (Official Production Release)
+Release Version:       2.3.0 (Official Production Release)
 Target Platform:       Windows 10 / Windows 11 (64-bit)
-Release Date:          November 18, 2026
+Release Date:          November 22, 2026
 Packaging System:      Inno Setup 6.3.1 (LZMA2/Ultra64 Compression) + Electron v28.3.3
 
 
@@ -17,40 +17,43 @@ PACKAGE FILE INVENTORY & SHA-256 CHECKSUMS
 
 1. [OFFICIAL PRODUCTION INSTALLER]
    Relative Path:  Installer/Shiksha_School_Management_Setup.exe
-   File Size:      80,892,749 bytes (77.1 MB)
-   SHA-256 Hash:   74C137B439F4EC6C59076F45FAB6F42D95F1950D174CC862B3EC79BFECDE4C2E
+   File Size:      80,948,402 bytes (77.2 MB)
+   SHA-256 Hash:   32D8DC11CA03C155E99652F1B1C67F8D4505CEC95A73C46E6E6DE5A402AC4865
    Description:    Official Windows x64 setup wizard with Desktop shortcut,
                    Start Menu integration, transparent multi-resolution Shiksha icon
                    (16-256px), and clean uninstallation support.
    Updates in Build:
+     - Previous Session Arrears Breakdown Engine: Fee-wise historical categorization
+       for School Fees, Exam Fees, and Transport Fees with smart month/range formatting
+       (e.g., "July–November 2025–26 — ₹1,575", "Exam Fee: September 2025–26 — ₹200").
+     - Fee Due Reminders Table Alignment: Clean column alignment across headers and cells
+       (Admission No centered, Total Due right-aligned, text columns left-aligned, and
+       phone icon + number on a single line with white-space: nowrap).
+     - Student Fee Ledger Arrears Section: Dedicated "⚠️ Previous Session Arrears Breakdown"
+       table displaying Session, Fee Category, Period / Month, and Remaining Due.
+     - Application Settings UI Polish: Inset lavender header banner, 34/66% card layout,
+       frameless uncropped logo display, and clean custom academic session dropdown
+       with exact 8px vertical separation and z-index 1050.
+     - Default Admin Password Security: Updated first-login default administrator credentials
+       with forced initial password change and salted scrypt hashing.
+     - Synthetic Demo Test Dataset: Fully validated DEMO_TEST_KIT with 250 realistic
+       student profiles and 1,099+ receipts covering all 10 arrears edge cases.
      - Full Shiksha Rebranding: Clean application identity across all screens,
        window titles, shortcut icons, and report footers.
      - True Alpha Transparent Icon: 7-layer Windows ICO (16px to 256px) and high-res
        32bpp ARGB PNG with smooth sub-pixel anti-aliasing (zero black halo).
      - Dashboard Quick Actions Redesign & Sizing: Comfortable vertical spacing,
-       34px/31px button heights, 6px gaps, single plus sign on "Add New Student",
-       and fully visible 3-row Academic Overview sub-card.
-     - Direct Quick Action Navigation: Added Financial Reports navigation button,
-       renamed Reports & Backup to "Data & Backup" with direct routing.
-     - Month-Wise Dashboard KPI Card Optimization: Complete subtitle deduplication,
-       card padding & typography tuning guaranteeing zero text/amount clipping in
-       both Current Month and Select Month & Year modes across all viewports.
-     - Student Count Perfect Parity: Unified eligibility function ensuring Dashboard
-       and Sessions & Promotion pages match at 1,359 active eligible students.
-     - Transport Fee Multi-Session Dues: Separate "This Month Due" and "Session Due"
-       columns with short range formatting; unified month selector for current and
-       past sessions; removal of redundant session dropdown.
+       34px/31px button heights, 6px gaps, and fully visible Academic Overview card.
      - Financial Reports Print Suite: Native Electron PDF export, deduplicated report
        tiles, 3-signature official layout (Prepared By, Accountant, Principal), and
        Daily Collection self-hydration.
-     - Zero Scrollbar Verification: Preserved zero-scroll viewport geometry across
+     - Zero Scrollbar Geometry: Preserved zero-scroll viewport geometry across
        1920x1080, 1440x900, 1366x768, and 1280x800 desktop resolutions.
-     - Certified against all benchmark datasets (275 up to 3,000 students) and verified
-       100% pass rate across automated regression test suites.
+     - 100% Pass Rate across all regression test suites and benchmarks.
 
 3. [HISTORICAL ARCHIVES (GitHub Release Repository)]
-   Note: Previous releases v2.1.0 (7B7F801B...) and v2.0.0 (0B562AE0...) are archived
-   in the official repository release history for audit trail.
+   Note: Previous releases v2.2.0 (74C137B4...), v2.1.0 (7B7F801B...), and v2.0.0 (0B562AE0...)
+   are archived in the official repository release history for audit trail.
 
 4. [DOCUMENTATION & GUIDES]
    Relative Path:  README.txt
@@ -77,7 +80,7 @@ and run:
   Get-FileHash -Path "Installer\Shiksha_School_Management_Setup.exe" -Algorithm SHA256
 
 Compare the output hash to the official release hash:
-  BC7DB64D2CDB84F971F5F3978C1CA6F208A7B2C23EFCE5DB3723EC12DC9F7ED6
+  32D8DC11CA03C155E99652F1B1C67F8D4505CEC95A73C46E6E6DE5A402AC4865
 
 
 PRIVACY & SENSITIVE DATA DECLARATION

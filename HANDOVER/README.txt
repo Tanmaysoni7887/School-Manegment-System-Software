@@ -1,6 +1,6 @@
 ================================================================================
 SHIKSHA – SCHOOL MANAGEMENT SOFTWARE
-Official Standalone Windows Desktop Application | Version 2.2.0
+Official Standalone Windows Desktop Application | Version 2.3.0
 ================================================================================
 
 1. OVERVIEW

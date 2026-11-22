@@ -1,100 +1,49 @@
-# Demo Dataset Generation & Validation Test Report
+# Demo Dataset Generation & Validation Report
 
-**Project**: MD Convent Public School – SMS  
-**Generated On**: November 10, 2026  
-**Generator Engine**: `DEMO_TEST_KIT/generate_demo_data.js` (v2.0)  
-**Dataset Path**: `DEMO_TEST_KIT/demo_school_data_large.json`  
-
----
-
-## 1. Executive Summary
-
-A completely new synthetic large-scale demo dataset was generated with a randomly selected student count of **1,476 students** (strictly satisfying the requirement of a random count between 1,000 and 1,500). Full relational consistency, schema validity, and cryptographic uniqueness checks were verified using `DEMO_TEST_KIT/test_demo_dataset.js` with **100% success**.
+**Project**: MD Convent Public School – SMS (SHIKSHA)  
+**Dataset File**: `demo_school_data.json`  
+**Generator Engine**: `generate_demo_data.js`  
+**Validation Suite**: `test_demo_dataset.js`  
+**Date Validated**: 22 November 2026
 
 ---
 
-## 2. Dataset Core Metrics
+## 1. Overview & Dataset Profile
 
-| Metric | Value |
-|---|---|
-| **Filename** | `demo_school_data_large.json` |
-| **File Size** | 10.41 MB (10,920,879 bytes) |
-| **Total Students** | 1,476 |
-| **Active Students** | 1,359 (92.07%) |
-| **Inactive / Left School Students** | 117 (7.93%) |
-| **Students with Photo** | 292 (19.78%) |
-| **Students with Unique SR No.** | 1,090 (73.85%) |
-| **Students without SR No.** | 386 (26.15%) |
-| **Total Fee Receipts** | 5,977 |
-| **Transport Assigned Students** | 451 (30.56%) |
-| **Transport Payment Receipts** | 262 |
-| **Total Active Bus Stops** | 8 |
+A fresh, clean demo dataset was created specifically targeting **Previous-Session Arrears** scenarios and overall system ledger verification.
+
+- **Total Students**: 250
+- **Classes Configured**: 15 classes (Nursery to 12th) across Sections A & B
+- **Total Receipts Recorded**: 1099
+- **Transport Stops Configured**: 8
+- **Database File Size**: 830.7 KB
 
 ---
 
-## 3. Class-wise & Section-wise Distribution
+## 2. All 10 Previous-Session Arrears Test Cases Verified
 
-All 15 academic tiers (NC, LKG, UKG, 1 through 12) have balanced enrollments distributed across Sections A, B, and C:
-
-| Class | Total Students | Section A | Section B | Section C |
-|---|---|---|---|---|
-| **Nursery (NC)** | 99 | 33 | 33 | 33 |
-| **LKG** | 99 | 33 | 33 | 33 |
-| **UKG** | 99 | 33 | 33 | 33 |
-| **Class 1** | 99 | 33 | 33 | 33 |
-| **Class 2** | 99 | 33 | 33 | 33 |
-| **Class 3** | 99 | 33 | 33 | 33 |
-| **Class 4** | 98 | 33 | 33 | 32 |
-| **Class 5** | 98 | 33 | 33 | 32 |
-| **Class 6** | 98 | 33 | 33 | 32 |
-| **Class 7** | 98 | 33 | 33 | 32 |
-| **Class 8** | 98 | 33 | 33 | 32 |
-| **Class 9** | 98 | 33 | 33 | 32 |
-| **Class 10** | 98 | 33 | 33 | 32 |
-| **Class 11** | 98 | 33 | 33 | 32 |
-| **Class 12** | 98 | 33 | 33 | 32 |
-| **Total** | **1,476** | **495** | **495** | **486** |
+| Case # | Scenario | Student | Formatted Output in Reminders Table | Total Outstanding | Result |
+|:---:|:---|:---|:---|:---:|:---:|
+| **1** | No previous-session arrears | Aarav Sharma (MDC-1001) | `No Arrears` | ₹0 | **PASS** |
+| **2** | Single unpaid School Fee month | Bhavya Gupta (MDC-1002) | `November 2025–26 — ₹350` | ₹350 | **PASS** |
+| **3** | Consecutive unpaid months range | Chirag Verma (MDC-1003) | `July–November 2025–26 — ₹1,575` | ₹1,575 | **PASS** |
+| **4** | Non-consecutive unpaid months | Diya Patel (MDC-1004) | `April 2025–26 — ₹400`<br>`August 2025–26 — ₹400` | ₹800 | **PASS** |
+| **5** | Partially paid historical fee | Eshan Khan (MDC-1005) | `November 2025–26 — ₹250` | ₹250 | **PASS** |
+| **6** | Previous-session Exam Fee pending | Farhan Ali (MDC-1006) | `Exam Fee: September 2025–26 — ₹200` | ₹200 | **PASS** |
+| **7** | Both School Fee + Exam Fee pending | Gaurav Joshi (MDC-1007) | `April–June 2025–26 — ₹1,050`<br>`Exam Fee: September 2025–26 — ₹200` | ₹1,250 | **PASS** |
+| **8** | Previous-session Transport Fee pending | Harshit Yadav (MDC-1008) | `Transport Fee: August–October 2025–26 — ₹900` | ₹900 | **PASS** |
+| **9** | School Fee + Exam Fee + Transport Fee arrears | Ishita Mishra (MDC-1009) | `April–May 2025–26 — ₹700`<br>`Exam Fee: September 2025–26 — ₹200`<br>`Transport Fee: July 2025–26 — ₹300` | ₹1,200 | **PASS** |
+| **10** | Fallback opening balance (no historical month) | Jayant Dubey (MDC-1010) | `2025–26 — ₹750` | ₹750 | **PASS** |
 
 ---
 
-## 4. Financial & Fee Distribution
+## 3. Formatting Invariants & Integrity Rules
 
-- **Billing Months Simulated**: April through October 2026.
-- **Tuition Fee Rates**: Class-appropriate scales (₹350 to ₹550/mo).
-- **Payment Tiers**:
-  - ~45% Fully Paid through current month.
-  - ~30% Partially Paid or paid up to previous quarter.
-  - ~25% Students with outstanding pending fees / arrears.
-- **Previous Session Arrears**: Seeded for ~10% of students (₹400, ₹750, ₹1,200, ₹1,850).
-- **Payment Modes**: Realistic split among `Cash`, `Online / UPI`, `Bank Transfer`, and `Cheque`.
+- **Zero Bullets**: No bullet points (`•`) in the Previous Arrears column.
+- **Zero Redundant Labels**: No repeated `Previous Session Arrears:` in rows.
+- **Zero Redundant Prefixes**: No `Session:` before academic year.
+- **No Double Counting**: Detailed fee records in `DB.fees` reconcile perfectly with opening balance `feeConfig.previousArrears`.
+- **Honest Fallbacks**: Students with legacy opening balances display `2025–26 — ₹...` without fabricating missing months.
+- **Production Database Safety**: Production database `Documents/MDConvent_SMS/school_data.json` remains 100% isolated and untouched.
 
 ---
-
-## 5. Transport Distribution
-
-- **Active Pickup Stops**: 8 realistic stops (Kasganj Bypass, Dholna Tiraha, Bilram Gate, Sahawar Bus Stand, Mohanpur Turn, Ganjdundwara Road, Amanpur Station Road, Soron Road Tiraha).
-- **Enrolled Transport Users**: 451 students.
-- **Generated Transport Payments**: 262 payment receipts with valid month allocations.
-
----
-
-## 6. Automated Validation Results
-
-Validation executed via: `node DEMO_TEST_KIT/test_demo_dataset.js`
-
-- [x] Total student count >= 1,000 confirmed (1,476).
-- [x] 100% Student IDs are unique (1,476/1,476).
-- [x] 100% Admission Numbers are unique (`MDC-1001` through `MDC-2476`).
-- [x] 100% Assigned SR Numbers are unique (1,090/1,090).
-- [x] 100% Payment & Transport Receipt Numbers are unique (6,239 total receipts).
-- [x] 0 orphan payments detected; all map to existing students.
-- [x] 0 orphan transport records detected; all map to existing students and valid stops.
-- [x] Schema structure completely matches `isValidDatabasePayload()` in `Shiksha_App/main.js`.
-- [x] Zero validation errors discovered.
-
----
-
-## 7. Data Safety Confirmation
-
-- Production database at `Documents/MDConvent_SMS/school_data.json` remained completely isolated and untouched.
-- All demo data was generated strictly into `DEMO_TEST_KIT/demo_school_data_large.json`.

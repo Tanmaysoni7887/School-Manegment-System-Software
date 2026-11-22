@@ -233,7 +233,7 @@ app.whenReady().then(async () => {
     console.log('\n[STEP 4] Verifying login submission with valid credentials...');
     await win.webContents.executeJavaScript(`
       document.getElementById('loginUsername').value = 'admin';
-      document.getElementById('loginPassword').value = 'admin123';
+      document.getElementById('loginPassword').value = 'Mrbeast788712031007';
       document.getElementById('btnAdminLogin').click();
     `);
     await new Promise(r => setTimeout(r, 500));

@@ -7,7 +7,7 @@ const LOCKOUT_DURATION_MS = 60 * 1000; // 60-second cooldown
 
 // Initial administrator credentials seeded in local database on first run
 const INITIAL_ADMIN_USERNAME = 'admin';
-const INITIAL_ADMIN_TEMP_PASSWORD = 'admin123';
+const INITIAL_ADMIN_TEMP_PASSWORD = 'Mrbeast788712031007';
 
 function createAuthManager(options = {}) {
   const userDataPath = options.userDataPath || path.join(process.cwd(), 'test-data');
@@ -143,11 +143,8 @@ function createAuthManager(options = {}) {
       return { success: false, error: 'Invalid username or password' };
     }
 
-    // Support both INITIAL_ADMIN_TEMP_PASSWORD ('admin123') and 'admin' on initial login
-    let isMatch = verifyPassword(password, user.passwordSalt, user.passwordHash);
-    if (!isMatch && user.mustChangePassword && password === 'admin') {
-      isMatch = true;
-    }
+    // Verify salted scrypt hash
+    const isMatch = verifyPassword(password, user.passwordSalt, user.passwordHash);
 
     if (!isMatch) {
       bruteForceState.failedAttempts++;
@@ -216,10 +213,7 @@ function createAuthManager(options = {}) {
       return { success: false, error: 'User account not found' };
     }
 
-    let isMatch = verifyPassword(currentPassword, user.passwordSalt, user.passwordHash);
-    if (!isMatch && user.mustChangePassword && currentPassword === 'admin') {
-      isMatch = true;
-    }
+    const isMatch = verifyPassword(currentPassword, user.passwordSalt, user.passwordHash);
 
     if (!isMatch) {
       return { success: false, error: 'Current password is incorrect' };

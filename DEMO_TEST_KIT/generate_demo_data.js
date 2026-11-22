@@ -1,460 +1,434 @@
 /**
- * MD CONVENT PUBLIC SCHOOL — REALISTIC LARGE DEMO DATA GENERATOR
+ * SHIKSHA — SYNTHETIC DEMO DATASET GENERATOR
  * ==============================================================================
- * Generates configurable, varied, reproducible, and 100% synthetic school database
- * strictly matching the schema of Shiksha_App (src/app.js & main.js).
+ * Generates a clean, reproducible, and fully schema-compliant demo database
+ * specifically enriched with comprehensive Previous-Session Arrears test cases
+ * while maintaining 100% isolation from the production database.
  * ==============================================================================
  */
 
 const fs = require('fs');
 const path = require('path');
 
-const args = process.argv.slice(2);
+const OUTPUT_FILE = path.join(__dirname, 'demo_school_data.json');
+const PROD_FORBIDDEN = 'MDConvent_SMS';
 
-// Requirement: Student count randomly selected between 1,000 and 1,500
-// Never fixed, never exactly 1,000 every time, never below 1,000.
-function getRandomStudentCount(min = 1000, max = 1500) {
-  return Math.floor(Math.random() * (max - min + 1)) + min;
+// CRITICAL SAFETY CHECK: Never overwrite production database
+if (OUTPUT_FILE.includes(PROD_FORBIDDEN) && path.basename(OUTPUT_FILE) === 'school_data.json') {
+  console.error('CRITICAL SAFETY BLOCK: Cannot target production database!');
+  process.exit(1);
 }
 
-let requestedCount = null;
-let outputFileName = 'demo_school_data_large.json';
+console.log('Generating fresh Previous-Arrears Demo Dataset...');
 
-args.forEach(arg => {
-  if (arg.startsWith('--count=')) {
-    requestedCount = parseInt(arg.split('=')[1], 10);
-  } else if (arg.startsWith('--output=')) {
-    outputFileName = arg.split('=')[1].trim();
-  } else if (!isNaN(parseInt(arg, 10))) {
-    requestedCount = parseInt(arg, 10);
-  }
-});
+const CLASSES = ['Nursery', 'LKG', 'UKG', '1st', '2nd', '3rd', '4th', '5th', '6th', '7th', '8th', '9th', '10th', '11th', '12th'];
+const SECTIONS = ['A', 'B'];
+const MONTHS_LIST = ['April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December', 'January', 'February', 'March'];
 
-if (!requestedCount || requestedCount <= 0) {
-  requestedCount = getRandomStudentCount(1000, 1500);
-}
-
-const SCRIPT_DIR = __dirname;
-const OUTPUT_FILE_PATH = path.join(SCRIPT_DIR, outputFileName);
-
-// --- EXPANDED FICTIONAL INDIAN NAMES POOL ---
-const MALE_FIRST_NAMES = [
-  'Aarav', 'Vivaan', 'Aditya', 'Vihaan', 'Arjun', 'Reyansh', 'Muhammad', 'Sai',
-  'Arnav', 'Aayan', 'Krishna', 'Ishan', 'Shaurya', 'Atharv', 'Advik', 'Pranav',
-  'Advaith', 'Aryan', 'Dhruv', 'Kabir', 'Ritvik', 'Darsh', 'Devansh', 'Samar',
-  'Shivam', 'Yash', 'Ayush', 'Aman', 'Rohan', 'Rohit', 'Vikas', 'Amit',
-  'Deepak', 'Manav', 'Kunal', 'Gaurav', 'Mohit', 'Tarun', 'Harshit', 'Nikhil',
-  'Rishabh', 'Harsh', 'Mayank', 'Alok', 'Sachin', 'Rahul', 'Pankaj', 'Neeraj',
-  'Suraj', 'Varun', 'Kartik', 'Ansh', 'Utkarsh', 'Piyush', 'Tushar', 'Abhishek',
-  'Devendra', 'Himanshu', 'Anurag', 'Deepesh', 'Chirag', 'Girish', 'Kamal', 'Lalit',
-  'Manoj', 'Naveen', 'Omkar', 'Parth', 'Rajesh', 'Sandeep', 'Tanmay', 'Umesh',
-  'Vineet', 'Vipul', 'Yogesh', 'Zaid', 'Bhavesh', 'Chetan', 'Dhanush', 'Eklavya'
+const FIRST_NAMES_BOYS = [
+  'Aarav', 'Advait', 'Aryan', 'Ayush', 'Chirag', 'Dev', 'Dhruv', 'Eshan', 'Farhan', 'Gaurav',
+  'Harsh', 'Ishaan', 'Jayant', 'Kabir', 'Lakshya', 'Manav', 'Nakul', 'Om', 'Pranav', 'Rohan',
+  'Samar', 'Shaurya', 'Tanmay', 'Utkarsh', 'Varun', 'Yash', 'Zaid', 'Reyansh', 'Vivaan', 'Ansh'
 ];
 
-const FEMALE_FIRST_NAMES = [
-  'Saanvi', 'Aadya', 'Kiara', 'Diya', 'Pihu', 'Prisha', 'Ananya', 'Fatima',
-  'Sanvi', 'Samaira', 'Myra', 'Pari', 'Riya', 'Aadhya', 'Ira', 'Avani',
-  'Navya', 'Kashvi', 'Siya', 'Meera', 'Sara', 'Tanvi', 'Riddhi', 'Shreya',
-  'Sneha', 'Pooja', 'Priya', 'Neha', 'Ritu', 'Anjali', 'Simran', 'Divya',
-  'Muskan', 'Komal', 'Payal', 'Swati', 'Jyoti', 'Kavita', 'Sunita', 'Pinki',
-  'Renu', 'Khushi', 'Dolly', 'Aarti', 'Kajal', 'Manshi', 'Garima', 'Bhavna',
-  'Barkha', 'Chhavi', 'Disha', 'Ekta', 'Gunjan', 'Harsha', 'Ishita', 'Jaya',
-  'Kusum', 'Lavanya', 'Mahima', 'Nandini', 'Pallavi', 'Rashmi', 'Sonal', 'Tanya'
+const FIRST_NAMES_GIRLS = [
+  'Aadhya', 'Ananya', 'Bhavya', 'Chhavi', 'Diya', 'Ekta', 'Fatima', 'Gauri', 'Ishita', 'Jhanvi',
+  'Khushi', 'Lavanya', 'Meera', 'Navya', 'Pari', 'Riddhi', 'Saanvi', 'Tanvi', 'Urvi', 'Vanya',
+  'Zara', 'Sneha', 'Pooja', 'Priya', 'Riya', 'Kavya', 'Simran', 'Palak', 'Nisha', 'Muskan'
 ];
 
 const SURNAMES = [
-  'Sharma', 'Verma', 'Gupta', 'Singh', 'Yadav', 'Soni', 'Agarwal', 'Mishra',
-  'Tiwari', 'Chauhan', 'Rajput', 'Saxena', 'Dubey', 'Pandey', 'Kumar', 'Kashyap',
-  'Lodhi', 'Baghel', 'Gautam', 'Maurya', 'Pal', 'Prajapati', 'Dixit', 'Upadhyay',
-  'Varshney', 'Maheshwari', 'Bansal', 'Goel', 'Jain', 'Khandelwal', 'Joshi',
-  'Rathore', 'Chaudhary', 'Shukla', 'Bhatt', 'Nagar', 'Tomar', 'Solanki'
+  'Sharma', 'Verma', 'Gupta', 'Singh', 'Patel', 'Yadav', 'Dubey', 'Tiwari', 'Mishra', 'Pandey',
+  'Khan', 'Ali', 'Chauhan', 'Saxena', 'Agrawal', 'Bansal', 'Joshi', 'Shukla', 'Kumar', 'Lodhi'
 ];
 
-const FATHER_FIRST_NAMES = [
-  'Rajesh', 'Mukesh', 'Suresh', 'Ramesh', 'Dinesh', 'Naresh', 'Satish', 'Harish',
-  'Vinod', 'Pramod', 'Ashok', 'Manoj', 'Sunil', 'Anil', 'Sanjay', 'Ajay',
-  'Vijay', 'Rakesh', 'Santosh', 'Brijesh', 'Mahendra', 'Devendra', 'Narendra',
-  'Gopal', 'Kishore', 'Praveen', 'Rajendra', 'Shailendra', 'Virendra', 'Surendra'
+const TRANSPORT_STOPS = [
+  { id: 1, name: 'Kasganj Bypass Tiraha', fare: 350 },
+  { id: 2, name: 'Dholna Road Crossing', fare: 300 },
+  { id: 3, name: 'Bilram Gate Chowk', fare: 250 },
+  { id: 4, name: 'Sahawar Bus Stand', fare: 300 },
+  { id: 5, name: 'Mohanpur Turn', fare: 350 },
+  { id: 6, name: 'Ganjdundwara Road', fare: 400 },
+  { id: 7, name: 'Amanpur Station Road', fare: 200 },
+  { id: 8, name: 'Soron Road Tiraha', fare: 300 }
 ];
 
-const MOTHER_FIRST_NAMES = [
-  'Sunita', 'Anita', 'Geeta', 'Seema', 'Rekha', 'Usha', 'Saroj', 'Shanti',
-  'Kamlesh', 'Vimla', 'Sushila', 'Meena', 'Mamta', 'Neelam', 'Pushpa', 'Savitri',
-  'Radha', 'Maya', 'Kiran', 'Santosh', 'Manju', 'Asha', 'Sudha', 'Rajni',
-  'Shashi', 'Madhu', 'Chitra', 'Alka', 'Anju', 'Babita', 'Kalpana', 'Kusum'
-];
+let nextStudentId = 100;
+let nextAdmSeq = 1000;
+let nextReceiptSeq = 5000;
 
-const LOCALITIES = [
-  'Mohalla Chobdar, Amanpur', 'Near Old Post Office, Amanpur', 'Railway Station Road, Kasganj',
-  'Bilram Gate, Kasganj', 'Main Market, Sahawar', 'Mohanpur Tiraha, Sahawar Road',
-  'Near Gandhi Murti, Ganjdundwara', 'Patiali Crossing, Ganjdundwara', 'Village Dholna, Kasganj',
-  'Near Primary Health Centre, Bilram', 'Nai Basti, Amanpur Road', 'Sujawalpur Road, Ganjdundwara',
-  'Siddhpura Crossing, Kasganj', 'Soron Gate Road, Kasganj', 'Mandi Samiti Road, Amanpur',
-  'Ganjdundwara Railway Road', 'Police Line Road, Kasganj', 'Gandhi Nagar, Sahawar'
-];
-
-const BLOOD_GROUPS = ['A+', 'A-', 'B+', 'B-', 'O+', 'O-', 'AB+', 'AB-'];
-const CLASSES = ['NC', 'LKG', 'UKG', '1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12'];
-const MONTHS_LIST = ['April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December', 'January', 'February', 'March'];
-const PAYMENT_MODES = ['Cash', 'Online / UPI', 'Bank Transfer', 'Cheque'];
-
-const CLASS_AGE_MAP = {
-  'NC': 3, 'LKG': 4, 'UKG': 5,
-  '1': 6, '2': 7, '3': 8, '4': 9, '5': 10,
-  '6': 11, '7': 12, '8': 13, '9': 14, '10': 15,
-  '11': 16, '12': 17
-};
-
-function randomChoice(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
-function randomInt(min, max) { return Math.floor(Math.random() * (max - min + 1)) + min; }
-
-// Synthetic SVG Avatar Generator for optional photos
-function generateSyntheticAvatar(name, isMale) {
-  const bgColors = ['#4F46E5', '#7C3AED', '#2563EB', '#0D9488', '#059669', '#D97706'];
-  const bg = randomChoice(bgColors);
-  const initials = name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" rx="20" fill="${bg}"/><text x="50" y="62" font-family="Segoe UI,Arial,sans-serif" font-size="38" font-weight="bold" fill="#ffffff" text-anchor="middle">${initials}</text></svg>`;
-  return 'data:image/svg+xml;utf8,' + encodeURIComponent(svg);
+function generatePhone() {
+  const prefixes = ['98', '97', '94', '95', '96', '91', '89', '88', '87', '79'];
+  const p = prefixes[Math.floor(Math.random() * prefixes.length)];
+  const rest = String(Math.floor(10000000 + Math.random() * 90000000));
+  return p + rest.slice(2);
 }
 
-function generateDemoDatabase(count) {
-  if (count < 50 || count > 10000) throw new Error('Student count must be between 50 and 10000');
-  const curSession = '2026–27';
-  const startYr = 2026;
+function generateDemoDatabase() {
+  const currentSession = '2026–27';
+  const previousSession = '2025–26';
 
-  // 1. Fee structures across 15 classes
-  const feeStructures = {};
-  CLASSES.forEach((c, idx) => {
-    const tuition = idx < 3 ? 350 : idx < 8 ? 400 : idx < 11 ? 450 : idx < 13 ? 500 : 550;
-    feeStructures[c] = { tuition, transport: 300, admission: 500, examFee: 200 };
-  });
-
-  // 2. Sections per class: Multiple sections (A, B, and C)
-  const classSections = {};
-  CLASSES.forEach(c => {
-    classSections[c] = [
-      { name: 'A', teacher: `Teacher ${c}-A` },
-      { name: 'B', teacher: `Teacher ${c}-B` },
-      { name: 'C', teacher: `Teacher ${c}-C` }
-    ];
-  });
-
-  // 3. Transport routes and pickup stops
-  const transportStops = [
-    { id: 'stop_kasganj_01', name: 'Kasganj Bypass', route: 'Route 1 - Kasganj Express', distance: '14 km', fee: 550, effectiveFrom: 'April', active: true },
-    { id: 'stop_kasganj_02', name: 'Dholna Tiraha', route: 'Route 1 - Kasganj Express', distance: '10 km', fee: 450, effectiveFrom: 'April', active: true },
-    { id: 'stop_kasganj_03', name: 'Bilram Gate', route: 'Route 1 - Kasganj Express', distance: '8 km', fee: 400, effectiveFrom: 'April', active: true },
-    { id: 'stop_sahawar_01', name: 'Sahawar Bus Stand', route: 'Route 2 - Sahawar Feeder', distance: '12 km', fee: 500, effectiveFrom: 'April', active: true },
-    { id: 'stop_sahawar_02', name: 'Mohanpur Turn', route: 'Route 2 - Sahawar Feeder', distance: '9 km', fee: 450, effectiveFrom: 'April', active: true },
-    { id: 'stop_ganj_01', name: 'Ganjdundwara Road', route: 'Route 3 - Ganjdundwara', distance: '15 km', fee: 600, effectiveFrom: 'April', active: true },
-    { id: 'stop_local_01', name: 'Amanpur Station Road', route: 'Route 4 - Local Amanpur', distance: '3 km', fee: 300, effectiveFrom: 'April', active: true },
-    { id: 'stop_soron_01', name: 'Soron Road Tiraha', route: 'Route 5 - Soron Connect', distance: '18 km', fee: 700, effectiveFrom: 'April', active: true }
-  ];
-
-  const transport = { stops: transportStops, assignments: {}, payments: [], nextReceiptSeq: 1 };
-
-  // 4. Distribute students naturally across 15 classes
-  const classAllocations = {};
-  const perClass = Math.floor(count / CLASSES.length);
-  CLASSES.forEach(c => classAllocations[c] = perClass);
-  let rem = count - (perClass * CLASSES.length);
-  for (let i = 0; i < rem; i++) classAllocations[CLASSES[i]]++;
-
-  const students = [];
-  const fees = {};
-  const feeConfig = {};
-  const payments = [];
-
-  let sid = 1;
-  let admSeq = 1001;
-  let rcptSeq = 1001;
-  let trRcptSeq = 101;
-  let srSeq = 101;
-  const billingMonths = ['April', 'May', 'June', 'July', 'August', 'September', 'October'];
-
-  // Track unique IDs and numbers to strictly guarantee no duplicates
-  const usedAdmNos = new Set();
-  const usedSrNos = new Set();
-  const usedReceiptNos = new Set();
-
-  CLASSES.forEach(cls => {
-    const n = classAllocations[cls];
-    let rA = 1, rB = 1, rC = 1;
-    for (let i = 0; i < n; i++) {
-      const id = sid++;
-      const isMale = Math.random() > 0.48;
-      const fn = isMale ? randomChoice(MALE_FIRST_NAMES) : randomChoice(FEMALE_FIRST_NAMES);
-      const ln = randomChoice(SURNAMES);
-      const sName = `${fn} ${ln}`;
-      const fName = `${randomChoice(FATHER_FIRST_NAMES)} ${ln}`;
-      const mName = `${randomChoice(MOTHER_FIRST_NAMES)} Devi`;
-
-      // 3 sections: A, B, C
-      const secChoice = i % 3;
-      const sec = secChoice === 0 ? 'A' : (secChoice === 1 ? 'B' : 'C');
-      const roll = String(sec === 'A' ? rA++ : (sec === 'B' ? rB++ : rC++));
-
-      const age = CLASS_AGE_MAP[cls] || 10;
-      const dob = `${startYr - age}-${String(randomInt(1, 12)).padStart(2, '0')}-${String(randomInt(1, 28)).padStart(2, '0')}`;
-      
-      const admno = `MDC-${admSeq++}`;
-      usedAdmNos.add(admno);
-
-      // Unique optional SR Number (present for ~75% of students)
-      let srNo = '';
-      if (Math.random() < 0.75) {
-        srNo = `SR-${srSeq++}`;
-        usedSrNos.add(srNo);
-      }
-
-      // Status: Active (91%), Inactive (5%), Left School (4%)
-      const statRand = Math.random();
-      const stat = statRand < 0.91 ? 'Active' : (statRand < 0.96 ? 'Inactive' : 'Left School');
-      const phone = '98' + String(randomInt(10000000, 99999999));
-
-      // Optional student photo (present for ~20% of students)
-      const hasPhoto = Math.random() < 0.20;
-      const photo = hasPhoto ? generateSyntheticAvatar(sName, isMale) : '';
-
-      const st = {
-        id,
-        name: sName,
-        father: fName,
-        mother: mName,
-        dob,
-        gender: isMale ? 'Male' : 'Female',
-        blood: randomChoice(BLOOD_GROUPS),
-        phone,
-        email: '',
-        address: randomChoice(LOCALITIES),
-        admno,
-        srNo,
-        rollno: roll,
-        cls,
-        section: sec,
-        admissionDate: `${startYr - 1}-04-05`,
-        session: curSession,
-        status: stat,
-        photo,
-        academicHistory: [],
-        enrollments: [{ session: curSession, cls, section: sec, rollno: roll, status: stat, enrolledAt: `${startYr - 1}-04-05` }]
-      };
-      students.push(st);
-
-      const tuition = feeStructures[cls].tuition;
-      const usesTr = (stat === 'Active' && Math.random() < 0.32);
-
-      // Previous session arrears for ~10% of students
-      const hasPreviousArrears = Math.random() < 0.10;
-      const previousArrears = hasPreviousArrears ? randomChoice([400, 750, 1200, 1850]) : 0;
-
-      feeConfig[id] = {
-        customTuition: null,
-        tuition: true,
-        transportEnabled: usesTr,
-        customTransport: null,
-        transport: usesTr,
-        examFee: 200,
-        examEnabled: true,
-        admission: false,
-        customAdmission: null,
-        previousArrears,
-        advanceBalance: 0
-      };
-
-      // Transport Assignment
-      if (usesTr) {
-        const stop = randomChoice(transportStops);
-        transport.assignments[id] = {
-          studentId: id,
-          admNo: admno,
-          name: sName,
-          class: `${cls} ${sec}`,
-          active: true,
-          type: 'single',
-          pickupStopId: stop.id,
-          pickupStopName: stop.name,
-          dropStopId: null,
-          dropStopName: '-',
-          monthlyFee: stop.fee,
-          effectiveFrom: 'April',
-          stoppedAt: null,
-          history: []
-        };
-
-        // Create genuine transport payments for some enrolled students
-        if (Math.random() < 0.60) {
-          const trRcpt = `TR-REC-${trRcptSeq++}`;
-          usedReceiptNos.add(trRcpt);
-          const trPaidMonths = ['April', 'May'];
-          const trAmount = stop.fee * trPaidMonths.length;
-          transport.payments.push({
-            id: `TR-PAY-${id}`,
-            studentId: id,
-            studentName: sName,
-            admno,
-            receiptNo: trRcpt,
-            date: `${startYr}-05-15`,
-            amount: trAmount,
-            baseRate: stop.fee,
-            discount: 0,
-            mode: randomChoice(PAYMENT_MODES),
-            months: trPaidMonths,
-            remainingDue: 0
-          });
-        }
-      }
-
-      // Fee Payments Distribution:
-      // ~45% Fully Paid through current month
-      // ~30% Partially Paid or Paid few months
-      // ~25% Defaulters with pending dues
-      const payTier = Math.random();
-      const paidUpto = (stat !== 'Active') ? 1 : (payTier < 0.45 ? billingMonths.length : (payTier < 0.75 ? 3 : 0));
-
-      billingMonths.forEach((mo, mIdx) => {
-        const feeKey = `${id}_${mo}_${startYr}`;
-        const isPaid = mIdx < paidUpto;
-        const isPart = (mIdx === paidUpto && Math.random() < 0.40);
-
-        let feeItem = null;
-        if (isPaid) {
-          const rcpt = `REC-${rcptSeq++}`;
-          usedReceiptNos.add(rcpt);
-          const payMode = randomChoice(PAYMENT_MODES);
-          feeItem = {
-            type: 'School Fee',
-            amount: tuition,
-            paid: true,
-            enabled: true,
-            date: `${startYr}-05-10`,
-            mode: payMode,
-            receiptNo: rcpt,
-            discount: 0,
-            partialPaid: tuition,
-            partialRemaining: 0,
-            lateFee: 0
-          };
-          payments.push({
-            receiptNo: rcpt,
-            studentId: id,
-            studentName: sName,
-            admno,
-            cls,
-            section: sec,
-            amount: tuition,
-            baseSubtotal: tuition,
-            lateFee: 0,
-            discountAmt: 0,
-            discountReason: '',
-            mode: payMode,
-            date: `${startYr}-05-10`,
-            category: 'School Fee',
-            period: `School Fee (${mo} ${startYr})`,
-            session: curSession,
-            paymentStatus: 'FULL PAYMENT',
-            receiptDescription: `Full payment received.`,
-            totalRemainingDue: 0,
-            items: [{ feeKey, type: 'School Fee', period: `${mo} ${startYr}`, month: mo, year: startYr, baseAmount: tuition, paidAmount: tuition, remainingDue: 0, allocated: tuition, discount: 0, lateFee: 0 }],
-            reversed: false,
-            voidReason: ''
-          });
-        } else if (isPart) {
-          const rcpt = `REC-${rcptSeq++}`;
-          usedReceiptNos.add(rcpt);
-          const partAmt = Math.round(tuition / 2);
-          const payMode = randomChoice(PAYMENT_MODES);
-          feeItem = {
-            type: 'School Fee',
-            amount: tuition,
-            paid: false,
-            enabled: true,
-            date: `${startYr}-08-10`,
-            mode: payMode,
-            receiptNo: rcpt,
-            discount: 0,
-            partialPaid: partAmt,
-            partialRemaining: tuition - partAmt,
-            lateFee: 0
-          };
-          payments.push({
-            receiptNo: rcpt,
-            studentId: id,
-            studentName: sName,
-            admno,
-            cls,
-            section: sec,
-            amount: partAmt,
-            baseSubtotal: tuition,
-            lateFee: 0,
-            discountAmt: 0,
-            discountReason: '',
-            mode: payMode,
-            date: `${startYr}-08-10`,
-            category: 'School Fee',
-            period: `School Fee (${mo} ${startYr})`,
-            session: curSession,
-            paymentStatus: 'PARTIAL PAYMENT',
-            receiptDescription: `Partial payment received.`,
-            totalRemainingDue: tuition - partAmt,
-            items: [{ feeKey, type: 'School Fee', period: `${mo} ${startYr}`, month: mo, year: startYr, baseAmount: tuition, paidAmount: partAmt, remainingDue: tuition - partAmt, allocated: partAmt, discount: 0, lateFee: 0 }],
-            reversed: false,
-            voidReason: ''
-          });
-        } else {
-          feeItem = {
-            type: 'School Fee',
-            amount: tuition,
-            paid: false,
-            enabled: true,
-            partialPaid: 0,
-            partialRemaining: tuition
-          };
-        }
-        fees[feeKey] = [feeItem];
-      });
-    }
-  });
-
-  return {
+  const db = {
     settings: {
       schoolName: 'MD Convent Public School',
       schoolAddr: 'Amanpur, Kasganj Road, Uttar Pradesh',
       schoolPhone: '9528371785',
       schoolLogo: '',
-      currentSession: curSession,
+      currentSession: currentSession,
       admissionPrefix: 'MDC-',
       receiptPrefix: 'REC-',
       principalName: 'Tanmay Soni'
     },
-    sessions: [{ name: curSession, active: true, createdAt: `${startYr}-04-01T00:00:00.000Z` }],
-    feeStructures,
-    classSections,
-    students,
-    fees,
-    feeConfig,
-    payments,
+    classes: CLASSES.map(cls => ({ name: cls, sections: ['A', 'B'] })),
+    students: [],
+    feeConfig: {},
+    fees: {},
+    payments: [],
+    transport: {
+      stops: TRANSPORT_STOPS,
+      assignments: {},
+      payments: []
+    },
     expenses: [],
-    history: [],
-    transport,
-    nextAdm: admSeq,
-    nextReceiptSeq: rcptSeq,
-    nextId: sid,
+    activityLog: [],
+    nextStudentSeq: 0,
+    nextReceiptSeq: 0,
+    nextId: 0,
     metadata: {
-      generator: 'MD Convent SMS Synthetic Demo Engine v2.0',
+      generator: 'SHIKSHA Previous-Arrears Test Dataset Engine v3.0',
       generatedAt: new Date().toISOString(),
-      studentCount: students.length,
+      currentSession: currentSession,
+      previousSession: previousSession,
       isFictionalDemoData: true
     }
   };
+
+  // --------------------------------------------------------------------------
+  // SECTION A: 10 SPECIFIC PREVIOUS-SESSION ARREARS TEST CASE STUDENTS
+  // --------------------------------------------------------------------------
+  const arrearsTestCases = [
+    {
+      id: 101,
+      admno: 'MDC-1001',
+      name: 'Aarav Sharma (Case 1: No Arrears)',
+      cls: '5th',
+      sec: 'A',
+      father: 'Ramesh Sharma',
+      phone: '9876500001',
+      setup: (s) => {
+        // Fully paid historical fees in 2025–26
+        ['April', 'May', 'June', 'July', 'August', 'September', 'October', 'November'].forEach(m => {
+          db.fees[`${s.id}_${m}_2025`] = [{ type: 'School Fee', amount: 350, paid: true, enabled: true }];
+        });
+        db.feeConfig[String(s.id)] = { tuition: true, examEnabled: true, previousArrears: 0 };
+      }
+    },
+    {
+      id: 102,
+      admno: 'MDC-1002',
+      name: 'Bhavya Gupta (Case 2: Single Month)',
+      cls: '6th',
+      sec: 'A',
+      father: 'Suresh Gupta',
+      phone: '9876500002',
+      setup: (s) => {
+        // Paid April-October 2025; Unpaid November 2025: ₹350
+        ['April', 'May', 'June', 'July', 'August', 'September', 'October'].forEach(m => {
+          db.fees[`${s.id}_${m}_2025`] = [{ type: 'School Fee', amount: 350, paid: true, enabled: true }];
+        });
+        db.fees[`${s.id}_November_2025`] = [{ type: 'School Fee', amount: 350, paid: false, enabled: true }];
+        db.feeConfig[String(s.id)] = { tuition: true, examEnabled: true, previousArrears: 0 };
+      }
+    },
+    {
+      id: 103,
+      admno: 'MDC-1003',
+      name: 'Chirag Verma (Case 3: Consecutive Months)',
+      cls: '4th',
+      sec: 'A',
+      father: 'Dinesh Verma',
+      phone: '9876500003',
+      setup: (s) => {
+        // Paid April-June 2025; Unpaid July-November 2025: 5 * 315 = 1575
+        ['April', 'May', 'June'].forEach(m => {
+          db.fees[`${s.id}_${m}_2025`] = [{ type: 'School Fee', amount: 315, paid: true, enabled: true }];
+        });
+        ['July', 'August', 'September', 'October', 'November'].forEach(m => {
+          db.fees[`${s.id}_${m}_2025`] = [{ type: 'School Fee', amount: 315, paid: false, enabled: true }];
+        });
+        db.feeConfig[String(s.id)] = { tuition: true, examEnabled: true, previousArrears: 0 };
+      }
+    },
+    {
+      id: 104,
+      admno: 'MDC-1004',
+      name: 'Diya Patel (Case 4: Non-Consecutive Months)',
+      cls: '3rd',
+      sec: 'A',
+      father: 'Anand Patel',
+      phone: '9876500004',
+      setup: (s) => {
+        // Unpaid April 2025 (400) and August 2025 (400); May, June, July paid
+        db.fees[`${s.id}_April_2025`] = [{ type: 'School Fee', amount: 400, paid: false, enabled: true }];
+        ['May', 'June', 'July'].forEach(m => {
+          db.fees[`${s.id}_${m}_2025`] = [{ type: 'School Fee', amount: 400, paid: true, enabled: true }];
+        });
+        db.fees[`${s.id}_August_2025`] = [{ type: 'School Fee', amount: 400, paid: false, enabled: true }];
+        db.feeConfig[String(s.id)] = { tuition: true, examEnabled: true, previousArrears: 0 };
+      }
+    },
+    {
+      id: 105,
+      admno: 'MDC-1005',
+      name: 'Eshan Khan (Case 5: Partially Paid Historical Fee)',
+      cls: '7th',
+      sec: 'A',
+      father: 'Imran Khan',
+      phone: '9876500005',
+      setup: (s) => {
+        // November 2025: amount 400, partialPaid 150 -> remaining 250
+        db.fees[`${s.id}_November_2025`] = [{
+          type: 'School Fee',
+          amount: 400,
+          paid: false,
+          partialPaid: 150,
+          partialRemaining: 250,
+          enabled: true
+        }];
+        db.feeConfig[String(s.id)] = { tuition: true, examEnabled: true, previousArrears: 0 };
+      }
+    },
+    {
+      id: 106,
+      admno: 'MDC-1006',
+      name: 'Farhan Ali (Case 6: Exam Fee Pending)',
+      cls: '8th',
+      sec: 'A',
+      father: 'Zahid Ali',
+      phone: '9876500006',
+      setup: (s) => {
+        // School fees fully paid; September 2025 Exam Fee unpaid: 200
+        ['April', 'May', 'June', 'July', 'August', 'September'].forEach(m => {
+          db.fees[`${s.id}_${m}_2025`] = [{ type: 'School Fee', amount: 450, paid: true, enabled: true }];
+        });
+        db.fees[`${s.id}_September_2025`].push({
+          type: 'Exam Fee',
+          name: 'Half-Yearly Exam Fee',
+          amount: 200,
+          paid: false,
+          enabled: true
+        });
+        db.feeConfig[String(s.id)] = { tuition: true, examEnabled: true, previousArrears: 0 };
+      }
+    },
+    {
+      id: 107,
+      admno: 'MDC-1007',
+      name: 'Gaurav Joshi (Case 7: Both School Fee and Exam Fee)',
+      cls: '9th',
+      sec: 'A',
+      father: 'Harish Joshi',
+      phone: '9876500007',
+      setup: (s) => {
+        // April-June 2025 School Fee (350 * 3 = 1050) + September 2025 Exam Fee (200) = 1250
+        ['April', 'May', 'June'].forEach(m => {
+          db.fees[`${s.id}_${m}_2025`] = [{ type: 'School Fee', amount: 350, paid: false, enabled: true }];
+        });
+        db.fees[`${s.id}_September_2025`] = [{
+          type: 'Exam Fee',
+          name: 'Half-Yearly Examination',
+          amount: 200,
+          paid: false,
+          enabled: true
+        }];
+        db.feeConfig[String(s.id)] = { tuition: true, examEnabled: true, previousArrears: 0 };
+      }
+    },
+    {
+      id: 108,
+      admno: 'MDC-1008',
+      name: 'Harshit Yadav (Case 8: Transport Fee Pending)',
+      cls: '2nd',
+      sec: 'A',
+      father: 'Rajesh Yadav',
+      phone: '9876500008',
+      setup: (s) => {
+        // Transport Fee unpaid: August, September, October 2025 @ 300 = 900
+        ['August', 'September', 'October'].forEach(m => {
+          db.fees[`${s.id}_${m}_2025`] = [{ type: 'Transport Fee', amount: 300, paid: false, enabled: true }];
+        });
+        db.transport.assignments[String(s.id)] = {
+          stopId: 2,
+          pickupStopName: 'Dholna Road Crossing',
+          monthlyFee: 300,
+          active: true,
+          effectiveFrom: '2025-04'
+        };
+        db.feeConfig[String(s.id)] = { tuition: true, examEnabled: true, previousArrears: 0 };
+      }
+    },
+    {
+      id: 109,
+      admno: 'MDC-1009',
+      name: 'Ishita Mishra (Case 9: School + Exam + Transport Fee)',
+      cls: '6th',
+      sec: 'B',
+      father: 'Vinod Mishra',
+      phone: '9876500009',
+      setup: (s) => {
+        // School Fee April-May 2025 (350 * 2 = 700)
+        ['April', 'May'].forEach(m => {
+          db.fees[`${s.id}_${m}_2025`] = [{ type: 'School Fee', amount: 350, paid: false, enabled: true }];
+        });
+        // Exam Fee September 2025 (200)
+        db.fees[`${s.id}_September_2025`] = [{ type: 'Exam Fee', amount: 200, paid: false, enabled: true }];
+        // Transport Fee July 2025 (300)
+        db.fees[`${s.id}_July_2025`] = [{ type: 'Transport Fee', amount: 300, paid: false, enabled: true }];
+        db.transport.assignments[String(s.id)] = {
+          stopId: 3,
+          pickupStopName: 'Bilram Gate Chowk',
+          monthlyFee: 300,
+          active: true,
+          effectiveFrom: '2025-04'
+        };
+        db.feeConfig[String(s.id)] = { tuition: true, examEnabled: true, previousArrears: 0 };
+      }
+    },
+    {
+      id: 110,
+      admno: 'MDC-1010',
+      name: 'Jayant Dubey (Case 10: Fallback Opening Balance)',
+      cls: '1st',
+      sec: 'A',
+      father: 'Santosh Dubey',
+      phone: '9876500010',
+      setup: (s) => {
+        // Honest opening balance with NO month records in DB.fees
+        db.feeConfig[String(s.id)] = { tuition: true, examEnabled: true, previousArrears: 750 };
+      }
+    }
+  ];
+
+  // Seed the 10 test students
+  arrearsTestCases.forEach(tc => {
+    const sObj = {
+      id: tc.id,
+      admno: tc.admno,
+      name: tc.name,
+      cls: tc.cls,
+      sec: tc.sec,
+      section: tc.sec,
+      father: tc.father,
+      mother: 'Sunita ' + tc.father.split(' ')[1],
+      phone: tc.phone,
+      session: currentSession,
+      admissionSession: previousSession,
+      admissionDate: '2025-04-05',
+      academicHistory: [{ session: previousSession, cls: tc.cls }],
+      status: 'active',
+      active: true
+    };
+    db.students.push(sObj);
+    tc.setup(sObj);
+
+    // Current session 2026–27 initial dues (April–November 2026 tuition)
+    ['April', 'May', 'June', 'July', 'August', 'September', 'October', 'November'].forEach(m => {
+      const k = `${sObj.id}_${m}_2026`;
+      if (!db.fees[k]) db.fees[k] = [];
+      db.fees[k].push({ type: 'School Fee', amount: 400, paid: false, enabled: true });
+    });
+  });
+
+  // --------------------------------------------------------------------------
+  // SECTION B: REALISTIC COHORT OF GENERAL STUDENTS (240 STUDENTS)
+  // --------------------------------------------------------------------------
+  let curSeq = 1011;
+  nextStudentId = 200;
+  CLASSES.forEach(cls => {
+    SECTIONS.forEach(sec => {
+      const count = 8; // 8 students per section * 15 classes * 2 sections = 240 students
+      for (let i = 0; i < count; i++) {
+        const sid = ++nextStudentId;
+        const adm = `MDC-${curSeq++}`;
+        const isBoy = Math.random() > 0.5;
+        const fn = isBoy
+          ? FIRST_NAMES_BOYS[Math.floor(Math.random() * FIRST_NAMES_BOYS.length)]
+          : FIRST_NAMES_GIRLS[Math.floor(Math.random() * FIRST_NAMES_GIRLS.length)];
+        const ln = SURNAMES[Math.floor(Math.random() * SURNAMES.length)];
+        const fatherFn = FIRST_NAMES_BOYS[Math.floor(Math.random() * FIRST_NAMES_BOYS.length)];
+        const motherFn = FIRST_NAMES_GIRLS[Math.floor(Math.random() * FIRST_NAMES_GIRLS.length)];
+
+        const st = {
+          id: sid,
+          admno: adm,
+          name: `${fn} ${ln}`,
+          cls: cls,
+          sec: sec,
+          section: sec,
+          father: `${fatherFn} ${ln}`,
+          mother: `${motherFn} ${ln}`,
+          phone: generatePhone(),
+          session: currentSession,
+          admissionSession: '2026–27',
+          admissionDate: '2026-04-10',
+          academicHistory: [],
+          status: 'active',
+          active: true
+        };
+
+        db.students.push(st);
+        db.feeConfig[String(sid)] = { tuition: true, examEnabled: true, previousArrears: 0 };
+
+        // Seed current session fees and realistic payments
+        const monthlyTuition = 400;
+        const paidUpToIdx = Math.floor(Math.random() * 8); // Paid between 0 and 7 months
+        MONTHS_LIST.slice(0, 8).forEach((m, idx) => {
+          const isPaid = idx <= paidUpToIdx;
+          db.fees[`${sid}_${m}_2026`] = [{
+            type: 'School Fee',
+            amount: monthlyTuition,
+            paid: isPaid,
+            enabled: true
+          }];
+
+          if (isPaid) {
+            db.payments.push({
+              rcpt: `REC-${nextReceiptSeq++}`,
+              studentId: sid,
+              studentName: st.name,
+              admno: st.admno,
+              cls: st.cls,
+              sec: st.sec,
+              date: '2026-07-15',
+              session: currentSession,
+              mo: m,
+              yr: 2026,
+              feeType: 'School Fee',
+              amount: monthlyTuition,
+              mode: 'Cash',
+              remarks: `Tuition for ${m} 2026`
+            });
+          }
+        });
+      }
+    });
+  });
+
+  db.nextStudentSeq = curSeq;
+  db.nextReceiptSeq = nextReceiptSeq;
+  db.nextId = nextStudentId;
+
+  return db;
 }
 
-console.log(`[Demo Generator] Selected random target student count: ${requestedCount}`);
-const db = generateDemoDatabase(requestedCount);
-fs.writeFileSync(OUTPUT_FILE_PATH, JSON.stringify(db, null, 2), 'utf8');
+const generatedDb = generateDemoDatabase();
+fs.writeFileSync(OUTPUT_FILE, JSON.stringify(generatedDb, null, 2), 'utf8');
 
-const fileSizeMB = (fs.statSync(OUTPUT_FILE_PATH).size / (1024 * 1024)).toFixed(2);
-console.log(`[Demo Generator] SUCCESS: Created ${OUTPUT_FILE_PATH}`);
-console.log(`[Demo Generator] Total Students: ${db.students.length}`);
-console.log(`[Demo Generator] Total Payments: ${db.payments.length}`);
-console.log(`[Demo Generator] File Size: ${fileSizeMB} MB`);
+const stat = fs.statSync(OUTPUT_FILE);
+const sizeKb = (stat.size / 1024).toFixed(1);
+
+console.log(`[SUCCESS] Generated fresh demo dataset at: ${OUTPUT_FILE}`);
+console.log(`  File size: ${sizeKb} KB`);
+console.log(`  Total Students: ${generatedDb.students.length}`);
+console.log(`  Targeted Previous-Arrears Test Cases: 10`);
+console.log(`  Total Receipts: ${generatedDb.payments.length}`);

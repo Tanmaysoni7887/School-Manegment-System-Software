@@ -19,7 +19,7 @@ const { createAuthManager } = require('../auth');
 const testAuthManager = createAuthManager({ userDataPath: testDir });
 
 // Seed admin and disable mustChangePassword for automated loop
-testAuthManager.login('admin', 'admin123');
+testAuthManager.login('admin', 'Mrbeast788712031007');
 const authJsonPath = path.join(testDir, 'auth.json');
 if (fs.existsSync(authJsonPath)) {
   try {
@@ -151,7 +151,7 @@ app.whenReady().then(async () => {
     // TEST B: Successful Login
     // ----------------------------------------------------
     await typeIntoField(mainWindow, 'loginUsername', 'admin');
-    await typeIntoField(mainWindow, 'loginPassword', 'admin123');
+    await typeIntoField(mainWindow, 'loginPassword', 'Mrbeast788712031007');
 
     // Click Sign In button
     await mainWindow.webContents.executeJavaScript(`
@@ -218,7 +218,7 @@ app.whenReady().then(async () => {
 
     // Type credentials via real keyboard after logout
     await typeIntoField(mainWindow, 'loginUsername', 'admin');
-    await typeIntoField(mainWindow, 'loginPassword', 'admin123');
+    await typeIntoField(mainWindow, 'loginPassword', 'Mrbeast788712031007');
 
     const typedC = await mainWindow.webContents.executeJavaScript(`
       (() => ({
@@ -227,7 +227,7 @@ app.whenReady().then(async () => {
       }))()
     `);
     assert.strictEqual(typedC.u, 'admin', 'Keystrokes must type into username after logout');
-    assert.strictEqual(typedC.p, 'admin123', 'Keystrokes must type into password after logout');
+    assert.strictEqual(typedC.p, 'Mrbeast788712031007', 'Keystrokes must type into password after logout');
 
     // Submit second login
     await mainWindow.webContents.executeJavaScript(`
@@ -284,7 +284,7 @@ app.whenReady().then(async () => {
 
       // 3. Type credentials with real keyboard events
       await typeIntoField(mainWindow, 'loginUsername', 'admin');
-      await typeIntoField(mainWindow, 'loginPassword', 'admin123');
+      await typeIntoField(mainWindow, 'loginPassword', 'Mrbeast788712031007');
 
       const cTyped = await mainWindow.webContents.executeJavaScript(`
         (() => ({
@@ -293,7 +293,7 @@ app.whenReady().then(async () => {
         }))()
       `);
       assert.strictEqual(cTyped.u, 'admin', `Cycle ${i}: real typing failed on username`);
-      assert.strictEqual(cTyped.p, 'admin123', `Cycle ${i}: real typing failed on password`);
+      assert.strictEqual(cTyped.p, 'Mrbeast788712031007', `Cycle ${i}: real typing failed on password`);
 
       // 4. Click Sign In
       await mainWindow.webContents.executeJavaScript(`
@@ -357,7 +357,7 @@ app.whenReady().then(async () => {
     assert.strictEqual(testE.uEditable, true, 'Username remains editable');
     assert.strictEqual(testE.pEditable, true, 'Password remains editable');
 
-    await typeIntoField(mainWindow, 'loginPassword', 'admin123');
+    await typeIntoField(mainWindow, 'loginPassword', 'Mrbeast788712031007');
     await mainWindow.webContents.executeJavaScript(`
       setTimeout(() => document.getElementById('btnAdminLogin').click(), 0);
     `);

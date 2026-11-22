@@ -1092,9 +1092,13 @@ function getConsolidatedPendingStudents(rawRows, targetSession = null) {
     otherRows.forEach(or => {
       let period = '';
       if (or.isArrears) {
-        const sessPart = or.arrearSession ? `Previous Session ${or.arrearSession}` : (or.yr && or.yr !== 'Arrears' ? `Previous Session ${or.yr}` : 'Previous Session');
-        const periodPart = or.arrearPeriod || (or.mo && or.mo !== 'Previous Session' ? or.mo : 'Historical period unavailable');
-        period = `${sessPart} — ${periodPart}`;
+        const sessPart = or.arrearSession ? `Session ${or.arrearSession}` : (or.yr && or.yr !== 'Arrears' ? `Session ${or.yr}` : 'Previous Session');
+        if (or.isUnallocated || (or.feeType && or.feeType.includes('Unallocated')) || or.arrearPeriod === 'Historical period unavailable') {
+          period = `${sessPart} (Unallocated)`;
+        } else {
+          const periodPart = or.arrearPeriod || (or.mo && or.mo !== 'Previous Session' ? or.mo : '');
+          period = periodPart ? `${sessPart} — ${periodPart}` : sessPart;
+        }
       } else if (or.feeType === 'Admission Fee') {
         period = `Session ${curSess}`;
       } else if (or.mo && or.yr) {
@@ -1737,7 +1741,26 @@ function showPage(id, btn) {
     support: 'Developer Support & Updates'
   };
   const tEl = document.getElementById('pgTitle');
-  if (tEl) tEl.textContent = titles[id] || id;
+  if (tEl) {
+    if (id === 'settings') {
+      tEl.innerHTML = `
+        <div style="display:flex;align-items:center;gap:12px;">
+          <div style="width:36px;height:36px;border-radius:50%;background:rgba(121,57,214,0.1);display:flex;align-items:center;justify-content:center;color:#7939D6;flex-shrink:0;">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="3"></circle>
+              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+            </svg>
+          </div>
+          <div>
+            <div style="font-size:16px;font-weight:800;color:var(--txt,#17152D);line-height:1.2;">Application Settings</div>
+            <div style="font-size:11.5px;font-weight:400;color:var(--txt2,#64748B);margin-top:2px;">Manage school information, academic preferences and application access.</div>
+          </div>
+        </div>
+      `;
+    } else {
+      tEl.textContent = titles[id] || id;
+    }
+  }
 
   if (id === 'dashboard') renderDB();
   else if (id === 'students') renderSt();
@@ -1910,6 +1933,9 @@ function fillDDs() {
     });
     el.innerHTML = opts;
   });
+  if (typeof renderSessionDropdownOptions === 'function') {
+    renderSessionDropdownOptions();
+  }
 }
 
 // ============================================================
@@ -3117,7 +3143,7 @@ function getPendingFeesDueList(options = {}) {
       arrearsList.forEach(item => {
         // If a specific month filter is active (e.g. September), only include if item matches that month or if dueType is strictly 'arrears'
         if (selMonth && selDueType !== 'arrears') {
-          if (!item.period.includes(selMonth) && item.period !== 'Historical period unavailable') {
+          if (!item.period.includes(selMonth) && item.period !== 'Historical period unavailable' && !item.isUnallocated && !(item.category && item.category.includes('Unallocated'))) {
             return;
           }
         }
@@ -3133,6 +3159,7 @@ function getPendingFeesDueList(options = {}) {
           feeType: item.category,
           amount: item.remainingAmount,
           isArrears: true,
+          isUnallocated: item.isUnallocated || false,
           arrearSession: item.session,
           arrearPeriod: item.period
         });
@@ -5536,7 +5563,7 @@ function getStudentPreviousArrearsBreakdown(s, curSess = null) {
   // 1. Group previous session fee records by category using O(1) indexed fees
   const pastRecordsByCategory = {};
   ensurePerformanceIndices();
-  const stFees = _idxFeesByStudent.get(s.id) || [];
+  const stFees = _idxFeesByStudent.get(s.id) || _idxFeesByStudent.get(parseInt(s.id)) || [];
 
   stFees.forEach(({ key: k, arr }) => {
     const parts = k.split('_');
@@ -5548,30 +5575,28 @@ function getStudentPreviousArrearsBreakdown(s, curSess = null) {
     if (feeStartY < curStartY) {
       const sessLabel = `${feeStartY}–${String(feeStartY + 1).slice(-2)}`;
       const sessLabelAlt = `${feeStartY}-${String(feeStartY + 1).slice(-2)}`;
-      // Verified past session check: Student must have legitimate academic history or was admitted on/before that session
-      const isVerifiedSession = studentPastSessions.some(ps => ps === sessLabel || ps === sessLabelAlt) || (admStartY <= feeStartY);
-      if (!isVerifiedSession) {
-        return; // Skip illegitimate / orphaned fees before student was admitted
-      }
 
       arr.forEach(f => {
-        if (f.enabled !== false && !f.paid && f.type !== 'Van Fee' && f.type !== 'Transport Fee') {
+        if (f.enabled !== false && !f.paid) {
           const amt = Number(f.amount) || 0;
           const partialPaid = Number(f.partialPaid) || 0;
           const rem = f.partialRemaining !== undefined ? Number(f.partialRemaining) : (amt - partialPaid);
           if (rem > 0) {
             feeRecordSum += rem;
-            const groupKey = `${sessLabel}__${f.type}`;
+            const normCat = (f.type === 'Tuition Fee') ? 'School Fee' : (f.type === 'Van Fee' ? 'Transport Fee' : f.type);
+            const groupKey = `${sessLabel}__${normCat}`;
             if (!pastRecordsByCategory[groupKey]) pastRecordsByCategory[groupKey] = [];
             pastRecordsByCategory[groupKey].push({
               session: sessLabel,
               mo,
               yr,
               feeStartY,
-              category: f.type,
+              category: normCat,
+              rawType: f.type,
               amount: rem,
               originalAmount: amt,
-              paidAmount: partialPaid
+              paidAmount: partialPaid,
+              name: f.name || f.label || ''
             });
           }
         }
@@ -5594,26 +5619,38 @@ function getStudentPreviousArrearsBreakdown(s, curSess = null) {
         curGroup = {
           session: rec.session,
           category: rec.category,
+          rawType: rec.rawType,
           startMo: rec.mo,
           startYr: rec.yr,
           endMo: rec.mo,
           endYr: rec.yr,
           originalAmount: rec.originalAmount,
           paidAmount: rec.paidAmount,
-          remainingAmount: rec.amount
+          remainingAmount: rec.amount,
+          name: rec.name || ''
         };
-      } else if (areMonthsConsecutive(curGroup.endMo, curGroup.endYr, rec.mo, rec.yr)) {
+      } else if ((rec.category === 'School Fee' || rec.category === 'Transport Fee') && areMonthsConsecutive(curGroup.endMo, curGroup.endYr, rec.mo, rec.yr)) {
         curGroup.endMo = rec.mo;
         curGroup.endYr = rec.yr;
         curGroup.originalAmount += rec.originalAmount;
         curGroup.paidAmount += rec.paidAmount;
         curGroup.remainingAmount += rec.amount;
       } else {
-        const periodText = formatFullPeriodRange(curGroup.startMo, curGroup.startYr, curGroup.endMo, curGroup.endYr);
+        let periodText = '';
+        if (curGroup.category === 'Admission Fee') {
+          periodText = `Session ${curGroup.session}`;
+        } else {
+          periodText = formatFullPeriodRange(curGroup.startMo, curGroup.startYr, curGroup.endMo, curGroup.endYr);
+        }
         items.push({
           session: curGroup.session,
           period: periodText,
           category: curGroup.category,
+          rawType: curGroup.rawType || curGroup.category,
+          startMo: curGroup.startMo,
+          startYr: curGroup.startYr,
+          endMo: curGroup.endMo,
+          endYr: curGroup.endYr,
           originalAmount: curGroup.originalAmount,
           paidAmount: curGroup.paidAmount,
           remainingAmount: curGroup.remainingAmount,
@@ -5622,22 +5659,34 @@ function getStudentPreviousArrearsBreakdown(s, curSess = null) {
         curGroup = {
           session: rec.session,
           category: rec.category,
+          rawType: rec.rawType,
           startMo: rec.mo,
           startYr: rec.yr,
           endMo: rec.mo,
           endYr: rec.yr,
           originalAmount: rec.originalAmount,
           paidAmount: rec.paidAmount,
-          remainingAmount: rec.amount
+          remainingAmount: rec.amount,
+          name: rec.name || ''
         };
       }
     });
     if (curGroup) {
-      const periodText = formatFullPeriodRange(curGroup.startMo, curGroup.startYr, curGroup.endMo, curGroup.endYr);
+      let periodText = '';
+      if (curGroup.category === 'Admission Fee') {
+        periodText = `Session ${curGroup.session}`;
+      } else {
+        periodText = formatFullPeriodRange(curGroup.startMo, curGroup.startYr, curGroup.endMo, curGroup.endYr);
+      }
       items.push({
         session: curGroup.session,
         period: periodText,
         category: curGroup.category,
+        rawType: curGroup.rawType || curGroup.category,
+        startMo: curGroup.startMo,
+        startYr: curGroup.startYr,
+        endMo: curGroup.endMo,
+        endYr: curGroup.endYr,
         originalAmount: curGroup.originalAmount,
         paidAmount: curGroup.paidAmount,
         remainingAmount: curGroup.remainingAmount,
@@ -5658,11 +5707,13 @@ function getStudentPreviousArrearsBreakdown(s, curSess = null) {
       items.push({
         session: prevSess,
         period: 'Historical period unavailable',
-        category: 'Previous Session Arrears',
+        category: 'Unallocated Previous Session Arrears',
+        rawType: 'Previous Session Arrears',
         originalAmount: unrepresentedManual,
         paidAmount: 0,
         remainingAmount: unrepresentedManual,
-        source: 'config'
+        source: 'config',
+        isUnallocated: true
       });
     }
   }
@@ -5720,14 +5771,19 @@ function showArrearsDetailModal() {
                 </tr>
               </thead>
               <tbody>
-                ${arr.map(it => `
+                ${arr.map(it => {
+                  const isUnallocated = (it.source === 'config' || it.isUnallocated || (it.category && it.category.includes('Unallocated')));
+                  const pText = isUnallocated ? '<span style="color:var(--txt2);font-style:italic">Historical period unavailable</span>' : escapeHtml(it.period);
+                  const cText = isUnallocated ? '<span style="color:#c2410c;font-weight:600">Unallocated Previous Session Arrears</span>' : `<strong>${escapeHtml(it.category)}</strong>`;
+                  return `
                   <tr style="border-top:1px solid #f0f0f0">
-                    <td style="padding:6px 10px;font-weight:600">${it.period}</td>
-                    <td style="padding:6px 10px">${it.category}</td>
-                    <td style="padding:6px 10px;text-align:right">₹${it.originalAmount.toLocaleString('en-IN')}</td>
-                    <td style="padding:6px 10px;text-align:right;color:var(--grn)">₹${it.paidAmount.toLocaleString('en-IN')}</td>
-                    <td style="padding:6px 10px;text-align:right;font-weight:700;color:var(--red)">₹${it.remainingAmount.toLocaleString('en-IN')}</td>
-                  </tr>`).join('')}
+                    <td style="padding:6px 10px">${pText}</td>
+                    <td style="padding:6px 10px">${cText}</td>
+                    <td style="padding:6px 10px;text-align:right">₹${Number(it.originalAmount).toLocaleString('en-IN')}</td>
+                    <td style="padding:6px 10px;text-align:right;color:var(--grn)">₹${Number(it.paidAmount).toLocaleString('en-IN')}</td>
+                    <td style="padding:6px 10px;text-align:right;font-weight:700;color:var(--red)">₹${Number(it.remainingAmount).toLocaleString('en-IN')}</td>
+                  </tr>`;
+                }).join('')}
               </tbody>
             </table>
           </div>`;
@@ -7549,21 +7605,62 @@ function openStudentFeeDetailsModal(sid, targetSession = null) {
   const arrearsItems = getStudentPreviousArrearsBreakdown(s, curSess);
   let arrearsHtml = '';
   if (arrearsItems.length > 0) {
+    const totalArrearsAmt = arrearsItems.reduce((acc, it) => acc + (Number(it.remainingAmount) || 0), 0);
     arrearsHtml = `
       <div style="margin-top:14px">
         <h4 style="font-size:12.5px;margin-bottom:6px;color:#c2410c">⚠️ Previous Session Arrears Breakdown</h4>
         <div class="tw">
           <table style="font-size:11.5px">
-            <thead><tr><th>Session</th><th>Period / Category</th><th>Remaining Due</th></tr></thead>
+            <thead>
+              <tr>
+                <th style="padding:6px 10px;text-align:left;width:15%">Session</th>
+                <th style="padding:6px 10px;text-align:left;width:35%">Fee Category</th>
+                <th style="padding:6px 10px;text-align:left;width:30%">Period / Month</th>
+                <th style="padding:6px 10px;text-align:right;width:20%">Remaining Due</th>
+              </tr>
+            </thead>
             <tbody>
-              ${arrearsItems.map(it => `
-                <tr>
-                  <td>${it.session}</td>
-                  <td>${it.category} (${it.period})</td>
-                  <td style="color:var(--red);font-weight:700">₹${it.remainingAmount.toLocaleString('en-IN')}</td>
-                </tr>
-              `).join('')}
+              ${arrearsItems.map(it => {
+                const isUnallocated = (it.source === 'config' || it.isUnallocated || (it.category && it.category.includes('Unallocated')) || it.category === 'Previous Session Arrears' || it.category === 'Previous Arrears');
+                const sessionDisplay = it.session ? `${it.session}` : '–';
+                
+                let categoryDisplay = '';
+                let periodDisplay = '';
+                
+                if (isUnallocated) {
+                  categoryDisplay = `<span style="font-weight:600;color:#c2410c">Unallocated Previous Session Arrears</span>`;
+                  periodDisplay = `<span style="color:var(--txt2);font-style:italic">Historical period unavailable</span>`;
+                } else {
+                  const rawCat = (it.category === 'Tuition Fee') ? 'School Fee' : (it.category || 'Fee');
+                  categoryDisplay = `<strong>${escapeHtml(rawCat)}</strong>`;
+                  
+                  if (rawCat === 'Admission Fee') {
+                    periodDisplay = (it.period && it.period !== 'Historical period unavailable' && !it.period.startsWith('Session'))
+                      ? escapeHtml(it.period)
+                      : `Session ${it.session}`;
+                  } else if (it.period && it.period !== 'Historical period unavailable') {
+                    periodDisplay = escapeHtml(it.period);
+                  } else {
+                    periodDisplay = `<span style="color:var(--txt2);font-style:italic">–</span>`;
+                  }
+                }
+                
+                return `
+                  <tr>
+                    <td style="padding:6px 10px;white-space:nowrap">${sessionDisplay}</td>
+                    <td style="padding:6px 10px">${categoryDisplay}</td>
+                    <td style="padding:6px 10px">${periodDisplay}</td>
+                    <td style="padding:6px 10px;text-align:right;color:var(--red);font-weight:700;white-space:nowrap">₹${Number(it.remainingAmount).toLocaleString('en-IN')}</td>
+                  </tr>
+                `;
+              }).join('')}
             </tbody>
+            <tfoot>
+              <tr style="background:var(--bg);font-weight:700">
+                <td colspan="3" style="padding:6px 10px;text-align:right;color:#c2410c">Total Previous Session Arrears:</td>
+                <td style="padding:6px 10px;text-align:right;color:var(--red);font-size:12.5px;white-space:nowrap">₹${totalArrearsAmt.toLocaleString('en-IN')}</td>
+              </tr>
+            </tfoot>
           </table>
         </div>
       </div>
@@ -8330,9 +8427,44 @@ function procUnifiedPayment() {
     totalRemainingDueAll += itRemaining;
 
     if (it.feeKey === 'arrears') {
-      // Deduct from student previous arrears
+      // Deduct from detailed past fee records if present
+      let remainingToDeduct = allocated + itDisc;
+      const [curStartY] = parseSessionYears(curSess);
+      ensurePerformanceIndices();
+      const stFees = _idxFeesByStudent.get(s.id) || [];
+      for (const { key: k, arr } of stFees) {
+        if (remainingToDeduct <= 0) break;
+        const parts = k.split('_');
+        const mo = parts[1], yr = parseInt(parts[2]);
+        const mIdx = MONTHS_LIST.indexOf(mo);
+        const feeStartY = (mIdx < 9) ? yr : yr - 1;
+        if (feeStartY < curStartY && Array.isArray(arr)) {
+          for (const f of arr) {
+            if (remainingToDeduct <= 0) break;
+            if (f.enabled !== false && !f.paid && f.type !== 'Van Fee' && f.type !== 'Transport Fee') {
+              const amt = Number(f.amount) || 0;
+              const priorPaid = Number(f.partialPaid) || 0;
+              const due = (f.partialRemaining !== undefined && f.partialRemaining !== null) ? Number(f.partialRemaining) : (amt - priorPaid);
+              if (due > 0) {
+                const deduct = Math.min(due, remainingToDeduct);
+                f.partialPaid = priorPaid + deduct;
+                f.partialRemaining = Math.max(0, due - deduct);
+                if (f.partialRemaining === 0) f.paid = true;
+                f.receiptNo = receiptNo;
+                f.date = dt;
+                f.mode = md;
+                remainingToDeduct -= deduct;
+              }
+            }
+          }
+        }
+      }
+      // Also deduct from manually configured previous arrears
       const curArrears = getStudentPreviousArrears(s.id);
-      setStudentPreviousArrears(s.id, Math.max(0, curArrears - allocated - itDisc));
+      if (curArrears > 0) {
+        setStudentPreviousArrears(s.id, Math.max(0, curArrears - (allocated + itDisc)));
+      }
+      invalidatePerformanceIndices();
     } else {
       // Update DB.fees entry
       if (!DB.fees[it.feeKey]) {
@@ -9824,15 +9956,21 @@ function openCombinedPay(targetMonths = null, targetCategory = null) {
     prevArrearsHtml = `
       <div style="background:#fff7ed;border:1px solid #fed7aa;border-radius:6px;padding:6px 10px;margin-bottom:8px">
         <div style="font-size:11px;font-weight:700;color:#c2410c;margin-bottom:4px">📜 Carried-Forward Previous Session Arrears (Optional):</div>
-        ${prevArrearsList.map((arrItem, idx) => `
+        ${prevArrearsList.map((arrItem, idx) => {
+          const isUnallocated = (arrItem.source === 'config' || arrItem.isUnallocated || (arrItem.category && arrItem.category.includes('Unallocated')) || arrItem.category === 'Previous Session Arrears' || arrItem.category === 'Previous Arrears');
+          const sessLabel = arrItem.session ? `Session ${arrItem.session}` : 'Previous Session';
+          const desc = isUnallocated
+            ? `<strong>${sessLabel}:</strong> Unallocated Previous Session Arrears`
+            : `<strong>${sessLabel}:</strong> ${arrItem.category} — ${arrItem.period}`;
+          return `
           <label style="display:flex;align-items:center;gap:8px;padding:4px 6px;background:#fff;border:1px solid #fed7aa;border-radius:5px;cursor:pointer;margin-bottom:3px;font-size:11.5px">
-            <input type="checkbox" class="comb-arrears-chk" id="cp_arr_${idx}" data-idx="${idx}" data-session="${arrItem.session}" data-cat="${arrItem.category}" data-period="${arrItem.period}" data-amount="${arrItem.remainingAmount}" data-source="${arrItem.source}" onchange="calcCombinedTotal()" style="accent-color:#c2410c;width:14px;height:14px">
+            <input type="checkbox" class="comb-arrears-chk" id="cp_arr_${idx}" data-idx="${idx}" data-session="${arrItem.session}" data-cat="${arrItem.category}" data-rawcat="${arrItem.rawType || arrItem.category}" data-period="${arrItem.period}" data-amount="${arrItem.remainingAmount}" data-source="${arrItem.source}" onchange="calcCombinedTotal()" style="accent-color:#c2410c;width:14px;height:14px">
             <div style="flex:1">
-              <strong>Session ${arrItem.session}:</strong> ${arrItem.period} (${arrItem.category})
+              ${desc}
             </div>
-            <div style="font-weight:700;color:#c2410c;white-space:nowrap">₹${arrItem.remainingAmount.toLocaleString('en-IN')}</div>
+            <div style="font-weight:700;color:#c2410c;white-space:nowrap">₹${Number(arrItem.remainingAmount).toLocaleString('en-IN')}</div>
           </label>
-        `).join('')}
+        `;}).join('')}
       </div>`;
   }
 
@@ -10110,6 +10248,7 @@ function calcCombinedTotal(manualReceived = false) {
         month: box.getAttribute?.('data-period') || 'Arrears',
         year: 0,
         type: box.getAttribute?.('data-cat') || 'Previous Session Arrears',
+        rawType: box.getAttribute?.('data-rawcat') || box.getAttribute?.('data-cat') || 'Previous Session Arrears',
         baseAmount: remAmt
       });
       baseSubtotal += remAmt;
@@ -10286,6 +10425,7 @@ function procCombinedPay() {
         month: box.getAttribute?.('data-period') || 'Arrears',
         year: 0,
         type: box.getAttribute?.('data-cat') || 'Previous Session Arrears',
+        rawType: box.getAttribute?.('data-rawcat') || box.getAttribute?.('data-cat') || 'Previous Session Arrears',
         baseAmount: remAmt
       });
       baseSubtotal += remAmt;
@@ -10404,8 +10544,16 @@ function procCombinedPay() {
         } else if (it.source === 'fee_record') {
           Object.entries(DB.fees || {}).forEach(([k, arr]) => {
             if (!k.startsWith(s.id + '_') || !Array.isArray(arr)) return;
+            const parts = k.split('_');
+            const feeMo = parts[1], feeYr = parseInt(parts[2]);
+            const mIdx = MONTHS_LIST.indexOf(feeMo);
+            const fStartY = (mIdx < 9) ? feeYr : feeYr - 1;
+            const fSess = `${fStartY}–${String(fStartY + 1).slice(-2)}`;
+            const fSessAlt = `${fStartY}-${String(fStartY + 1).slice(-2)}`;
+            if (it.session && it.session !== fSess && it.session !== fSessAlt) return;
             arr.forEach(f => {
-              if (f.type === it.type && !f.paid) {
+              const matchesType = (f.type === it.type || f.type === it.rawType || (it.type === 'School Fee' && f.type === 'Tuition Fee'));
+              if (matchesType && !f.paid) {
                 if (cov >= amtNeeded) {
                   f.paid = true;
                   f.partialPaid = f.amount;
@@ -10965,9 +11113,10 @@ function getRemindersDueList() {
       }
 
       if (schoolDue > 0) {
+        const itemSess = getAcademicSessionForPeriod(mo, yr) || sess;
         breakdown.push({
           category: 'School Fee',
-          period: `${mo} ${yr}`,
+          period: `${mo} ${itemSess}`,
           amount: schoolDue
         });
         currentDuesTotal += schoolDue;
@@ -11117,16 +11266,13 @@ function getRemindersDueList() {
 
       groups.forEach(grp => {
         let periodText = '';
+        const first = grp[0];
+        const last = grp[grp.length - 1];
+        const itemSess = getAcademicSessionForPeriod(first.month, first.year) || sess;
         if (grp.length === 1) {
-          periodText = `${grp[0].month} ${grp[0].year}`;
+          periodText = `${first.month} ${itemSess}`;
         } else {
-          const first = grp[0];
-          const last = grp[grp.length - 1];
-          if (first.year === last.year) {
-            periodText = `${first.month}–${last.month} ${first.year}`;
-          } else {
-            periodText = `${first.month} ${first.year}–${last.month} ${last.year}`;
-          }
+          periodText = `${first.month}–${last.month} ${itemSess}`;
         }
         const totalRem = grp.reduce((acc, it) => acc + it.remaining, 0);
         schoolRanges.push(periodText);
@@ -11230,6 +11376,114 @@ function getRemindersDueList() {
   return { dueList, isFutureMonth: false, mo, yr, sess, viewType, cls };
 }
 
+function formatStudentPreviousArrearsRows(previousArrears, isHtml = false) {
+  if (!Array.isArray(previousArrears) || previousArrears.length === 0) {
+    return isHtml
+      ? `<span style="color:var(--txt2);font-size:11.5px">No Arrears</span>`
+      : `<span style="color:#888;font-size:11px">No Arrears</span>`;
+  }
+
+  const schoolFees = [];
+  const examFeesBySession = {};
+  const otherFees = [];
+  const unallocatedList = [];
+
+  previousArrears.forEach(it => {
+    const isUnalloc = (it.source === 'config' || it.isUnallocated || (it.category && it.category.includes('Unallocated')) || it.category === 'Previous Session Arrears' || it.category === 'Previous Arrears' || it.period === 'Historical period unavailable');
+    if (isUnalloc) {
+      unallocatedList.push(it);
+      return;
+    }
+
+    const rawCat = (it.category === 'Tuition Fee' || it.category === 'Tuition') ? 'School Fee' : (it.category || 'School Fee');
+    if (rawCat === 'School Fee') {
+      schoolFees.push(it);
+    } else if (rawCat === 'Exam Fee') {
+      const sess = it.session || 'Previous Session';
+      if (!examFeesBySession[sess]) examFeesBySession[sess] = [];
+      examFeesBySession[sess].push(it);
+    } else {
+      otherFees.push(it);
+    }
+  });
+
+  const outputRows = [];
+
+  // 1. School Fees
+  schoolFees.forEach(it => {
+    let monthRange = '';
+    if (it.startMo && it.endMo) {
+      monthRange = (it.startMo === it.endMo) ? it.startMo : `${it.startMo}–${it.endMo}`;
+    } else if (it.period) {
+      const p = it.period.replace(/Session\s+[\d–-]+/i, '').trim();
+      const cleanP = p.replace(/\s+\d{4}/g, '').trim();
+      monthRange = cleanP || p;
+    }
+    const sess = it.session || '';
+    const periodText = sess ? `${monthRange} ${sess}` : monthRange;
+    const amt = Number(it.remainingAmount) || 0;
+    const amtHtml = isHtml
+      ? `<span style="font-weight:600">₹${amt.toLocaleString('en-IN')}</span>`
+      : `₹${amt.toLocaleString('en-IN')}`;
+    outputRows.push(`${escapeHtml(periodText)} — ${amtHtml}`);
+  });
+
+  // 2. Exam Fees (grouped by session)
+  Object.keys(examFeesBySession).forEach(sess => {
+    const exams = examFeesBySession[sess];
+    const parts = exams.map(it => {
+      const mo = it.startMo || it.mo || (it.period ? it.period.replace(/\s+\d{4}/g, '').trim() : 'Exam');
+      const amt = Number(it.remainingAmount) || 0;
+      const amtHtml = isHtml
+        ? `<span style="font-weight:600">₹${amt.toLocaleString('en-IN')}</span>`
+        : `₹${amt.toLocaleString('en-IN')}`;
+      return `${escapeHtml(mo)} ${escapeHtml(sess)} — ${amtHtml}`;
+    });
+    outputRows.push(`Exam Fee: ${parts.join('; ')}`);
+  });
+
+  // 3. Other Fees (e.g. Admission Fee, Transport Fee)
+  otherFees.forEach(it => {
+    const rawCat = it.category || 'Fee';
+    const sess = it.session || '';
+    let periodText = sess;
+    if (it.startMo && it.endMo) {
+      const m = (it.startMo === it.endMo) ? it.startMo : `${it.startMo}–${it.endMo}`;
+      periodText = sess ? `${m} ${sess}` : m;
+    } else if (it.period) {
+      const p = it.period.replace(/Session\s+[\d–-]+/i, '').trim();
+      const cleanP = p.replace(/\s+\d{4}/g, '').trim();
+      const m = cleanP || p;
+      periodText = sess ? `${m} ${sess}` : m;
+    }
+    const amt = Number(it.remainingAmount) || 0;
+    const amtHtml = isHtml
+      ? `<span style="font-weight:600">₹${amt.toLocaleString('en-IN')}</span>`
+      : `₹${amt.toLocaleString('en-IN')}`;
+    outputRows.push(`${escapeHtml(rawCat)}: ${escapeHtml(periodText)} — ${amtHtml}`);
+  });
+
+  // 4. Unallocated / Fallback records without month info
+  unallocatedList.forEach(it => {
+    const fallback = it.session || 'Previous Arrears';
+    const amt = Number(it.remainingAmount) || 0;
+    const amtHtml = isHtml
+      ? `<span style="font-weight:600">₹${amt.toLocaleString('en-IN')}</span>`
+      : `₹${amt.toLocaleString('en-IN')}`;
+    outputRows.push(`${escapeHtml(fallback)} — ${amtHtml}`);
+  });
+
+  if (outputRows.length === 0) {
+    return isHtml
+      ? `<span style="color:var(--txt2);font-size:11.5px">No Arrears</span>`
+      : `<span style="color:#888;font-size:11px">No Arrears</span>`;
+  }
+
+  return isHtml
+    ? `<div style="font-size:11.5px;line-height:1.45;color:var(--txt)">${outputRows.map(r => `<div style="margin-bottom:2px">${r}</div>`).join('')}</div>`
+    : `<div style="font-size:11px;line-height:1.4">${outputRows.map(r => `<div>${r}</div>`).join('')}</div>`;
+}
+
 function loadReminders() {
   const tb = document.getElementById('rmTb');
   const stats = document.getElementById('rmStats');
@@ -11274,14 +11528,7 @@ function loadReminders() {
   }
 
   tb.innerHTML = dueList.map(r => {
-    const arrearsHtml = (r.previousArrears && r.previousArrears.length > 0)
-      ? `<div style="font-size:11.5px;line-height:1.45;color:var(--txt)">
-          ${r.previousArrears.map(it => {
-            const periodStr = (it.period && it.period !== 'Historical period unavailable') ? ` — ${it.period}` : '';
-            return `<div style="margin-bottom:2px">• <strong>${it.category}</strong>: Session ${it.session}${periodStr} — <span style="font-weight:600">₹${Number(it.remainingAmount).toLocaleString('en-IN')}</span></div>`;
-          }).join('')}
-        </div>`
-      : `<span style="color:var(--txt2);font-size:11.5px">No Arrears</span>`;
+    const arrearsHtml = formatStudentPreviousArrearsRows(r.previousArrears, true);
 
     const breakdownHtml = (r.breakdown && r.breakdown.length > 0)
       ? `<div style="font-size:11.5px;line-height:1.45;color:var(--txt)">
@@ -11290,14 +11537,14 @@ function loadReminders() {
       : `<span style="color:var(--txt2);font-size:11.5px">No Current Dues</span>`;
 
     return `<tr>
-      <td style="padding:7px 10px"><span class="chip cb2">${r.admno}</span></td>
-      <td style="padding:7px 10px"><strong>${r.name}</strong></td>
-      <td style="padding:7px 10px"><span class="chip cr">${clL(r.cls)}${r.sec ? ' (' + r.sec + ')' : ''}</span></td>
-      <td style="padding:7px 10px">${r.father}</td>
-      <td style="padding:7px 10px"><a href="tel:${r.phone}" style="color:var(--blu);font-weight:600;text-decoration:none">📞 ${r.phone}</a></td>
-      <td style="padding:7px 10px">${arrearsHtml}</td>
-      <td style="padding:7px 10px">${breakdownHtml}</td>
-      <td style="padding:7px 10px;font-weight:700;color:var(--red);text-align:right;white-space:nowrap;font-size:13px">₹${Number(r.totalAmount).toLocaleString('en-IN')}</td>
+      <td style="padding:7px 10px;text-align:center;vertical-align:middle;white-space:nowrap"><span class="chip cb2">${r.admno}</span></td>
+      <td style="padding:7px 10px;text-align:left;vertical-align:middle"><strong>${r.name}</strong></td>
+      <td style="padding:7px 10px;text-align:left;vertical-align:middle;white-space:nowrap"><span class="chip cr">${clL(r.cls)}${r.sec ? ' (' + r.sec + ')' : ''}</span></td>
+      <td style="padding:7px 10px;text-align:left;vertical-align:middle">${r.father}</td>
+      <td style="padding:7px 10px;text-align:left;vertical-align:middle;white-space:nowrap"><a href="tel:${r.phone}" style="color:var(--blu);font-weight:600;text-decoration:none;display:inline-flex;align-items:center;gap:5px;white-space:nowrap"><span style="flex-shrink:0">📞</span><span>${r.phone}</span></a></td>
+      <td style="padding:7px 10px;text-align:left;vertical-align:middle">${arrearsHtml}</td>
+      <td style="padding:7px 10px;text-align:left;vertical-align:middle">${breakdownHtml}</td>
+      <td style="padding:7px 10px;font-weight:700;color:var(--red);text-align:right;white-space:nowrap;font-size:13px;vertical-align:middle">₹${Number(r.totalAmount).toLocaleString('en-IN')}</td>
     </tr>`;
   }).join('');
 }
@@ -11321,14 +11568,7 @@ function printReminders() {
   const totalDue = dueList.reduce((a, r) => a + r.totalAmount, 0);
   const studentCount = dueList.length;
   const rows = dueList.map((r, i) => {
-    const arrearsText = (r.previousArrears && r.previousArrears.length > 0)
-      ? `<div style="font-size:11px;line-height:1.4">
-          ${r.previousArrears.map(it => {
-            const periodStr = (it.period && it.period !== 'Historical period unavailable') ? ` — ${it.period}` : '';
-            return `<div>• <strong>${it.category}</strong>: Session ${it.session}${periodStr} — ₹${Number(it.remainingAmount).toLocaleString('en-IN')}</div>`;
-          }).join('')}
-        </div>`
-      : `<span style="color:#888;font-size:11px">No Arrears</span>`;
+    const arrearsText = formatStudentPreviousArrearsRows(r.previousArrears, false);
 
     const breakdownText = (r.breakdown && r.breakdown.length > 0)
       ? `<div style="font-size:11px;line-height:1.4">
@@ -11337,15 +11577,15 @@ function printReminders() {
       : `<span style="color:#888;font-size:11px">No Current Dues</span>`;
 
     return `<tr>
-      <td>${i + 1}</td>
-      <td>${r.admno}</td>
-      <td><strong>${r.name}</strong></td>
-      <td>${clL(r.cls)}${r.sec ? ' (' + r.sec + ')' : ''}</td>
-      <td>${r.father}</td>
-      <td>${r.phone}</td>
-      <td>${arrearsText}</td>
-      <td>${breakdownText}</td>
-      <td style="font-weight:700;color:#c0392b;text-align:right">₹${Number(r.totalAmount).toLocaleString('en-IN')}</td>
+      <td style="text-align:center;vertical-align:middle">${i + 1}</td>
+      <td style="text-align:center;vertical-align:middle;white-space:nowrap">${r.admno}</td>
+      <td style="text-align:left;vertical-align:middle"><strong>${r.name}</strong></td>
+      <td style="text-align:left;vertical-align:middle;white-space:nowrap">${clL(r.cls)}${r.sec ? ' (' + r.sec + ')' : ''}</td>
+      <td style="text-align:left;vertical-align:middle">${r.father}</td>
+      <td style="text-align:left;vertical-align:middle;white-space:nowrap">${r.phone}</td>
+      <td style="text-align:left;vertical-align:middle">${arrearsText}</td>
+      <td style="text-align:left;vertical-align:middle">${breakdownText}</td>
+      <td style="font-weight:700;color:#c0392b;text-align:right;vertical-align:middle;white-space:nowrap">₹${Number(r.totalAmount).toLocaleString('en-IN')}</td>
     </tr>`;
   }).join('');
 
@@ -11363,7 +11603,7 @@ function printReminders() {
     <div style="font-size:11px;color:#666">${clLabel} | View: ${viewType === 'session' ? 'Full Session' : 'Specific Month'} | Total Outstanding: ₹${totalDue.toLocaleString('en-IN')} | ${dueList.length} Due Entries (${studentCount} Students)</div>
   </div>
   <table>
-    <thead><tr><th>#</th><th>Adm No</th><th>Student Name</th><th>Class/Sec</th><th>Father</th><th>Phone</th><th>Previous Arrears</th><th>Fee Breakdown</th><th style="text-align:right">Total Amount Due</th></tr></thead>
+    <thead><tr><th style="text-align:center;width:40px">#</th><th style="text-align:center;width:75px">Adm No</th><th style="text-align:left">Student Name</th><th style="text-align:left">Class/Sec</th><th style="text-align:left">Father</th><th style="text-align:left">Phone</th><th style="text-align:left">Previous Arrears</th><th style="text-align:left">Fee Breakdown</th><th style="text-align:right">Total Amount Due</th></tr></thead>
     <tbody>
       ${rows}
       <tr class="total-row"><td colspan="8" style="text-align:right;padding:8px 10px">Total Outstanding Balance:</td><td style="text-align:right">₹${totalDue.toLocaleString('en-IN')}</td></tr>
@@ -14508,12 +14748,117 @@ function onAdmissionPrefixChange() {
   const noteEl = document.getElementById('set_next_adm_note');
   if (noteEl) {
     if (maxIssued > 0) {
-      noteEl.innerHTML = `ℹ️ Highest issued number: <strong>${pfx}${maxIssued}</strong> (${(DB.students || []).length} total students). Existing numbers are preserved to prevent duplicates.`;
+      noteEl.innerHTML = `Highest issued: <strong>${pfx}${maxIssued}</strong> (${(DB.students || []).length} total students). Existing numbers are preserved to prevent duplicates.`;
     } else {
-      noteEl.innerHTML = `ℹ️ No student records exist yet for this prefix. Starting value will apply to the first enrolled student.`;
+      noteEl.innerHTML = `No student records exist yet for this prefix. Starting value will apply to the first enrolled student.`;
     }
   }
 }
+
+// ============================================================
+// CUSTOM ACADEMIC SESSION DROPDOWN (No Overlap, Clean Separation)
+// ============================================================
+function renderSessionDropdownOptions() {
+  const sessEl = document.getElementById('set_cur_session');
+  const labelEl = document.getElementById('session_dropdown_label');
+  const menuEl = document.getElementById('session_dropdown_menu');
+  if (!menuEl) return;
+
+  const cur = (sessEl && sessEl.value) || (DB.settings && DB.settings.currentSession) || '2026–27';
+  if (labelEl) {
+    labelEl.textContent = cur || 'Select Academic Session';
+  }
+
+  const sessions = (DB.sessions && DB.sessions.length > 0) 
+    ? DB.sessions 
+    : (sessEl && sessEl.options && sessEl.options.length > 0)
+      ? Array.from(sessEl.options).map(o => ({ name: o.value }))
+      : [{ name: '2026–27' }, { name: '2025–26' }];
+
+  let html = '';
+  sessions.forEach(sess => {
+    const isSelected = (sess.name === cur);
+    const escapedName = (sess.name || '').replace(/"/g, '&quot;').replace(/'/g, "\\'");
+    html += `
+      <div class="settings-dropdown-item ${isSelected ? 'is-selected' : ''}" 
+           role="option" 
+           aria-selected="${isSelected ? 'true' : 'false'}"
+           onclick="selectSessionDropdownOption('${escapedName}')">
+        <span>${sess.name}</span>
+        ${isSelected ? `
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#7939D6" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="20 6 9 17 4 12"></polyline>
+          </svg>` : ''}
+      </div>
+    `;
+  });
+  menuEl.innerHTML = html;
+}
+
+function toggleSessionDropdown(e) {
+  if (e) {
+    e.preventDefault();
+    e.stopPropagation();
+  }
+  const wrap = document.getElementById('custom_session_dropdown');
+  const btn = document.getElementById('session_dropdown_btn');
+  if (!wrap) return;
+
+  const isOpen = wrap.classList.contains('is-open');
+  if (isOpen) {
+    closeSessionDropdown();
+  } else {
+    renderSessionDropdownOptions();
+    wrap.classList.add('is-open');
+    if (btn) btn.setAttribute('aria-expanded', 'true');
+  }
+}
+
+function closeSessionDropdown() {
+  const wrap = document.getElementById('custom_session_dropdown');
+  const btn = document.getElementById('session_dropdown_btn');
+  if (wrap) wrap.classList.remove('is-open');
+  if (btn) btn.setAttribute('aria-expanded', 'false');
+}
+
+function selectSessionDropdownOption(val) {
+  const sessEl = document.getElementById('set_cur_session');
+  if (sessEl) {
+    sessEl.value = val;
+    sessEl.dispatchEvent(new Event('change', { bubbles: true }));
+  }
+  const labelEl = document.getElementById('session_dropdown_label');
+  if (labelEl) labelEl.textContent = val;
+
+  renderSessionDropdownOptions();
+  closeSessionDropdown();
+
+  const btn = document.getElementById('session_dropdown_btn');
+  if (btn) btn.focus();
+}
+
+function handleSessionDropdownKey(e) {
+  const wrap = document.getElementById('custom_session_dropdown');
+  if (!wrap) return;
+  const isOpen = wrap.classList.contains('is-open');
+
+  if (e.key === 'Enter' || e.key === ' ' || (!isOpen && (e.key === 'ArrowDown' || e.key === 'ArrowUp'))) {
+    e.preventDefault();
+    toggleSessionDropdown();
+  } else if (e.key === 'Escape' && isOpen) {
+    e.preventDefault();
+    closeSessionDropdown();
+  }
+}
+
+document.addEventListener('click', function(e) {
+  const wrap = document.getElementById('custom_session_dropdown');
+  if (wrap && wrap.classList.contains('is-open')) {
+    if (!wrap.contains(e.target)) {
+      closeSessionDropdown();
+    }
+  }
+});
 
 function loadSettingsForm() {
   fillDDs();
@@ -14527,6 +14872,9 @@ function loadSettingsForm() {
   if (phEl) phEl.value = s.schoolPhone || '';
   const sessEl = document.getElementById('set_cur_session');
   if (sessEl) sessEl.value = s.currentSession || '2026–27';
+  if (typeof renderSessionDropdownOptions === 'function') {
+    renderSessionDropdownOptions();
+  }
   const admPfxEl = document.getElementById('set_adm_prefix');
   if (admPfxEl) admPfxEl.value = s.admissionPrefix || '';
   const rcptPfxEl = document.getElementById('set_rcpt_prefix');
@@ -14547,9 +14895,9 @@ function loadSettingsForm() {
   const noteEl = document.getElementById('set_next_adm_note');
   if (noteEl) {
     if (maxIssued > 0) {
-      noteEl.innerHTML = `ℹ️ Highest issued: <strong>${prefix}${maxIssued}</strong> (${(DB.students || []).length} total students). Existing numbers are preserved to prevent duplicates.`;
+      noteEl.innerHTML = `Highest issued: <strong>${prefix}${maxIssued}</strong> (${(DB.students || []).length} total students). Existing numbers are preserved to prevent duplicates.`;
     } else {
-      noteEl.innerHTML = `ℹ️ No student records exist yet. Starting value will apply to the first enrolled student.`;
+      noteEl.innerHTML = `No student records exist yet. Starting value will apply to the first enrolled student.`;
     }
   }
 
@@ -14561,7 +14909,7 @@ function loadSettingsForm() {
   }
   const rmBtn = document.getElementById('btnRemoveLogo');
   if (rmBtn) {
-    rmBtn.style.display = customLogo ? 'inline-block' : 'none';
+    rmBtn.style.display = customLogo ? 'inline-flex' : 'none';
   }
 }
 
@@ -14576,7 +14924,7 @@ async function browseLogoFile() {
         prevImg.style.display = 'block';
       }
       const rmBtn = document.getElementById('btnRemoveLogo');
-      if (rmBtn) rmBtn.style.display = 'inline-block';
+      if (rmBtn) rmBtn.style.display = 'inline-flex';
       toast('New logo selected. Click "Save Settings" below to persist.');
     }
   } else {
@@ -14665,7 +15013,7 @@ async function saveSettingsForm() {
       const customLogo = (DB.settings.schoolLogo && DB.settings.schoolLogo !== 'logo.png') ? DB.settings.schoolLogo : '';
       const rmBtn = document.getElementById('btnRemoveLogo');
       if (rmBtn) {
-        rmBtn.style.display = customLogo ? 'inline-block' : 'none';
+        rmBtn.style.display = customLogo ? 'inline-flex' : 'none';
       }
       const prevImg = document.getElementById('set_logo_preview');
       if (prevImg) {
@@ -17898,9 +18246,50 @@ async function checkAuthAndEnforcePasswordChange() {
   }
 }
 
+function openChangePasswordModal() {
+  const overlay = document.getElementById('firstLoginOverlay');
+  if (!overlay) return;
+  const titleEl = document.getElementById('flTitle');
+  const subEl = document.getElementById('flSubtitle');
+  const closeBtn = document.getElementById('flCloseBtn');
+  const cancelBtn = document.getElementById('flCancelBtn');
+  const errBox = document.getElementById('flErrorBox');
+
+  if (titleEl) titleEl.textContent = 'Change Login Password';
+  if (subEl) subEl.textContent = 'Update your administrator password for SHIKSHA.';
+  if (closeBtn) closeBtn.style.display = 'flex';
+  if (cancelBtn) cancelBtn.style.display = 'inline-block';
+  if (errBox) errBox.style.display = 'none';
+
+  const cp = document.getElementById('flCurrentPwd');
+  const np = document.getElementById('flNewPwd');
+  const rp = document.getElementById('flConfirmPwd');
+  if (cp) cp.value = '';
+  if (np) np.value = '';
+  if (rp) rp.value = '';
+
+  overlay.style.display = 'flex';
+  setTimeout(() => {
+    if (cp) cp.focus();
+  }, 100);
+}
+
+function closeChangePasswordModal() {
+  const overlay = document.getElementById('firstLoginOverlay');
+  if (overlay) overlay.style.display = 'none';
+}
+
 function showFirstLoginPasswordModal() {
   const overlay = document.getElementById('firstLoginOverlay');
   if (overlay) {
+    const titleEl = document.getElementById('flTitle');
+    const subEl = document.getElementById('flSubtitle');
+    const closeBtn = document.getElementById('flCloseBtn');
+    const cancelBtn = document.getElementById('flCancelBtn');
+    if (titleEl) titleEl.textContent = 'Set your own password';
+    if (subEl) subEl.textContent = 'This account still uses the starting password. Choose a new one before you continue.';
+    if (closeBtn) closeBtn.style.display = 'none';
+    if (cancelBtn) cancelBtn.style.display = 'none';
     overlay.style.display = 'flex';
     setTimeout(() => {
       document.getElementById('flCurrentPwd')?.focus();
@@ -17958,10 +18347,12 @@ async function handleFirstLoginPasswordChange(event) {
   try {
     const res = await window.electronAPI.authChangePassword({ currentPassword, newPassword, confirmPassword });
     if (res && res.success) {
+      submitBtn.disabled = false;
+      submitBtn.textContent = 'Save password';
       const overlay = document.getElementById('firstLoginOverlay');
       if (overlay) overlay.style.display = 'none';
       if (typeof toast === 'function') {
-        toast('Password updated successfully! Welcome to Shiksha.', 'success');
+        toast('Password updated successfully!', 'success');
       }
     } else {
       submitBtn.disabled = false;
@@ -18016,6 +18407,13 @@ async function confirmAppLogout() {
 window.addEventListener('keydown', (e) => {
   const flOverlay = document.getElementById('firstLoginOverlay');
   if (flOverlay && flOverlay.style.display === 'flex' && e.key === 'Escape') {
+    const cancelBtn = document.getElementById('flCancelBtn');
+    if (cancelBtn && cancelBtn.style.display !== 'none') {
+      e.preventDefault();
+      e.stopPropagation();
+      closeChangePasswordModal();
+      return;
+    }
     e.preventDefault();
     e.stopPropagation();
     return;

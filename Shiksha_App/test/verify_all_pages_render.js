@@ -102,7 +102,7 @@ app.whenReady().then(async () => {
     // 2. Perform Login via real keyboard input
     console.log('[STEP 2] Logging in with admin credentials via real keystrokes...');
     await typeIntoField(win, 'loginUsername', 'admin');
-    await typeIntoField(win, 'loginPassword', 'admin123');
+    await typeIntoField(win, 'loginPassword', 'Mrbeast788712031007');
 
     await win.webContents.executeJavaScript(`
       setTimeout(() => document.getElementById('btnAdminLogin').click(), 0);
@@ -230,7 +230,7 @@ app.whenReady().then(async () => {
     // 6. Test Relogin
     console.log('\n[STEP 6] Testing Relogin after logout...');
     await typeIntoField(win, 'loginUsername', 'admin');
-    await typeIntoField(win, 'loginPassword', 'admin123');
+    await typeIntoField(win, 'loginPassword', 'Mrbeast788712031007');
     await win.webContents.executeJavaScript(`
       setTimeout(() => document.getElementById('btnAdminLogin').click(), 0);
     `);

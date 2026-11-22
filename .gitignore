@@ -51,6 +51,8 @@ corrupted_*.json
 Student_Photos/
 photos/
 student_photos/
+auth.json
+Shiksha_App/auth.json
 
 # 5. Logs & Debugging Artifacts
 logs/
