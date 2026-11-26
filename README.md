@@ -1,11 +1,11 @@
 # SHIKSHA – School Management Software
 ### Offline Desktop Application for Windows (Electron + JavaScript)
 
-[![Release](https://img.shields.io/badge/Release-v2.3.0-blue.svg)](https://github.com/Tanmaysoni7887/School-Manegment-System-Software/releases/tag/v2.3.0)
-[![Download Installer](https://img.shields.io/badge/Download-Windows%20Setup-green.svg)](https://github.com/Tanmaysoni7887/School-Manegment-System-Software/releases/download/v2.3.0/Shiksha_School_Management_Setup.exe)
+[![Release](https://img.shields.io/badge/Release-v2.3.2-blue.svg)](https://github.com/Tanmaysoni7887/School-Manegment-System-Software/releases/tag/v2.3.2)
+[![Download Installer](https://img.shields.io/badge/Download-Windows%20Setup-green.svg)](https://github.com/Tanmaysoni7887/School-Manegment-System-Software/releases/download/v2.3.2/SHIKSHA-School-Management-Software-Setup-2.3.2.exe)
 
-> 📥 **[Download Latest Windows Installer (`Shiksha_School_Management_Setup.exe`)](https://github.com/Tanmaysoni7887/School-Manegment-System-Software/releases/download/v2.3.0/Shiksha_School_Management_Setup.exe)**  
-> **Direct Release Page**: [https://github.com/Tanmaysoni7887/School-Manegment-System-Software/releases/tag/v2.3.0](https://github.com/Tanmaysoni7887/School-Manegment-System-Software/releases/tag/v2.3.0)
+> 📥 **[Download Latest Windows Installer (`SHIKSHA-School-Management-Software-Setup-2.3.2.exe`)](https://github.com/Tanmaysoni7887/School-Manegment-System-Software/releases/download/v2.3.2/SHIKSHA-School-Management-Software-Setup-2.3.2.exe)**  
+> **Direct Release Page**: [https://github.com/Tanmaysoni7887/School-Manegment-System-Software/releases/tag/v2.3.2](https://github.com/Tanmaysoni7887/School-Manegment-System-Software/releases/tag/v2.3.2)
 
 **SHIKSHA** is a comprehensive, production-grade, 100% offline School Management System built for Windows desktop environments. Engineered with Electron and local atomic JSON persistence, SHIKSHA delivers instant, zero-latency administration for student admissions, class fee ledgers, transport routing, multi-session academic promotions, marks entry, and printable bilingual financial receipts.
 

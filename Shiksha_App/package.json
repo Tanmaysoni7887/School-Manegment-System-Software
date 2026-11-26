@@ -1,6 +1,6 @@
 {
   "name": "shiksha-sms",
-  "version": "2.3.1",
+  "version": "2.3.2",
   "productName": "SHIKSHA – School Management Software",
   "description": "SHIKSHA – School Management Software",
   "main": "main.js",
@@ -20,10 +20,15 @@
     },
     "nsis": {
       "oneClick": false,
+      "perMachine": false,
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "shortcutName": "SHIKSHA – School Management Software"
+      "shortcutName": "SHIKSHA – School Management Software",
+      "installerIcon": "icon.ico",
+      "uninstallerIcon": "icon.ico",
+      "installerHeaderIcon": "icon.ico",
+      "deleteAppDataOnUninstall": false
     },
     "files": [
       "main.js",
