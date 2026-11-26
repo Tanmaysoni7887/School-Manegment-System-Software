@@ -120,6 +120,9 @@ body{font-family:'Segoe UI',Tahoma,sans-serif;background:var(--bg);color:var(--t
   width: 100%;
   height: 100%;
   overflow: hidden;
+  flex: 1 0 100%;
+  min-width: 100%;
+  box-sizing: border-box;
 }
 #appShell.active,
 #appShell[style*="display: flex"],
@@ -129,6 +132,8 @@ body{font-family:'Segoe UI',Tahoma,sans-serif;background:var(--bg);color:var(--t
   width: 100% !important;
   height: 100% !important;
   overflow: hidden !important;
+  flex: 1 0 100% !important;
+  min-width: 100% !important;
 }
 
 /* Left Sidebar - Premium Deep Navy/Purple Gradient */
@@ -1153,13 +1158,17 @@ th{background:var(--table-header-bg) !important;padding:9px 12px;text-align:left
 td{padding:9px 12px;border-bottom:1px solid var(--separator) !important;vertical-align:middle;color:var(--txt)}
 tr:last-child td{border-bottom:none}tr:hover td{background:#E8E2F5 !important}
 /* Global Modal & Popup Backdrop with High-Performance Hardware-Accelerated Blur */
-.mo {
+.mo, .m {
   display: none;
   position: fixed;
   inset: 0;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
   width: 100vw;
   height: 100vh;
-  background: rgba(20, 15, 40, 0.25);
+  background: rgba(20, 15, 40, 0.45);
   backdrop-filter: blur(6px);
   -webkit-backdrop-filter: blur(6px);
   z-index: 1000;
@@ -1167,27 +1176,40 @@ tr:last-child td{border-bottom:none}tr:hover td{background:#E8E2F5 !important}
   justify-content: center;
   padding: 20px;
   box-sizing: border-box;
+  overflow: hidden;
 }
 
-.mo.show {
+.mo.show, .m.show {
   display: flex !important;
   animation: modalBackdropFadeIn 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
-.mo.closing {
+.mo.closing, .m.closing {
   display: flex !important;
   pointer-events: none !important;
   animation: modalBackdropFadeOut 0.18s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
 .mo.show > .md,
-.mo.show > div[class*="dialog"] {
+.mo.show > .mc,
+.m.show > .md,
+.m.show > .mc,
+.mo.show > div[class*="dialog"],
+.m.show > div[class*="dialog"] {
   animation: modalDialogPopIn 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
 .mo.closing > .md,
-.mo.closing > div[class*="dialog"] {
+.mo.closing > .mc,
+.m.closing > .md,
+.m.closing > .mc,
+.mo.closing > div[class*="dialog"],
+.m.closing > div[class*="dialog"] {
   animation: modalDialogPopOut 0.18s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+body.has-modal-active {
+  overflow: hidden !important;
 }
 
 @keyframes modalBackdropFadeIn {
@@ -1231,8 +1253,8 @@ tr:last-child td{border-bottom:none}tr:hover td{background:#E8E2F5 !important}
     opacity: 0;
   }
 }
-.md{background:var(--modal-bg);border-radius:14px;width:100%;max-height:90vh;overflow-y:auto}
-.md::-webkit-scrollbar{width:4px}.md::-webkit-scrollbar-thumb{background:#ddd;border-radius:2px}
+.md, .mc{background:var(--modal-bg, #ffffff);border-radius:14px;width:100%;max-height:90vh;overflow-y:auto;box-sizing:border-box}
+.md::-webkit-scrollbar, .mc::-webkit-scrollbar{width:5px}.md::-webkit-scrollbar-thumb, .mc::-webkit-scrollbar-thumb{background:#cbd5e1;border-radius:3px}
 .mh{padding:14px 18px;border-bottom:1px solid var(--bdr);display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;background:var(--modal-header-bg, #F0ECF8);z-index:1}
 .mh h3{font-size:14px;font-weight:700;color:var(--txt)}
 .mb{padding:18px}
@@ -1474,6 +1496,12 @@ input:checked+.slider:before{transform:translateX(18px)}
 .tr-sc-val{font-size:22px;font-weight:800;color:#1e293b;line-height:1.25;margin-top:2px;white-space:nowrap;letter-spacing:-0.4px}
 .tr-sc-val-red{color:#c0392b}
 .tr-sc-sub{font-size:11px;color:#94a3b8;margin-top:2px;white-space:nowrap}
+.tr-summary-card-clickable{cursor:pointer;position:relative;user-select:none;transition:transform 0.18s ease,box-shadow 0.18s ease,border-color 0.18s ease}
+.tr-summary-card-clickable:hover{transform:translateY(-3px);box-shadow:0 8px 20px rgba(120,57,212,0.12);border-color:#7839D4}
+.tr-summary-card-clickable:active{transform:translateY(-1px)}
+.tr-summary-card-clickable:focus-visible{outline:2px solid #7839D4;outline-offset:2px}
+.tr-card-view-hint{display:inline-flex;align-items:center;gap:4px;font-size:10.5px;font-weight:600;color:#7839D4;margin-top:4px;opacity:0.85;transition:opacity 0.15s ease,transform 0.15s ease}
+.tr-summary-card-clickable:hover .tr-card-view-hint{opacity:1;transform:translateX(2px)}
 
 /* Filter Toolbar */
 .tr-filter-bar{background:var(--card-bg, #F7F5FC);border:1px solid var(--bdr, #D5C9F5);border-radius:var(--rad);padding:14px 18px;display:flex;align-items:flex-end;gap:12px;flex-wrap:wrap;box-shadow:0 1px 3px rgba(0,0,0,0.02)}
@@ -4697,7 +4725,7 @@ input:checked+.slider:before{transform:translateX(18px)}
         <!-- 2. Four Summary Cards -->
         <div class="tr-summary-grid">
           <!-- Card 1: Total Collected -->
-          <div class="tr-summary-card">
+          <div class="tr-summary-card tr-summary-card-clickable" id="tr_card_collected" onclick="openTransportCollectionDetailsModal()" role="button" tabindex="0" title="Click to view detailed collection breakdown">
             <div class="tr-sc-icon tr-sc-green">
               <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>
             </div>
@@ -4705,11 +4733,12 @@ input:checked+.slider:before{transform:translateX(18px)}
               <span class="tr-sc-label">Total Collected</span>
               <span class="tr-sc-val" id="tr_stat_collected">₹ 0</span>
               <span class="tr-sc-sub" id="tr_stat_collected_sub">(Selected Period)</span>
+              <span class="tr-card-view-hint">View Details &rarr;</span>
             </div>
           </div>
 
           <!-- Card 2: Pending Dues -->
-          <div class="tr-summary-card">
+          <div class="tr-summary-card tr-summary-card-clickable" id="tr_card_pending" onclick="openTransportPendingDuesModal()" role="button" tabindex="0" title="Click to view detailed pending dues breakdown">
             <div class="tr-sc-icon tr-sc-red">
               <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
             </div>
@@ -4717,6 +4746,7 @@ input:checked+.slider:before{transform:translateX(18px)}
               <span class="tr-sc-label">Pending Dues</span>
               <span class="tr-sc-val tr-sc-val-red" id="tr_stat_pending">₹ 0</span>
               <span class="tr-sc-sub" id="tr_stat_pending_sub">(Selected Period)</span>
+              <span class="tr-card-view-hint">View Details &rarr;</span>
             </div>
           </div>
 
@@ -6732,6 +6762,282 @@ input:checked+.slider:before{transform:translateX(18px)}
     <!-- Modal Footer -->
     <div class="tr-modal-footer">
       <button class="tr-det-close-btn" onclick="closeM('modalStudentTransportDetails')">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================
+     TRANSPORT MODAL: PENDING DUES DETAILS
+     ============================================================ -->
+<div class="mo" id="modalTransportPendingDues" style="z-index:1005;">
+  <div class="md" style="max-width:min(1180px, 96vw); width:1180px; max-height:92vh; display:flex; flex-direction:column; overflow:hidden;">
+    <!-- Modal Header -->
+    <div class="tr-modal-header" style="background:linear-gradient(135deg, #1e293b, #334155); color:#fff; padding:16px 22px;">
+      <div style="display:flex; align-items:center; gap:12px;">
+        <div style="width:38px; height:38px; border-radius:8px; background:rgba(239,68,68,0.2); display:flex; align-items:center; justify-content:center; color:#fca5a5; flex-shrink:0;">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        </div>
+        <div>
+          <h3 class="tr-modal-title" style="color:#fff; font-size:16px; margin:0;">Transport Pending Dues Details</h3>
+          <p style="font-size:11.5px; color:#cbd5e1; margin:2px 0 0 0;" id="tr_pending_header_sub">Student-wise breakdown of unpaid transport fees</p>
+        </div>
+      </div>
+      <div style="display:flex; align-items:center; gap:8px;">
+        <button class="btn bo bsm" onclick="printTransportPendingDues()" style="background:rgba(255,255,255,0.1); color:#fff; border-color:rgba(255,255,255,0.2); padding:5px 12px; font-size:12px;" title="Print Report">
+          🖨 Print
+        </button>
+        <button class="btn bo bsm" onclick="exportTransportPendingDuesCSV()" style="background:rgba(255,255,255,0.1); color:#fff; border-color:rgba(255,255,255,0.2); padding:5px 12px; font-size:12px;" title="Export CSV">
+          📥 Export CSV
+        </button>
+        <button class="tr-modal-close" onclick="closeM('modalTransportPendingDues')" style="color:#cbd5e1;">✕</button>
+      </div>
+    </div>
+
+    <!-- Modal Body -->
+    <div class="tr-modal-body" style="padding:16px 20px; overflow-y:auto; flex:1; display:flex; flex-direction:column; gap:14px;">
+      <!-- Top 4 Summary Cards -->
+      <div style="display:grid; grid-template-columns:repeat(4, minmax(0, 1fr)); gap:12px;">
+        <div style="background:#fef2f2; border:1px solid #fee2e2; border-radius:8px; padding:12px 14px;">
+          <div style="font-size:11px; font-weight:600; color:#991b1b;">Total Pending Amount</div>
+          <div style="font-size:20px; font-weight:800; color:#dc2626; margin-top:2px;" id="tr_pending_stat_amount">₹ 0</div>
+        </div>
+        <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:12px 14px;">
+          <div style="font-size:11px; font-weight:600; color:#475569;">Students with Pending Dues</div>
+          <div style="font-size:20px; font-weight:800; color:#0f172a; margin-top:2px;" id="tr_pending_stat_students">0</div>
+        </div>
+        <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:12px 14px;">
+          <div style="font-size:11px; font-weight:600; color:#475569;">Total Pending Entries</div>
+          <div style="font-size:20px; font-weight:800; color:#0f172a; margin-top:2px;" id="tr_pending_stat_entries">0</div>
+        </div>
+        <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:12px 14px;">
+          <div style="font-size:11px; font-weight:600; color:#475569;">Selected Session &amp; Period</div>
+          <div style="font-size:13px; font-weight:700; color:#2563eb; margin-top:5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" id="tr_pending_stat_period">-</div>
+        </div>
+      </div>
+
+      <!-- Filters Row -->
+      <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:12px 14px; display:flex; flex-wrap:wrap; align-items:flex-end; gap:10px;">
+        <div style="display:flex; flex-direction:column; gap:4px; min-width:120px;">
+          <label style="font-size:11px; font-weight:600; color:#64748b;">Academic Session</label>
+          <select id="tr_pending_f_session" class="tr-filter-select" onchange="onTransportPendingSessionChange()" style="height:32px; font-size:12px; padding:4px 8px;"></select>
+        </div>
+        <div style="display:flex; flex-direction:column; gap:4px; min-width:125px;">
+          <label style="font-size:11px; font-weight:600; color:#64748b;">View Period</label>
+          <select id="tr_pending_f_period_type" class="tr-filter-select" onchange="onTransportPendingPeriodTypeChange()" style="height:32px; font-size:12px; padding:4px 8px;">
+            <option value="month">Month-wise</option>
+            <option value="session">Full Session</option>
+            <option value="custom">Custom Month Range</option>
+          </select>
+        </div>
+        <div id="tr_pending_month_wrap" style="display:flex; flex-direction:column; gap:4px; min-width:130px;">
+          <label style="font-size:11px; font-weight:600; color:#64748b;">Month</label>
+          <select id="tr_pending_f_month" class="tr-filter-select" onchange="applyTransportPendingFilters()" style="height:32px; font-size:12px; padding:4px 8px;"></select>
+        </div>
+        <div id="tr_pending_custom_range_wrap" style="display:none; align-items:flex-end; gap:6px;">
+          <div style="display:flex; flex-direction:column; gap:4px;">
+            <label style="font-size:11px; font-weight:600; color:#64748b;">From Month</label>
+            <select id="tr_pending_f_from_month" class="tr-filter-select" onchange="applyTransportPendingFilters()" style="height:32px; font-size:12px; padding:4px 8px;"></select>
+          </div>
+          <div style="display:flex; flex-direction:column; gap:4px;">
+            <label style="font-size:11px; font-weight:600; color:#64748b;">To Month</label>
+            <select id="tr_pending_f_to_month" class="tr-filter-select" onchange="applyTransportPendingFilters()" style="height:32px; font-size:12px; padding:4px 8px;"></select>
+          </div>
+        </div>
+        <div style="display:flex; flex-direction:column; gap:4px; min-width:110px;">
+          <label style="font-size:11px; font-weight:600; color:#64748b;">Class</label>
+          <select id="tr_pending_f_class" class="tr-filter-select" onchange="applyTransportPendingFilters()" style="height:32px; font-size:12px; padding:4px 8px;">
+            <option value="all">All Classes</option>
+          </select>
+        </div>
+        <div style="display:flex; flex-direction:column; gap:4px; min-width:125px;">
+          <label style="font-size:11px; font-weight:600; color:#64748b;">Transport Stop</label>
+          <select id="tr_pending_f_stop" class="tr-filter-select" onchange="applyTransportPendingFilters()" style="height:32px; font-size:12px; padding:4px 8px;">
+            <option value="all">All Stops</option>
+          </select>
+        </div>
+        <div style="display:flex; flex-direction:column; gap:4px; min-width:115px;">
+          <label style="font-size:11px; font-weight:600; color:#64748b;">Payment Status</label>
+          <select id="tr_pending_f_status" class="tr-filter-select" onchange="applyTransportPendingFilters()" style="height:32px; font-size:12px; padding:4px 8px;">
+            <option value="all">All Pending</option>
+            <option value="due">Fully Due</option>
+            <option value="partial">Partially Paid</option>
+          </select>
+        </div>
+        <div style="display:flex; flex-direction:column; gap:4px; flex:1; min-width:140px;">
+          <label style="font-size:11px; font-weight:600; color:#64748b;">Quick Search</label>
+          <input type="text" id="tr_pending_f_search" placeholder="Search name, adm no, stop..." oninput="applyTransportPendingFilters()" style="height:32px; font-size:12px; padding:4px 10px; border:1px solid #cbd5e1; border-radius:6px; outline:none; background:#fff;">
+        </div>
+        <div style="display:flex; align-items:center;">
+          <button class="btn bo bsm" onclick="resetTransportPendingFilters()" style="height:32px; font-size:11.5px; padding:4px 10px;" title="Reset Filters">
+            Reset
+          </button>
+        </div>
+      </div>
+
+      <!-- Pending Table -->
+      <div style="border:1px solid #e2e8f0; border-radius:8px; overflow:hidden; flex:1; min-height:240px; display:flex; flex-direction:column;">
+        <div style="overflow-x:auto; overflow-y:auto; max-height:480px;">
+          <table class="tr-table" style="font-size:12px; margin:0;">
+            <thead style="position:sticky; top:0; z-index:2; background:#f1f5f9;">
+              <tr>
+                <th style="width:40px; text-align:center;">#</th>
+                <th>Student Name</th>
+                <th style="width:90px;">Admission No.</th>
+                <th style="width:80px;">Class</th>
+                <th>Pickup Stop</th>
+                <th class="text-right" style="width:105px;">Monthly Fee</th>
+                <th class="text-right" style="width:95px;">Paid Amount</th>
+                <th class="text-right" style="width:110px;">Pending Amount</th>
+                <th style="width:140px;">Pending Period</th>
+                <th class="text-center" style="width:160px;">Actions</th>
+              </tr>
+            </thead>
+            <tbody id="tr_pending_tbody">
+              <!-- Dynamically populated -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal Footer -->
+    <div class="tr-modal-footer" style="padding:10px 20px; background:#f8fafc; border-top:1px solid #e2e8f0; display:flex; justify-content:space-between; align-items:center;">
+      <span style="font-size:11.5px; color:#64748b;" id="tr_pending_footer_count">Showing 0 records</span>
+      <button class="btn bo" onclick="closeM('modalTransportPendingDues')">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================
+     TRANSPORT MODAL: COLLECTION DETAILS
+     ============================================================ -->
+<div class="mo" id="modalTransportCollectionDetails" style="z-index:1005;">
+  <div class="md" style="max-width:min(1180px, 96vw); width:1180px; max-height:92vh; display:flex; flex-direction:column; overflow:hidden;">
+    <!-- Modal Header -->
+    <div class="tr-modal-header" style="background:linear-gradient(135deg, #065f46, #047857); color:#fff; padding:16px 22px;">
+      <div style="display:flex; align-items:center; gap:12px;">
+        <div style="width:38px; height:38px; border-radius:8px; background:rgba(255,255,255,0.2); display:flex; align-items:center; justify-content:center; color:#fff; flex-shrink:0;">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>
+        </div>
+        <div>
+          <h3 class="tr-modal-title" style="color:#fff; font-size:16px; margin:0;">Transport Fee Collection Details</h3>
+          <p style="font-size:11.5px; color:#d1fae5; margin:2px 0 0 0;" id="tr_collection_header_sub">Comprehensive audit of received transport payments</p>
+        </div>
+      </div>
+      <div style="display:flex; align-items:center; gap:8px;">
+        <button class="btn bo bsm" onclick="printTransportCollectionDetails()" style="background:rgba(255,255,255,0.15); color:#fff; border-color:rgba(255,255,255,0.3); padding:5px 12px; font-size:12px;" title="Print Report">
+          🖨 Print
+        </button>
+        <button class="btn bo bsm" onclick="exportTransportCollectionCSV()" style="background:rgba(255,255,255,0.15); color:#fff; border-color:rgba(255,255,255,0.3); padding:5px 12px; font-size:12px;" title="Export CSV">
+          📥 Export CSV
+        </button>
+        <button class="tr-modal-close" onclick="closeM('modalTransportCollectionDetails')" style="color:#d1fae5;">✕</button>
+      </div>
+    </div>
+
+    <!-- Modal Body -->
+    <div class="tr-modal-body" style="padding:16px 20px; overflow-y:auto; flex:1; display:flex; flex-direction:column; gap:14px;">
+      <!-- Top 4 Summary Cards -->
+      <div style="display:grid; grid-template-columns:repeat(4, minmax(0, 1fr)); gap:12px;">
+        <div style="background:#ecfdf5; border:1px solid #d1fae5; border-radius:8px; padding:12px 14px;">
+          <div style="font-size:11px; font-weight:600; color:#065f46;">Total Amount Collected</div>
+          <div style="font-size:20px; font-weight:800; color:#059669; margin-top:2px;" id="tr_collection_stat_amount">₹ 0</div>
+        </div>
+        <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:12px 14px;">
+          <div style="font-size:11px; font-weight:600; color:#475569;">Students Who Paid</div>
+          <div style="font-size:20px; font-weight:800; color:#0f172a; margin-top:2px;" id="tr_collection_stat_students">0</div>
+        </div>
+        <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:12px 14px;">
+          <div style="font-size:11px; font-weight:600; color:#475569;">Payment Transactions</div>
+          <div style="font-size:20px; font-weight:800; color:#0f172a; margin-top:2px;" id="tr_collection_stat_transactions">0</div>
+        </div>
+        <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:12px 14px;">
+          <div style="font-size:11px; font-weight:600; color:#475569;">Selected Session &amp; Period</div>
+          <div style="font-size:13px; font-weight:700; color:#059669; margin-top:5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" id="tr_collection_stat_period">-</div>
+        </div>
+      </div>
+
+      <!-- Filters Row -->
+      <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:12px 14px; display:flex; flex-wrap:wrap; align-items:flex-end; gap:10px;">
+        <div style="display:flex; flex-direction:column; gap:4px; min-width:120px;">
+          <label style="font-size:11px; font-weight:600; color:#64748b;">Academic Session</label>
+          <select id="tr_collection_f_session" class="tr-filter-select" onchange="onTransportCollectionSessionChange()" style="height:32px; font-size:12px; padding:4px 8px;"></select>
+        </div>
+        <div style="display:flex; flex-direction:column; gap:4px; min-width:125px;">
+          <label style="font-size:11px; font-weight:600; color:#64748b;">View Period</label>
+          <select id="tr_collection_f_period_type" class="tr-filter-select" onchange="onTransportCollectionPeriodTypeChange()" style="height:32px; font-size:12px; padding:4px 8px;">
+            <option value="month">Month-wise</option>
+            <option value="session">Full Session</option>
+            <option value="custom">Custom Date Range</option>
+          </select>
+        </div>
+        <div id="tr_collection_month_wrap" style="display:flex; flex-direction:column; gap:4px; min-width:130px;">
+          <label style="font-size:11px; font-weight:600; color:#64748b;">Month</label>
+          <select id="tr_collection_f_month" class="tr-filter-select" onchange="applyTransportCollectionFilters()" style="height:32px; font-size:12px; padding:4px 8px;"></select>
+        </div>
+        <div id="tr_collection_custom_range_wrap" style="display:none; align-items:flex-end; gap:6px;">
+          <div style="display:flex; flex-direction:column; gap:4px;">
+            <label style="font-size:11px; font-weight:600; color:#64748b;">From Date</label>
+            <input type="date" id="tr_collection_f_from_date" class="tr-filter-select" onchange="applyTransportCollectionFilters()" style="height:32px; font-size:12px; padding:4px 8px;">
+          </div>
+          <div style="display:flex; flex-direction:column; gap:4px;">
+            <label style="font-size:11px; font-weight:600; color:#64748b;">To Date</label>
+            <input type="date" id="tr_collection_f_to_date" class="tr-filter-select" onchange="applyTransportCollectionFilters()" style="height:32px; font-size:12px; padding:4px 8px;">
+          </div>
+        </div>
+        <div style="display:flex; flex-direction:column; gap:4px; min-width:110px;">
+          <label style="font-size:11px; font-weight:600; color:#64748b;">Class</label>
+          <select id="tr_collection_f_class" class="tr-filter-select" onchange="applyTransportCollectionFilters()" style="height:32px; font-size:12px; padding:4px 8px;">
+            <option value="all">All Classes</option>
+          </select>
+        </div>
+        <div style="display:flex; flex-direction:column; gap:4px; min-width:125px;">
+          <label style="font-size:11px; font-weight:600; color:#64748b;">Transport Stop</label>
+          <select id="tr_collection_f_stop" class="tr-filter-select" onchange="applyTransportCollectionFilters()" style="height:32px; font-size:12px; padding:4px 8px;">
+            <option value="all">All Stops</option>
+          </select>
+        </div>
+        <div style="display:flex; flex-direction:column; gap:4px; flex:1; min-width:140px;">
+          <label style="font-size:11px; font-weight:600; color:#64748b;">Quick Search</label>
+          <input type="text" id="tr_collection_f_search" placeholder="Search student, adm no, receipt, stop..." oninput="applyTransportCollectionFilters()" style="height:32px; font-size:12px; padding:4px 10px; border:1px solid #cbd5e1; border-radius:6px; outline:none; background:#fff;">
+        </div>
+        <div style="display:flex; align-items:center;">
+          <button class="btn bo bsm" onclick="resetTransportCollectionFilters()" style="height:32px; font-size:11.5px; padding:4px 10px;" title="Reset Filters">
+            Reset
+          </button>
+        </div>
+      </div>
+
+      <!-- Collection Table -->
+      <div style="border:1px solid #e2e8f0; border-radius:8px; overflow:hidden; flex:1; min-height:240px; display:flex; flex-direction:column;">
+        <div style="overflow-x:auto; overflow-y:auto; max-height:480px;">
+          <table class="tr-table" style="font-size:12px; margin:0;">
+            <thead style="position:sticky; top:0; z-index:2; background:#f1f5f9;">
+              <tr>
+                <th style="width:40px; text-align:center;">#</th>
+                <th>Student Name</th>
+                <th style="width:90px;">Admission No.</th>
+                <th style="width:80px;">Class</th>
+                <th>Pickup Stop</th>
+                <th style="width:140px;">Fee Period</th>
+                <th class="text-right" style="width:110px;">Amount Collected</th>
+                <th class="text-center" style="width:95px;">Payment Date</th>
+                <th style="width:120px;">Receipt Number</th>
+                <th class="text-center" style="width:170px;">Actions</th>
+              </tr>
+            </thead>
+            <tbody id="tr_collection_tbody">
+              <!-- Dynamically populated -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal Footer -->
+    <div class="tr-modal-footer" style="padding:10px 20px; background:#f8fafc; border-top:1px solid #e2e8f0; display:flex; justify-content:space-between; align-items:center;">
+      <span style="font-size:11.5px; color:#64748b;" id="tr_collection_footer_count">Showing 0 records</span>
+      <button class="btn bo" onclick="closeM('modalTransportCollectionDetails')">Close</button>
     </div>
   </div>
 </div>

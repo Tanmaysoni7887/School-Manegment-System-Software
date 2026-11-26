@@ -1837,7 +1837,7 @@ function closeM(id) {
 }
 
 function updateModalBackdropState() {
-  const anyOpen = document.querySelector('.mo.show, .mo.closing');
+  const anyOpen = document.querySelector('.mo.show, .mo.closing, .m.show, .m.closing');
   if (anyOpen) {
     document.body.classList.add('has-modal-active');
   } else {
@@ -1884,6 +1884,9 @@ function getNextReceiptNumber() {
     Object.values(DB.fees).forEach(arr => {
       if (Array.isArray(arr)) arr.forEach(f => { if (f.receiptNo) existingSet.add(String(f.receiptNo).trim()); });
     });
+  }
+  if (DB && DB.transport && Array.isArray(DB.transport.payments)) {
+    DB.transport.payments.forEach(p => { if (p.receiptNo) existingSet.add(String(p.receiptNo).trim()); });
   }
 
   // Safeguard 2: Guarantee sequence strictly surpasses highest issued receipt in database
@@ -2433,9 +2436,18 @@ document.addEventListener('keydown', (e) => {
       closeTopDefaultersModal();
       return;
     }
-    const openModals = Array.from(document.querySelectorAll('.mo.show'));
+    const openModals = Array.from(document.querySelectorAll('.mo.show, .m.show'));
     if (openModals.length > 0) {
-      const topM = openModals[openModals.length - 1];
+      // Prioritize topmost stacked modal by z-index and DOM hierarchy
+      let highestZ = -1;
+      let topM = null;
+      for (const m of openModals) {
+        const z = parseInt(window.getComputedStyle(m).zIndex, 10) || 1000;
+        if (z >= highestZ) {
+          highestZ = z;
+          topM = m;
+        }
+      }
       if (topM && topM.id) {
         closeM(topM.id);
       }
@@ -6012,6 +6024,17 @@ function initFeeLedger(s, targetMonth = null, targetYear = null) {
     return [];
   }
 
+  const mIdx = MONTHS_LIST.indexOf(mo);
+  const feeStartY = (mIdx >= 0 && mIdx < 9) ? parseInt(yr, 10) : (parseInt(yr, 10) - 1);
+  const feeSess = !isNaN(feeStartY) ? `${feeStartY}–${String(feeStartY + 1).slice(-2)}` : curSess;
+
+  // Historical session protection: never mutate or auto-generate records for past completed sessions
+  if (typeof isHistoricalSession === 'function' && isHistoricalSession(feeSess)) {
+    return (DB.fees && Array.isArray(DB.fees[key]))
+      ? DB.fees[key].filter(f => f.type !== 'Van Fee' && f.type !== 'Transport Fee')
+      : [];
+  }
+
   const isValidSession = isFeeInAcademicSession(mo, yr, curSess);
 
   if (!DB.fees[key]) {
@@ -7033,7 +7056,7 @@ function calcSinglePayBreakdown() {
 
 let isPaymentProcessing = false;
 
-function procPay() {
+async function procPay() {
   if (isPaymentProcessing) return;
   if (curPayFeeIndex === null || !curFSid) return;
   const s = DB.students.find(x => x.id === curFSid);
@@ -7051,7 +7074,13 @@ function procPay() {
     return;
   }
 
+  const payBtn = document.getElementById('payConfirmBtn');
+  if (payBtn) {
+    payBtn.disabled = true;
+    payBtn.textContent = 'Processing...';
+  }
   isPaymentProcessing = true;
+  let txSnapshot = null;
   try {
 
   const baseAmt = Number(f.amount) || 0;
@@ -7097,6 +7126,32 @@ function procPay() {
   }
   const dt = document.getElementById('pay_dt')?.value || new Date().toISOString().split('T')[0];
   const md = document.getElementById('pay_md')?.value || 'Cash';
+
+  const mIdxCheck = MONTHS_LIST.indexOf(mo);
+  const feeStartYCheck = (mIdxCheck < 9) ? parseInt(yr, 10) : parseInt(yr, 10) - 1;
+  const derivedSessCheck = `${feeStartYCheck}–${String(feeStartYCheck + 1).slice(-2)}`;
+  const targetSessCheck = (s.session && isFeeInAcademicSession(mo, yr, s.session)) ? s.session : derivedSessCheck;
+
+  if (typeof isHistoricalSession === 'function' && isHistoricalSession(targetSessCheck)) {
+    toast(`Session ${targetSessCheck} is a protected historical session and cannot be modified directly.`, 'warning');
+    return;
+  }
+
+  const txFingerprint = `${s.id}::${amtReceived}::${key}:${f.type}:${baseAmt}`;
+  const nowTs = Date.now();
+  if (_lastPaymentSubmission &&
+      _lastPaymentSubmission.fingerprint === txFingerprint &&
+      (nowTs - _lastPaymentSubmission.timestamp < 4000)) {
+    toast('Duplicate payment submission prevented. Please wait a moment.', 'warning');
+    return;
+  }
+
+  // Atomic snapshot before mutating DB.fees, DB.payments, or DB.nextReceiptSeq
+  txSnapshot = {
+    feesJson: JSON.stringify(DB.fees || {}),
+    paymentsJson: JSON.stringify(DB.payments || []),
+    nextReceiptSeq: DB.nextReceiptSeq
+  };
 
   const receiptNo = getNextReceiptNumber();
 
@@ -7179,7 +7234,11 @@ function procPay() {
     voidDate: ''
   });
 
-    saveDB(true);
+    const saveOk = await saveDB(true);
+    if (saveOk !== true) {
+      throw new Error('Failed to persist payment to database.');
+    }
+    _lastPaymentSubmission = { fingerprint: txFingerprint, timestamp: Date.now() };
     closeM('payM');
 
     renderFeD();
@@ -7187,8 +7246,21 @@ function procPay() {
     toast(`Payment confirmed successfully! Receipt #${receiptNo}`, 'success');
 
     showReceiptModal(receiptNo);
+  } catch (err) {
+    console.error('[Fee Safety] Single-row payment failed, rolling back:', err);
+    if (txSnapshot) {
+      DB.fees = JSON.parse(txSnapshot.feesJson);
+      DB.payments = JSON.parse(txSnapshot.paymentsJson);
+      DB.nextReceiptSeq = txSnapshot.nextReceiptSeq;
+      invalidatePerformanceIndices();
+    }
+    toast('Payment failed: ' + (err.message || 'Transaction rolled back safely without partial writes.'), 'error');
   } finally {
     isPaymentProcessing = false;
+    if (payBtn) {
+      payBtn.disabled = false;
+      payBtn.textContent = '✓ Confirm Payment';
+    }
   }
 }
 
@@ -8270,13 +8342,29 @@ function calcUnifiedTotals(skipAmtReceivedSync = false) {
   }
 }
 
-function procUnifiedPayment() {
+let _lastPaymentSubmission = null;
+
+function isHistoricalSession(targetSess) {
+  const activeSess = (DB && DB.settings && DB.settings.currentSession) || '';
+  if (!activeSess || !targetSess || targetSess === activeSess) return false;
+  const [tStart] = parseSessionYears(targetSess);
+  const [aStart] = parseSessionYears(activeSess);
+  return tStart > 0 && aStart > 0 && tStart < aStart;
+}
+
+async function procUnifiedPayment() {
   if (isPaymentProcessing) return;
   if (!curUnifiedPayState || !curUnifiedPayStudentId) return;
   const s = (DB.students || []).find(x => x.id === curUnifiedPayStudentId);
   if (!s) return;
 
+  const confirmBtn = document.getElementById('unifiedCollectConfirmBtn');
+  if (confirmBtn) {
+    confirmBtn.disabled = true;
+    confirmBtn.textContent = 'Processing...';
+  }
   isPaymentProcessing = true;
+  let txSnapshot = null;
   try {
 
   const dt = document.getElementById('ucm_dt')?.value || new Date().toISOString().split('T')[0];
@@ -8390,6 +8478,36 @@ function procUnifiedPayment() {
     amtReceived = amtReceivedVal;
   }
 
+  // Historical session protection: block direct modification of historical session fee records
+  if (typeof isHistoricalSession === 'function' && isHistoricalSession(curSess) && paymentItems.some(it => it.feeKey !== 'arrears')) {
+    toast(`Session ${curSess} is a protected historical session. Please collect past balances via Previous Session Arrears in the active session.`, 'warning');
+    return;
+  }
+
+  // Transaction-fingerprinted duplicate guard (blocks identical double-submit, allows different months/instalments)
+  const itemSig = paymentItems.map(it => `${it.feeKey}:${it.type}:${it.baseAmount}`).sort().join('|');
+  const txFingerprint = `${s.id}::${amtReceived}::${itemSig}`;
+  const nowTs = Date.now();
+  if (_lastPaymentSubmission &&
+      _lastPaymentSubmission.fingerprint === txFingerprint &&
+      (nowTs - _lastPaymentSubmission.timestamp < 4000)) {
+    toast('Duplicate payment submission prevented. Please wait a moment.', 'warning');
+    return;
+  }
+
+  // Transport separation guard: ensure no transport fee items enter school fee payment
+  if (paymentItems.some(it => it.type === 'Transport Fee' || it.type === 'Van Fee')) {
+    throw new Error('Transport fees must be collected through the Transport Fees module.');
+  }
+
+  // Take atomic snapshot before any financial mutations
+  txSnapshot = {
+    feesJson: JSON.stringify(DB.fees || {}),
+    paymentsJson: JSON.stringify(DB.payments || []),
+    feeConfigJson: JSON.stringify(DB.feeConfig || {}),
+    nextReceiptSeq: DB.nextReceiptSeq
+  };
+
   const receiptNo = getNextReceiptNumber();
 
   // Proportional distribution of discount and late fee across payment items
@@ -8471,6 +8589,9 @@ function procUnifiedPayment() {
         initFeeLedger(s, it.month, it.year);
       }
       const arr = DB.fees[it.feeKey];
+      if (!Array.isArray(arr)) {
+        throw new Error(`Fee ledger for ${it.period || it.feeKey} is protected or unavailable.`);
+      }
       let f = arr.find(x => x.type === it.type || (it.type === 'School Fee' && x.type === 'Tuition Fee'));
       if (!f) {
         f = { type: it.type, amount: it.baseAmount, paid: false, enabled: true };
@@ -8564,7 +8685,11 @@ function procUnifiedPayment() {
     voidDate: ''
   });
 
-    saveDB(true);
+    const saveOk = await saveDB(true);
+    if (saveOk !== true) {
+      throw new Error('Failed to persist payment to database.');
+    }
+    _lastPaymentSubmission = { fingerprint: txFingerprint, timestamp: Date.now() };
     closeM('unifiedCollectM');
 
     renderFeD();
@@ -8572,8 +8697,22 @@ function procUnifiedPayment() {
     toast(`Payment confirmed successfully! Receipt #${receiptNo}`, 'success');
 
     showReceiptModal(receiptNo);
+  } catch (err) {
+    console.error('[Fee Safety] Payment transaction failed, rolling back:', err);
+    if (txSnapshot) {
+      DB.fees = JSON.parse(txSnapshot.feesJson);
+      DB.payments = JSON.parse(txSnapshot.paymentsJson);
+      DB.feeConfig = JSON.parse(txSnapshot.feeConfigJson);
+      DB.nextReceiptSeq = txSnapshot.nextReceiptSeq;
+      invalidatePerformanceIndices();
+    }
+    toast('Payment failed: ' + (err.message || 'Transaction rolled back safely without partial writes.'), 'error');
   } finally {
     isPaymentProcessing = false;
+    if (confirmBtn) {
+      confirmBtn.disabled = false;
+      confirmBtn.textContent = '✓ Confirm & Generate Receipt';
+    }
   }
 }
 
@@ -14822,6 +14961,14 @@ function closeSessionDropdown() {
 }
 
 function selectSessionDropdownOption(val) {
+  const curSess = (DB && DB.settings && DB.settings.currentSession) || document.getElementById('set_cur_session')?.value;
+  if (curSess && val !== curSess) {
+    const confirmed = confirm(`Switch Academic Session?\n\nYou are switching the active academic session from "${curSess}" to "${val}".\nHistorical session financial records will remain protected.\n\nDo you wish to proceed?`);
+    if (!confirmed) {
+      closeSessionDropdown();
+      return;
+    }
+  }
   const sessEl = document.getElementById('set_cur_session');
   if (sessEl) {
     sessEl.value = val;
@@ -15770,6 +15917,16 @@ function renderTransportLedger() {
 
   // Update Summary Cards
   renderTransportSummaryCards(filtered);
+
+  // Auto-refresh Pending Dues or Collection Details modals if they are open
+  const pendM = document.getElementById('modalTransportPendingDues');
+  if (pendM && pendM.classList.contains('show')) {
+    renderTransportPendingDues();
+  }
+  const collM = document.getElementById('modalTransportCollectionDetails');
+  if (collM && collM.classList.contains('show')) {
+    renderTransportCollectionDetails();
+  }
 }
 
 function renderTransportSummaryCards(filteredList) {
@@ -17071,7 +17228,11 @@ function renderTransportAllocationPreview(checkedBoxes, received, discount) {
   `;
 }
 
-function saveTransportPayment() {
+let isTransportPaymentProcessing = false;
+let _lastTransportSubmission = null;
+
+async function saveTransportPayment() {
+  if (isTransportPaymentProcessing) return;
   const student = transportState.selectedStudentForCollect;
   if (!student) {
     showToast('No student selected for fee collection.', 'error');
@@ -17169,13 +17330,31 @@ function saveTransportPayment() {
     allocations[allocations.length - 1].balanceRemaining = Math.max(0, allocations[allocations.length - 1].balanceRemaining - unallocatedReceived);
   }
 
+  const trItemSig = checkedMonths.slice().sort().join('|');
+  const trFingerprint = `${student.id}::${received}::${trItemSig}`;
+  const nowTrTs = Date.now();
+  if (_lastTransportSubmission &&
+      _lastTransportSubmission.fingerprint === trFingerprint &&
+      (nowTrTs - _lastTransportSubmission.timestamp < 4000)) {
+    showToast('Duplicate transport payment prevented.', 'warning');
+    return;
+  }
+
+  isTransportPaymentProcessing = true;
+  const trSnapshot = JSON.stringify(DB.transport || { stops: [], assignments: {}, payments: [], nextReceiptSeq: 1 });
+  try {
   if (!DB.transport) DB.transport = { stops: [], assignments: {}, payments: [], nextReceiptSeq: 1 };
   if (!Array.isArray(DB.transport.payments)) DB.transport.payments = [];
 
-  // Generate independent transport receipt number (TR-YYYY-SEQ)
-  const seq = DB.transport.nextReceiptSeq || 1;
+  // Generate independent transport receipt number (TR-YYYY-SEQ) with collision check
+  const existingTrSet = new Set(DB.transport.payments.map(p => String(p.receiptNo || '').trim()).filter(Boolean));
+  let seq = DB.transport.nextReceiptSeq || 1;
   const yr = new Date().getFullYear();
-  const receiptNo = `TR-${yr}-${String(seq).padStart(4, '0')}`;
+  let receiptNo = `TR-${yr}-${String(seq).padStart(4, '0')}`;
+  while (existingTrSet.has(receiptNo)) {
+    seq++;
+    receiptNo = `TR-${yr}-${String(seq).padStart(4, '0')}`;
+  }
   DB.transport.nextReceiptSeq = seq + 1;
 
   const now = new Date();
@@ -17221,13 +17400,25 @@ function saveTransportPayment() {
 
   // Invalidate performance indices so previous session dues & accounting are immediately recomputed
   invalidatePerformanceIndices();
-  saveDB(true);
+  const trSaveOk = await saveDB(true);
+  if (trSaveOk !== true) {
+    throw new Error('Failed to save transport payment.');
+  }
+  _lastTransportSubmission = { fingerprint: trFingerprint, timestamp: Date.now() };
 
   closeM('modalCollectTransport');
   populateTransportReceiptModal(paymentRecord);
   openM('modalTransportReceipt');
   renderTransportLedger();
   showToast(`Transport fee payment of ${safeCurrency(received)} recorded successfully!`, 'success');
+  } catch (err) {
+    console.error('[Transport Fee Safety] Transaction failed, rolling back:', err);
+    DB.transport = JSON.parse(trSnapshot);
+    invalidatePerformanceIndices();
+    showToast('Transport payment failed: ' + (err.message || 'Rolled back safely.'), 'error');
+  } finally {
+    isTransportPaymentProcessing = false;
+  }
 }
 
 // ============================================================
@@ -17966,6 +18157,1056 @@ function viewTransportReceiptByNo(receiptNo) {
   closeM('modalStudentTransportDetails');
   populateTransportReceiptModal(rcpt);
   openM('modalTransportReceipt');
+}
+
+// Ensure showToast helper exists safely
+if (typeof showToast !== 'function') {
+  function showToast(msg, type = 'success') {
+    if (typeof toast === 'function') toast(msg, type);
+    else console.info(`[${type}] ${msg}`);
+  }
+}
+
+// ============================================================
+// MODAL 6: TRANSPORT PENDING DUES DETAILS
+// ============================================================
+
+var transportPendingState = {
+  session: '',
+  periodType: 'month', // 'month' | 'session' | 'custom'
+  month: '',
+  fromMonth: '',
+  toMonth: '',
+  class: 'all',
+  stop: 'all',
+  status: 'all', // 'all' | 'due' | 'partial'
+  search: ''
+};
+var cachedTransportPendingRows = [];
+
+function openTransportPendingDuesModal() {
+  const activeSess = transportState.activeSession || getAuthoritativeActiveSession();
+  if (!transportPendingState.session) {
+    transportPendingState.session = activeSess;
+  }
+  const sessionMonths = getTransportAcademicMonths(transportPendingState.session);
+  if (!transportPendingState.month || !sessionMonths.includes(transportPendingState.month)) {
+    transportPendingState.month = (transportState.activeMonth && sessionMonths.includes(transportState.activeMonth))
+      ? transportState.activeMonth
+      : sessionMonths[0];
+  }
+  if (!transportPendingState.fromMonth || !sessionMonths.includes(transportPendingState.fromMonth)) {
+    transportPendingState.fromMonth = sessionMonths[0];
+  }
+  if (!transportPendingState.toMonth || !sessionMonths.includes(transportPendingState.toMonth)) {
+    transportPendingState.toMonth = transportPendingState.month || sessionMonths[sessionMonths.length - 1];
+  }
+
+  // Inherit class and stop filters from main transport state if default
+  if (transportPendingState.class === 'all' && transportState.activeClass !== 'all') {
+    transportPendingState.class = transportState.activeClass;
+  }
+  if (transportPendingState.stop === 'all' && transportState.activeStop !== 'all') {
+    transportPendingState.stop = transportState.activeStop;
+  }
+
+  populateTransportPendingDropdowns();
+  renderTransportPendingDues();
+  openM('modalTransportPendingDues');
+}
+
+function populateTransportPendingDropdowns() {
+  // 1. Session Dropdown
+  const sessEl = document.getElementById('tr_pending_f_session');
+  if (sessEl) {
+    const activeSess = transportState.activeSession || getAuthoritativeActiveSession();
+    const sessionList = [activeSess];
+    if (Array.isArray(DB.sessions)) {
+      DB.sessions.forEach(s => {
+        const sName = (typeof s === 'string' ? s : s.name);
+        if (sName && !sessionList.includes(sName)) sessionList.push(sName);
+      });
+    }
+    const [curStartY] = parseSessionYears(activeSess);
+    for (let offset = 1; offset <= 3; offset++) {
+      const prevS = `${curStartY - offset}–${String(curStartY - offset + 1).slice(2)}`;
+      if (!sessionList.includes(prevS)) sessionList.push(prevS);
+    }
+    sessionList.sort((a, b) => {
+      if (a === activeSess) return -1;
+      if (b === activeSess) return 1;
+      const [yA] = parseSessionYears(a);
+      const [yB] = parseSessionYears(b);
+      return yB - yA;
+    });
+    sessEl.innerHTML = sessionList.map(s => `<option value="${s}" ${s === transportPendingState.session ? 'selected' : ''}>Session ${s}</option>`).join('');
+  }
+
+  // 2. Period Type
+  const ptEl = document.getElementById('tr_pending_f_period_type');
+  if (ptEl) ptEl.value = transportPendingState.periodType;
+
+  // 3. Month Dropdowns
+  const sessionMonths = getTransportAcademicMonths(transportPendingState.session);
+  const moEl = document.getElementById('tr_pending_f_month');
+  if (moEl) {
+    moEl.innerHTML = sessionMonths.map(m => `<option value="${m}" ${m === transportPendingState.month ? 'selected' : ''}>${m}</option>`).join('');
+  }
+  const fromMoEl = document.getElementById('tr_pending_f_from_month');
+  if (fromMoEl) {
+    fromMoEl.innerHTML = sessionMonths.map(m => `<option value="${m}" ${m === transportPendingState.fromMonth ? 'selected' : ''}>${m}</option>`).join('');
+  }
+  const toMoEl = document.getElementById('tr_pending_f_to_month');
+  if (toMoEl) {
+    toMoEl.innerHTML = sessionMonths.map(m => `<option value="${m}" ${m === transportPendingState.toMonth ? 'selected' : ''}>${m}</option>`).join('');
+  }
+
+  // 4. Class Dropdown
+  const clsEl = document.getElementById('tr_pending_f_class');
+  if (clsEl) {
+    let opts = '<option value="all">All Classes</option>';
+    CLASSES.forEach(c => {
+      const lbl = (c === 'NC' ? 'Nursery' : (c === 'LKG' || c === 'UKG' ? c : 'Class ' + c));
+      opts += `<option value="${c}" ${c === transportPendingState.class ? 'selected' : ''}>${lbl}</option>`;
+    });
+    clsEl.innerHTML = opts;
+  }
+
+  // 5. Stop Dropdown
+  const stopEl = document.getElementById('tr_pending_f_stop');
+  if (stopEl) {
+    let opts = '<option value="all">All Stops</option>';
+    const stops = (DB.transport && Array.isArray(DB.transport.stops)) ? DB.transport.stops : [];
+    stops.forEach(s => {
+      opts += `<option value="${escapeHtml(s.name)}" ${s.name === transportPendingState.stop ? 'selected' : ''}>${escapeHtml(s.name)}${s.active === false ? ' (Inactive)' : ''}</option>`;
+    });
+    stopEl.innerHTML = opts;
+  }
+
+  // 6. Status Dropdown
+  const stEl = document.getElementById('tr_pending_f_status');
+  if (stEl) stEl.value = transportPendingState.status;
+
+  // 7. Search Input
+  const srchEl = document.getElementById('tr_pending_f_search');
+  if (srchEl) srchEl.value = transportPendingState.search;
+
+  updateTransportPendingPeriodVisibility();
+}
+
+function updateTransportPendingPeriodVisibility() {
+  const pt = transportPendingState.periodType;
+  const moWrap = document.getElementById('tr_pending_month_wrap');
+  const customWrap = document.getElementById('tr_pending_custom_range_wrap');
+  if (moWrap) moWrap.style.display = (pt === 'month') ? 'flex' : 'none';
+  if (customWrap) customWrap.style.display = (pt === 'custom') ? 'flex' : 'none';
+}
+
+function onTransportPendingSessionChange() {
+  const sessEl = document.getElementById('tr_pending_f_session');
+  if (!sessEl) return;
+  transportPendingState.session = sessEl.value;
+  const sessionMonths = getTransportAcademicMonths(transportPendingState.session);
+  transportPendingState.month = sessionMonths[0];
+  transportPendingState.fromMonth = sessionMonths[0];
+  transportPendingState.toMonth = sessionMonths[sessionMonths.length - 1];
+
+  populateTransportPendingDropdowns();
+  renderTransportPendingDues();
+}
+
+function onTransportPendingPeriodTypeChange() {
+  const ptEl = document.getElementById('tr_pending_f_period_type');
+  if (!ptEl) return;
+  transportPendingState.periodType = ptEl.value;
+  updateTransportPendingPeriodVisibility();
+  renderTransportPendingDues();
+}
+
+function applyTransportPendingFilters() {
+  const sessEl = document.getElementById('tr_pending_f_session');
+  const ptEl = document.getElementById('tr_pending_f_period_type');
+  const moEl = document.getElementById('tr_pending_f_month');
+  const fromMoEl = document.getElementById('tr_pending_f_from_month');
+  const toMoEl = document.getElementById('tr_pending_f_to_month');
+  const clsEl = document.getElementById('tr_pending_f_class');
+  const stopEl = document.getElementById('tr_pending_f_stop');
+  const stEl = document.getElementById('tr_pending_f_status');
+  const srchEl = document.getElementById('tr_pending_f_search');
+
+  if (sessEl) transportPendingState.session = sessEl.value;
+  if (ptEl) transportPendingState.periodType = ptEl.value;
+  if (moEl) transportPendingState.month = moEl.value;
+  if (fromMoEl) transportPendingState.fromMonth = fromMoEl.value;
+  if (toMoEl) transportPendingState.toMonth = toMoEl.value;
+  if (clsEl) transportPendingState.class = clsEl.value;
+  if (stopEl) transportPendingState.stop = stopEl.value;
+  if (stEl) transportPendingState.status = stEl.value;
+  if (srchEl) transportPendingState.search = srchEl.value.trim().toLowerCase();
+
+  updateTransportPendingPeriodVisibility();
+  renderTransportPendingDues();
+}
+
+function resetTransportPendingFilters() {
+  transportPendingState.session = transportState.activeSession || getAuthoritativeActiveSession();
+  const sessionMonths = getTransportAcademicMonths(transportPendingState.session);
+  transportPendingState.periodType = 'month';
+  transportPendingState.month = transportState.activeMonth || sessionMonths[0];
+  transportPendingState.fromMonth = sessionMonths[0];
+  transportPendingState.toMonth = sessionMonths[sessionMonths.length - 1];
+  transportPendingState.class = 'all';
+  transportPendingState.stop = 'all';
+  transportPendingState.status = 'all';
+  transportPendingState.search = '';
+
+  populateTransportPendingDropdowns();
+  renderTransportPendingDues();
+}
+
+function renderTransportPendingDues() {
+  const tbody = document.getElementById('tr_pending_tbody');
+  const statAmt = document.getElementById('tr_pending_stat_amount');
+  const statSt = document.getElementById('tr_pending_stat_students');
+  const statEnt = document.getElementById('tr_pending_stat_entries');
+  const statPer = document.getElementById('tr_pending_stat_period');
+  const footCount = document.getElementById('tr_pending_footer_count');
+
+  const assignments = (DB.transport && DB.transport.assignments) ? DB.transport.assignments : {};
+  const activeStudents = getActiveTransportStudents();
+  const curMonthSortKey = getFeeMonthSortKey(getCurrentMonthKey());
+  const sessionMonths = getTransportAcademicMonths(transportPendingState.session);
+
+  let targetMonths = [];
+  let periodLabel = '';
+
+  if (transportPendingState.periodType === 'month') {
+    targetMonths = [transportPendingState.month];
+    periodLabel = `Session ${transportPendingState.session} • ${transportPendingState.month}`;
+  } else if (transportPendingState.periodType === 'session') {
+    targetMonths = sessionMonths;
+    periodLabel = `Session ${transportPendingState.session} • Full Session`;
+  } else {
+    // Custom month range
+    const fromIdx = sessionMonths.indexOf(transportPendingState.fromMonth);
+    const toIdx = sessionMonths.indexOf(transportPendingState.toMonth);
+    if (fromIdx !== -1 && toIdx !== -1 && fromIdx <= toIdx) {
+      targetMonths = sessionMonths.slice(fromIdx, toIdx + 1);
+    } else {
+      targetMonths = sessionMonths;
+    }
+    periodLabel = `Session ${transportPendingState.session} • ${transportPendingState.fromMonth} to ${transportPendingState.toMonth}`;
+  }
+
+  const rows = [];
+
+  activeStudents.forEach(st => {
+    // Class filter check
+    if (transportPendingState.class !== 'all') {
+      if (st.cls !== transportPendingState.class) return;
+    }
+
+    const assign = assignments[st.id];
+    if (!assign) return;
+
+    // Stop filter check
+    if (transportPendingState.stop !== 'all') {
+      const stp = transportPendingState.stop.toLowerCase();
+      const pMatch = String(assign.pickupStopName || '').toLowerCase() === stp;
+      const dMatch = String(assign.dropStopName || '').toLowerCase() === stp;
+      if (!pMatch && !dMatch) return;
+    }
+
+    // Quick search check
+    if (transportPendingState.search) {
+      const q = String(transportPendingState.search).trim().toLowerCase();
+      const nMatch = String(st.name || '').toLowerCase().includes(q);
+      const aMatch = String(st.admno || '').toLowerCase().includes(q);
+      const sMatch = String(assign.pickupStopName || '').toLowerCase().includes(q);
+      if (!nMatch && !aMatch && !sMatch) return;
+    }
+
+    const stClass = st.cls + (st.section ? ' ' + st.section : '');
+    const monthlyFee = safeNum(assign.monthlyFee, 0);
+
+    if (transportPendingState.periodType === 'month') {
+      // Single month view
+      const m = targetMonths[0];
+      const coversMonth = isMonthInAssignmentPeriod(m, assign.effectiveFrom, assign.stoppedAt, assign.active);
+      if (!coversMonth && !assign.active) return;
+
+      const mSortKey = getFeeMonthSortKey(m);
+      const isFuture = mSortKey > curMonthSortKey;
+      const { paid, discount } = getStudentMonthTransportAccounting(st.id, m);
+      const pending = (coversMonth && !isFuture) ? Math.max(0, monthlyFee - discount - paid) : 0;
+
+      if (pending <= 0) return; // Only pending dues
+
+      // Payment Status filter check: 'all' | 'due' (fully due, paid == 0) | 'partial' (paid > 0)
+      if (transportPendingState.status === 'due' && paid > 0) return;
+      if (transportPendingState.status === 'partial' && paid === 0) return;
+
+      rows.push({
+        studentId: st.id,
+        name: st.name,
+        admNo: st.admno,
+        class: stClass,
+        rawClass: st.cls,
+        pickup: assign.pickupStopName || '-',
+        monthlyFee: coversMonth ? monthlyFee : 0,
+        paid,
+        discount,
+        pending,
+        pendingPeriod: m,
+        pendingMonths: [m],
+        status: (paid > 0 ? 'Partial' : 'Due')
+      });
+    } else {
+      // Full session or custom range view
+      let studentPendingSum = 0;
+      let studentPaidSum = 0;
+      let studentDiscountSum = 0;
+      const unpaidMonths = [];
+
+      targetMonths.forEach(m => {
+        const coversMonth = isMonthInAssignmentPeriod(m, assign.effectiveFrom, assign.stoppedAt, assign.active);
+        const mSortKey = getFeeMonthSortKey(m);
+        const isFuture = mSortKey > curMonthSortKey;
+        if (!coversMonth || isFuture) return;
+
+        const { paid, discount } = getStudentMonthTransportAccounting(st.id, m);
+        const bal = Math.max(0, monthlyFee - discount - paid);
+        if (bal > 0) {
+          studentPendingSum += bal;
+          unpaidMonths.push(m);
+          studentPaidSum += paid;
+          studentDiscountSum += discount;
+        }
+      });
+
+      if (studentPendingSum <= 0) return; // Only pending dues
+
+      if (transportPendingState.status === 'due' && studentPaidSum > 0) return;
+      if (transportPendingState.status === 'partial' && studentPaidSum === 0) return;
+
+      const formattedRange = formatCompactTransportMonthRangeShort(unpaidMonths);
+
+      rows.push({
+        studentId: st.id,
+        name: st.name,
+        admNo: st.admno,
+        class: stClass,
+        rawClass: st.cls,
+        pickup: assign.pickupStopName || '-',
+        monthlyFee,
+        paid: studentPaidSum,
+        discount: studentDiscountSum,
+        pending: studentPendingSum,
+        pendingPeriod: formattedRange,
+        pendingMonths: unpaidMonths,
+        status: (studentPaidSum > 0 ? 'Partial' : 'Due')
+      });
+    }
+  });
+
+  cachedTransportPendingRows = rows;
+
+  const totalPendingAmount = rows.reduce((acc, r) => acc + safeNum(r.pending, 0), 0);
+  const totalStudents = new Set(rows.map(r => r.studentId)).size;
+  const totalEntries = rows.reduce((acc, r) => acc + (r.pendingMonths ? r.pendingMonths.length : 1), 0);
+
+  if (statAmt) statAmt.textContent = safeCurrency(totalPendingAmount);
+  if (statSt) statSt.textContent = String(totalStudents);
+  if (statEnt) statEnt.textContent = String(totalEntries);
+  if (statPer) statPer.textContent = periodLabel;
+  if (footCount) footCount.textContent = `Showing ${rows.length} student record(s) with pending dues`;
+
+  if (!tbody) return;
+
+  if (rows.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="10" style="text-align:center;padding:36px 20px;color:#64748b;font-size:13px">
+      No students with pending transport dues found matching the selected filters.
+    </td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = rows.map((r, idx) => {
+    const badgeClass = (r.status === 'Partial') ? 'tr-badge-partial' : 'tr-badge-due';
+    return `<tr>
+      <td style="color:#64748b;font-weight:600;text-align:center">${idx + 1}</td>
+      <td style="font-weight:700;color:#0f172a">${escapeHtml(r.name)}</td>
+      <td style="color:#475569;font-weight:600">${escapeHtml(r.admNo)}</td>
+      <td style="color:#475569">${escapeHtml(r.class)}</td>
+      <td style="color:#1e293b">${escapeHtml(r.pickup)}</td>
+      <td class="text-right" style="font-weight:600">${safeCurrency(r.monthlyFee)}</td>
+      <td class="text-right" style="font-weight:600;color:#16a34a">${safeCurrency(r.paid)}</td>
+      <td class="text-right" style="font-weight:700;color:#dc2626">${safeCurrency(r.pending)}</td>
+      <td style="color:#475569;font-weight:600">
+        <div>${escapeHtml(r.pendingPeriod)}</div>
+        <span class="tr-badge ${badgeClass}" style="margin-top:3px;font-size:10px">${r.status}</span>
+      </td>
+      <td class="text-center">
+        <div style="display:flex;align-items:center;justify-content:center;gap:6px">
+          <button class="btn bp bsm" onclick="openCollectFromPendingModal(${r.studentId})" style="padding:3px 9px;font-size:11.5px">Collect Fee</button>
+          <button class="btn bo bsm" onclick="openDetailsFromPendingModal(${r.studentId})" style="padding:3px 8px;font-size:11.5px">View Details</button>
+        </div>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+function openCollectFromPendingModal(studentId) {
+  closeM('modalTransportPendingDues');
+  if (typeof openCollectTransportModal === 'function') {
+    openCollectTransportModal(studentId);
+  }
+}
+
+function openDetailsFromPendingModal(studentId) {
+  closeM('modalTransportPendingDues');
+  if (typeof openStudentTransportDetailsModal === 'function') {
+    openStudentTransportDetailsModal(studentId);
+  }
+}
+
+// ============================================================
+// MODAL 7: TRANSPORT COLLECTION DETAILS
+// ============================================================
+
+var transportCollectionState = {
+  session: '',
+  periodType: 'month', // 'month' | 'session' | 'custom'
+  month: '',
+  fromDate: '',
+  toDate: '',
+  class: 'all',
+  stop: 'all',
+  search: ''
+};
+var cachedTransportCollectionRows = [];
+
+function openTransportCollectionDetailsModal() {
+  const activeSess = transportState.activeSession || getAuthoritativeActiveSession();
+  if (!transportCollectionState.session) {
+    transportCollectionState.session = activeSess;
+  }
+  const sessionMonths = getTransportAcademicMonths(transportCollectionState.session);
+  if (!transportCollectionState.month || !sessionMonths.includes(transportCollectionState.month)) {
+    transportCollectionState.month = (transportState.activeMonth && sessionMonths.includes(transportState.activeMonth))
+      ? transportState.activeMonth
+      : sessionMonths[0];
+  }
+
+  // Set default dates for custom date range (e.g. start of current month to today)
+  if (!transportCollectionState.fromDate) {
+    const now = new Date();
+    const yr = now.getFullYear();
+    const mo = String(now.getMonth() + 1).padStart(2, '0');
+    transportCollectionState.fromDate = `${yr}-${mo}-01`;
+    transportCollectionState.toDate = now.toISOString().slice(0, 10);
+  }
+
+  // Inherit class and stop filters from main transport state if default
+  if (transportCollectionState.class === 'all' && transportState.activeClass !== 'all') {
+    transportCollectionState.class = transportState.activeClass;
+  }
+  if (transportCollectionState.stop === 'all' && transportState.activeStop !== 'all') {
+    transportCollectionState.stop = transportState.activeStop;
+  }
+
+  populateTransportCollectionDropdowns();
+  renderTransportCollectionDetails();
+  openM('modalTransportCollectionDetails');
+}
+
+function populateTransportCollectionDropdowns() {
+  // 1. Session Dropdown
+  const sessEl = document.getElementById('tr_collection_f_session');
+  if (sessEl) {
+    const activeSess = transportState.activeSession || getAuthoritativeActiveSession();
+    const sessionList = [activeSess];
+    if (Array.isArray(DB.sessions)) {
+      DB.sessions.forEach(s => {
+        const sName = (typeof s === 'string' ? s : s.name);
+        if (sName && !sessionList.includes(sName)) sessionList.push(sName);
+      });
+    }
+    const [curStartY] = parseSessionYears(activeSess);
+    for (let offset = 1; offset <= 3; offset++) {
+      const prevS = `${curStartY - offset}–${String(curStartY - offset + 1).slice(2)}`;
+      if (!sessionList.includes(prevS)) sessionList.push(prevS);
+    }
+    sessionList.sort((a, b) => {
+      if (a === activeSess) return -1;
+      if (b === activeSess) return 1;
+      const [yA] = parseSessionYears(a);
+      const [yB] = parseSessionYears(b);
+      return yB - yA;
+    });
+    sessEl.innerHTML = sessionList.map(s => `<option value="${s}" ${s === transportCollectionState.session ? 'selected' : ''}>Session ${s}</option>`).join('');
+  }
+
+  // 2. Period Type
+  const ptEl = document.getElementById('tr_collection_f_period_type');
+  if (ptEl) ptEl.value = transportCollectionState.periodType;
+
+  // 3. Month Dropdown
+  const sessionMonths = getTransportAcademicMonths(transportCollectionState.session);
+  const moEl = document.getElementById('tr_collection_f_month');
+  if (moEl) {
+    moEl.innerHTML = sessionMonths.map(m => `<option value="${m}" ${m === transportCollectionState.month ? 'selected' : ''}>${m}</option>`).join('');
+  }
+
+  // 4. Custom Date Range inputs
+  const fromDateEl = document.getElementById('tr_collection_f_from_date');
+  if (fromDateEl) fromDateEl.value = transportCollectionState.fromDate || '';
+  const toDateEl = document.getElementById('tr_collection_f_to_date');
+  if (toDateEl) toDateEl.value = transportCollectionState.toDate || '';
+
+  // 5. Class Dropdown
+  const clsEl = document.getElementById('tr_collection_f_class');
+  if (clsEl) {
+    let opts = '<option value="all">All Classes</option>';
+    CLASSES.forEach(c => {
+      const lbl = (c === 'NC' ? 'Nursery' : (c === 'LKG' || c === 'UKG' ? c : 'Class ' + c));
+      opts += `<option value="${c}" ${c === transportCollectionState.class ? 'selected' : ''}>${lbl}</option>`;
+    });
+    clsEl.innerHTML = opts;
+  }
+
+  // 6. Stop Dropdown
+  const stopEl = document.getElementById('tr_collection_f_stop');
+  if (stopEl) {
+    let opts = '<option value="all">All Stops</option>';
+    const stops = (DB.transport && Array.isArray(DB.transport.stops)) ? DB.transport.stops : [];
+    stops.forEach(s => {
+      opts += `<option value="${escapeHtml(s.name)}" ${s.name === transportCollectionState.stop ? 'selected' : ''}>${escapeHtml(s.name)}${s.active === false ? ' (Inactive)' : ''}</option>`;
+    });
+    stopEl.innerHTML = opts;
+  }
+
+  // 7. Search Input
+  const srchEl = document.getElementById('tr_collection_f_search');
+  if (srchEl) srchEl.value = transportCollectionState.search;
+
+  updateTransportCollectionPeriodVisibility();
+}
+
+function updateTransportCollectionPeriodVisibility() {
+  const pt = transportCollectionState.periodType;
+  const moWrap = document.getElementById('tr_collection_month_wrap');
+  const customWrap = document.getElementById('tr_collection_custom_range_wrap');
+  if (moWrap) moWrap.style.display = (pt === 'month') ? 'flex' : 'none';
+  if (customWrap) customWrap.style.display = (pt === 'custom') ? 'flex' : 'none';
+}
+
+function onTransportCollectionSessionChange() {
+  const sessEl = document.getElementById('tr_collection_f_session');
+  if (!sessEl) return;
+  transportCollectionState.session = sessEl.value;
+  const sessionMonths = getTransportAcademicMonths(transportCollectionState.session);
+  transportCollectionState.month = sessionMonths[0];
+
+  populateTransportCollectionDropdowns();
+  renderTransportCollectionDetails();
+}
+
+function onTransportCollectionPeriodTypeChange() {
+  const ptEl = document.getElementById('tr_collection_f_period_type');
+  if (!ptEl) return;
+  transportCollectionState.periodType = ptEl.value;
+  updateTransportCollectionPeriodVisibility();
+  renderTransportCollectionDetails();
+}
+
+function applyTransportCollectionFilters() {
+  const sessEl = document.getElementById('tr_collection_f_session');
+  const ptEl = document.getElementById('tr_collection_f_period_type');
+  const moEl = document.getElementById('tr_collection_f_month');
+  const fromDateEl = document.getElementById('tr_collection_f_from_date');
+  const toDateEl = document.getElementById('tr_collection_f_to_date');
+  const clsEl = document.getElementById('tr_collection_f_class');
+  const stopEl = document.getElementById('tr_collection_f_stop');
+  const srchEl = document.getElementById('tr_collection_f_search');
+
+  if (sessEl) transportCollectionState.session = sessEl.value;
+  if (ptEl) transportCollectionState.periodType = ptEl.value;
+  if (moEl) transportCollectionState.month = moEl.value;
+  if (fromDateEl) transportCollectionState.fromDate = fromDateEl.value;
+  if (toDateEl) transportCollectionState.toDate = toDateEl.value;
+  if (clsEl) transportCollectionState.class = clsEl.value;
+  if (stopEl) transportCollectionState.stop = stopEl.value;
+  if (srchEl) transportCollectionState.search = srchEl.value.trim().toLowerCase();
+
+  updateTransportCollectionPeriodVisibility();
+  renderTransportCollectionDetails();
+}
+
+function resetTransportCollectionFilters() {
+  transportCollectionState.session = transportState.activeSession || getAuthoritativeActiveSession();
+  const sessionMonths = getTransportAcademicMonths(transportCollectionState.session);
+  transportCollectionState.periodType = 'month';
+  transportCollectionState.month = transportState.activeMonth || sessionMonths[0];
+  const now = new Date();
+  const yr = now.getFullYear();
+  const mo = String(now.getMonth() + 1).padStart(2, '0');
+  transportCollectionState.fromDate = `${yr}-${mo}-01`;
+  transportCollectionState.toDate = now.toISOString().slice(0, 10);
+  transportCollectionState.class = 'all';
+  transportCollectionState.stop = 'all';
+  transportCollectionState.search = '';
+
+  populateTransportCollectionDropdowns();
+  renderTransportCollectionDetails();
+}
+
+function parsePaymentDateToISO(dateVal, timestampVal) {
+  if (timestampVal) {
+    const d = new Date(timestampVal);
+    if (!isNaN(d.getTime())) {
+      return d.toISOString().slice(0, 10);
+    }
+  }
+  if (dateVal && typeof dateVal === 'string') {
+    const d = new Date(dateVal);
+    if (!isNaN(d.getTime())) {
+      const yr = d.getFullYear();
+      const mo = String(d.getMonth() + 1).padStart(2, '0');
+      const da = String(d.getDate()).padStart(2, '0');
+      return `${yr}-${mo}-${da}`;
+    }
+    const dmParts = dateVal.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+    if (dmParts) {
+      return `${dmParts[3]}-${dmParts[2].padStart(2, '0')}-${dmParts[1].padStart(2, '0')}`;
+    }
+  }
+  return '';
+}
+
+function renderTransportCollectionDetails() {
+  const tbody = document.getElementById('tr_collection_tbody');
+  const statAmt = document.getElementById('tr_collection_stat_amount');
+  const statSt = document.getElementById('tr_collection_stat_students');
+  const statTx = document.getElementById('tr_collection_stat_transactions');
+  const statPer = document.getElementById('tr_collection_stat_period');
+  const footCount = document.getElementById('tr_collection_footer_count');
+
+  const payments = (DB.transport && Array.isArray(DB.transport.payments)) ? DB.transport.payments : [];
+  const validPayments = payments.filter(p => isValidTransportPayment(p));
+
+  const selSession = transportCollectionState.session;
+  const periodType = transportCollectionState.periodType;
+  const selMonth = transportCollectionState.month;
+  const targetKey = displayToMonthKey(selMonth);
+
+  let periodLabel = '';
+  if (periodType === 'month') {
+    periodLabel = `Session ${selSession} • ${selMonth}`;
+  } else if (periodType === 'session') {
+    periodLabel = `Session ${selSession} • Full Session`;
+  } else {
+    periodLabel = `Date: ${transportCollectionState.fromDate || 'Start'} to ${transportCollectionState.toDate || 'End'}`;
+  }
+
+  const rows = [];
+
+  validPayments.forEach(p => {
+    // 1. Session check: does this payment belong to the selected session?
+    const hasSessionAllocation = Array.isArray(p.allocations) && p.allocations.some(a => a.session === selSession);
+    const matchesSession = p.session === selSession || hasSessionAllocation || (!p.session && !p.allocations);
+
+    let amountCollected = 0;
+    let feePeriod = '';
+
+    if (periodType === 'month') {
+      // Month-wise mode: only include if this payment covered/allocated to selMonth
+      if (Array.isArray(p.allocations) && p.allocations.length > 0) {
+        const matchingAllocs = p.allocations.filter(al => {
+          const alKey = displayToMonthKey(al.month);
+          return al.month === selMonth || alKey === targetKey;
+        });
+        if (matchingAllocs.length === 0) return;
+        amountCollected = matchingAllocs.reduce((sum, al) => sum + safeNum(al.paidAllocated, 0), 0);
+        if (amountCollected <= 0) return;
+        feePeriod = selMonth;
+      } else {
+        // Legacy payment record
+        const mKey = displayToMonthKey(p.month + (p.year ? ' ' + p.year : ''));
+        const inMonthsArray = Array.isArray(p.months) && p.months.some(m => displayToMonthKey(m) === targetKey);
+        if (mKey !== targetKey && !inMonthsArray && p.month !== selMonth) return;
+        amountCollected = safeNum(p.amountReceived !== undefined ? p.amountReceived : p.amount, 0);
+        feePeriod = selMonth;
+      }
+    } else if (periodType === 'session') {
+      // Full session mode
+      if (!matchesSession) return;
+      amountCollected = safeNum(p.amountReceived !== undefined ? p.amountReceived : p.amount, 0);
+      const months = p.months || (Array.isArray(p.allocations) ? p.allocations.map(a => a.month) : (p.month ? [p.month + (p.year ? ' ' + p.year : '')] : []));
+      feePeriod = formatCompactTransportMonthRange(months);
+    } else {
+      // Custom date range mode
+      const paymentDateISO = parsePaymentDateToISO(p.date, p.timestamp);
+      if (transportCollectionState.fromDate && paymentDateISO && paymentDateISO < transportCollectionState.fromDate) return;
+      if (transportCollectionState.toDate && paymentDateISO && paymentDateISO > transportCollectionState.toDate) return;
+      amountCollected = safeNum(p.amountReceived !== undefined ? p.amountReceived : p.amount, 0);
+      const months = p.months || (Array.isArray(p.allocations) ? p.allocations.map(a => a.month) : (p.month ? [p.month + (p.year ? ' ' + p.year : '')] : []));
+      feePeriod = formatCompactTransportMonthRange(months);
+    }
+
+    if (amountCollected <= 0) return;
+
+    // 2. Class check
+    const stClass = p.class || '';
+    if (transportCollectionState.class !== 'all') {
+      const cStr = String(stClass).trim();
+      const targetCls = transportCollectionState.class;
+      if (cStr !== targetCls && !cStr.startsWith(targetCls + ' ') && !cStr.startsWith(targetCls + '-')) {
+        return;
+      }
+    }
+
+    // 3. Stop check
+    if (transportCollectionState.stop !== 'all') {
+      const stp = transportCollectionState.stop.toLowerCase();
+      const pMatch = String(p.pickup || '').toLowerCase() === stp;
+      const dMatch = String(p.drop || '').toLowerCase() === stp;
+      if (!pMatch && !dMatch) return;
+    }
+
+    // 4. Quick search check
+    if (transportCollectionState.search) {
+      const q = String(transportCollectionState.search).trim().toLowerCase();
+      const nMatch = String(p.studentName || '').toLowerCase().includes(q);
+      const aMatch = String(p.admNo || '').toLowerCase().includes(q);
+      const rMatch = String(p.receiptNo || '').toLowerCase().includes(q);
+      const sMatch = String(p.pickup || '').toLowerCase().includes(q);
+      if (!nMatch && !aMatch && !rMatch && !sMatch) return;
+    }
+
+    rows.push({
+      id: p.id,
+      receiptNo: p.receiptNo,
+      date: p.date || '–',
+      timestamp: p.timestamp || '',
+      studentId: p.studentId,
+      studentName: p.studentName || 'Student',
+      admNo: p.admNo || '-',
+      class: stClass,
+      pickup: p.pickup || '-',
+      feePeriod: feePeriod || '-',
+      amountCollected,
+      mode: p.paymentMode || 'Cash'
+    });
+  });
+
+  // Sort: most recent first (by receipt sequence or date)
+  rows.sort((a, b) => {
+    if (a.timestamp && b.timestamp) return b.timestamp.localeCompare(a.timestamp);
+    return String(b.receiptNo).localeCompare(String(a.receiptNo), undefined, { numeric: true });
+  });
+
+  cachedTransportCollectionRows = rows;
+
+  const totalAmountCollected = rows.reduce((acc, r) => acc + safeNum(r.amountCollected, 0), 0);
+  const distinctStudents = new Set(rows.map(r => r.studentId || r.admNo)).size;
+  const totalTransactions = rows.length;
+
+  if (statAmt) statAmt.textContent = safeCurrency(totalAmountCollected);
+  if (statSt) statSt.textContent = String(distinctStudents);
+  if (statTx) statTx.textContent = String(totalTransactions);
+  if (statPer) statPer.textContent = periodLabel;
+  if (footCount) footCount.textContent = `Showing ${rows.length} payment transaction(s)`;
+
+  if (!tbody) return;
+
+  if (rows.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="10" style="text-align:center;padding:36px 20px;color:#64748b;font-size:13px">
+      No transport collection records match the selected filters.
+    </td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = rows.map((r, idx) => {
+    return `<tr>
+      <td style="color:#64748b;font-weight:600;text-align:center">${idx + 1}</td>
+      <td style="font-weight:700;color:#0f172a">${escapeHtml(r.studentName)}</td>
+      <td style="color:#475569;font-weight:600">${escapeHtml(r.admNo)}</td>
+      <td style="color:#475569">${escapeHtml(r.class)}</td>
+      <td style="color:#1e293b">${escapeHtml(r.pickup)}</td>
+      <td style="color:#1e293b;font-weight:600">${escapeHtml(r.feePeriod)}</td>
+      <td class="text-right" style="font-weight:700;color:#059669">${safeCurrency(r.amountCollected)}</td>
+      <td class="text-center" style="color:#475569">${escapeHtml(r.date)}</td>
+      <td style="font-weight:600;color:#1e293b">
+        <code style="background:#f1f5f9;padding:2px 6px;border-radius:4px;font-size:11px">${escapeHtml(r.receiptNo)}</code>
+      </td>
+      <td class="text-center">
+        <div style="display:flex;align-items:center;justify-content:center;gap:6px">
+          <button class="btn bo bsm" onclick="viewReceiptFromCollectionModal('${escapeHtml(r.receiptNo)}')" style="padding:3px 8px;font-size:11.5px">View Receipt</button>
+          <button class="btn bo bsm" onclick="openLedgerFromCollectionModal(${r.studentId})" style="padding:3px 8px;font-size:11.5px">Student Ledger</button>
+        </div>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+function viewReceiptFromCollectionModal(receiptNo) {
+  closeM('modalTransportCollectionDetails');
+  if (typeof viewTransportReceiptByNo === 'function') {
+    viewTransportReceiptByNo(receiptNo);
+  }
+}
+
+function openLedgerFromCollectionModal(studentId) {
+  closeM('modalTransportCollectionDetails');
+  if (typeof openStudentFeeDetailsModal === 'function') {
+    openStudentFeeDetailsModal(studentId);
+  }
+}
+
+// ============================================================
+// EXPORT & PRINT: TRANSPORT PENDING DUES
+// ============================================================
+
+async function exportTransportPendingDuesCSV() {
+  const rows = cachedTransportPendingRows || [];
+  if (!rows.length) {
+    showToast('No pending transport records to export for current filters!', 'warning');
+    return;
+  }
+
+  let csv = 'No,Admission No,Student Name,Class,Pickup Stop,Monthly Fee,Paid Amount,Pending Amount,Pending Period,Status\n';
+  rows.forEach((r, idx) => {
+    const adm = (r.admNo || '').replace(/"/g, '""');
+    const name = (r.name || '').replace(/"/g, '""');
+    const cls = (r.class || '').replace(/"/g, '""');
+    const stop = (r.pickup || '').replace(/"/g, '""');
+    const fee = safeNum(r.monthlyFee, 0);
+    const paid = safeNum(r.paid, 0);
+    const pending = safeNum(r.pending, 0);
+    const period = (r.pendingPeriod || '').replace(/"/g, '""');
+    const st = (r.status || '').replace(/"/g, '""');
+    csv += `${idx + 1},"${adm}","${name}","${cls}","${stop}",${fee},${paid},${pending},"${period}","${st}"\n`;
+  });
+
+  const sessSafe = (transportPendingState.session || '2026-27').replace(/[^a-zA-Z0-9_-]/g, '_');
+  await expCSV(`transport_pending_dues_${sessSafe}.csv`, csv);
+}
+
+function printTransportPendingDues() {
+  const rows = cachedTransportPendingRows || [];
+  if (!rows.length) {
+    showToast('No pending transport records to print for current filters!', 'warning');
+    return;
+  }
+
+  const s = DB.settings || {};
+  const totalPending = rows.reduce((acc, r) => acc + safeNum(r.pending, 0), 0);
+  const totalStudents = new Set(rows.map(r => r.studentId)).size;
+
+  const filterSummary = `Session: ${transportPendingState.session} | View: ${transportPendingState.periodType === 'month' ? transportPendingState.month : (transportPendingState.periodType === 'session' ? 'Full Session' : transportPendingState.fromMonth + ' to ' + transportPendingState.toMonth)} | Class: ${transportPendingState.class === 'all' ? 'All Classes' : transportPendingState.class} | Stop: ${transportPendingState.stop === 'all' ? 'All Stops' : transportPendingState.stop}`;
+
+  const html = `<!DOCTYPE html><html><head><title>Transport Pending Dues Report</title>
+  <style>
+    @page { size: A4 landscape; margin: 12mm 10mm; }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; font-family: Arial, sans-serif; font-size: 11px; color: #111; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .hdr { text-align: center; margin-bottom: 12px; border-bottom: 2px solid #dc2626; padding-bottom: 8px; }
+    .sch-name { font-size: 17px; font-weight: 700; color: #dc2626; }
+    .sch-sub { font-size: 11px; color: #555; margin-top: 2px; }
+    .rep-title { font-size: 13.5px; font-weight: 700; margin-top: 6px; color: #0f172a; }
+    .filters { font-size: 10.5px; color: #475569; margin-top: 3px; font-style: italic; }
+    .stats-box { background: #fef2f2; border: 1px solid #fee2e2; border-radius: 6px; padding: 10px 14px; margin-bottom: 12px; display: flex; justify-content: space-between; font-size: 11.5px; }
+    table { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 10.5px; }
+    th { background: #dc2626; color: #fff; padding: 6px 8px; text-align: left; font-size: 11px; border: 1px solid #b91c1c; }
+    td { padding: 5px 8px; border-bottom: 1px solid #e2e8f0; font-size: 10.5px; }
+    tr:nth-child(even) { background: #f8fafc; }
+    .text-right { text-align: right; }
+    .text-center { text-align: center; }
+    .footer { margin-top: 20px; padding-top: 10px; display: flex; justify-content: space-between; font-size: 10px; color: #64748b; border-top: 1px solid #e2e8f0; }
+  </style>
+  </head><body>
+    <div class="hdr">
+      <div class="sch-name">${escapeHtml(s.schoolName || 'School Management System')}</div>
+      <div class="sch-sub">${escapeHtml(s.schoolAddr || '')} ${s.schoolPhone ? '| Phone: ' + escapeHtml(s.schoolPhone) : ''}</div>
+      <div class="rep-title">Transport Pending Dues Report</div>
+      <div class="filters">${escapeHtml(filterSummary)}</div>
+      <div class="sch-sub" style="margin-top:2px">Generated on: ${new Date().toLocaleString('en-IN')}</div>
+    </div>
+    <div class="stats-box">
+      <div><strong>Total Pending Dues:</strong> ₹ ${totalPending.toLocaleString('en-IN')}</div>
+      <div><strong>Students with Dues:</strong> ${totalStudents.toLocaleString('en-IN')}</div>
+      <div><strong>Total Records:</strong> ${rows.length.toLocaleString('en-IN')}</div>
+    </div>
+    <table>
+      <thead>
+        <tr>
+          <th style="width:35px;text-align:center">#</th>
+          <th style="width:85px">Adm No</th>
+          <th>Student Name</th>
+          <th style="width:75px">Class</th>
+          <th>Pickup Stop</th>
+          <th class="text-right" style="width:85px">Monthly Fee</th>
+          <th class="text-right" style="width:85px">Paid (₹)</th>
+          <th class="text-right" style="width:95px">Pending (₹)</th>
+          <th style="width:130px">Pending Period</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${rows.map((r, idx) => `
+          <tr>
+            <td class="text-center">${idx + 1}</td>
+            <td><strong>${escapeHtml(r.admNo)}</strong></td>
+            <td>${escapeHtml(r.name)}</td>
+            <td>${escapeHtml(r.class)}</td>
+            <td>${escapeHtml(r.pickup)}</td>
+            <td class="text-right">₹ ${safeNum(r.monthlyFee, 0).toLocaleString('en-IN')}</td>
+            <td class="text-right">₹ ${safeNum(r.paid, 0).toLocaleString('en-IN')}</td>
+            <td class="text-right" style="font-weight:700;color:#dc2626">₹ ${safeNum(r.pending, 0).toLocaleString('en-IN')}</td>
+            <td>${escapeHtml(r.pendingPeriod)}</td>
+          </tr>
+        `).join('')}
+      </tbody>
+    </table>
+    <div class="footer">
+      <span>SHIKSHA — Transport Management</span>
+      <span>Authorized Signatory: <strong>${escapeHtml(s.principalName || 'Principal')}</strong></span>
+      <span>Printed: ${new Date().toLocaleDateString('en-IN')}</span>
+    </div>
+  </body></html>`;
+
+  if (isEl && window.electronAPI && window.electronAPI.printContent) {
+    window.electronAPI.printContent(html);
+  } else {
+    const w = window.open('', '_blank');
+    if (w) {
+      w.document.write(html);
+      w.document.close();
+    }
+  }
+}
+
+// ============================================================
+// EXPORT & PRINT: TRANSPORT COLLECTION DETAILS
+// ============================================================
+
+async function exportTransportCollectionCSV() {
+  const rows = cachedTransportCollectionRows || [];
+  if (!rows.length) {
+    showToast('No transport collection records to export for current filters!', 'warning');
+    return;
+  }
+
+  let csv = 'No,Receipt No,Payment Date,Admission No,Student Name,Class,Pickup Stop,Fee Period,Amount Collected,Payment Mode\n';
+  rows.forEach((r, idx) => {
+    const rcpt = (r.receiptNo || '').replace(/"/g, '""');
+    const dt = (r.date || '').replace(/"/g, '""');
+    const adm = (r.admNo || '').replace(/"/g, '""');
+    const name = (r.studentName || '').replace(/"/g, '""');
+    const cls = (r.class || '').replace(/"/g, '""');
+    const stop = (r.pickup || '').replace(/"/g, '""');
+    const period = (r.feePeriod || '').replace(/"/g, '""');
+    const amt = safeNum(r.amountCollected, 0);
+    const md = (r.mode || 'Cash').replace(/"/g, '""');
+    csv += `${idx + 1},"${rcpt}","${dt}","${adm}","${name}","${cls}","${stop}","${period}",${amt},"${md}"\n`;
+  });
+
+  const sessSafe = (transportCollectionState.session || '2026-27').replace(/[^a-zA-Z0-9_-]/g, '_');
+  await expCSV(`transport_collection_report_${sessSafe}.csv`, csv);
+}
+
+function printTransportCollectionDetails() {
+  const rows = cachedTransportCollectionRows || [];
+  if (!rows.length) {
+    showToast('No transport collection records to print for current filters!', 'warning');
+    return;
+  }
+
+  const s = DB.settings || {};
+  const totalCollected = rows.reduce((acc, r) => acc + safeNum(r.amountCollected, 0), 0);
+  const distinctStudents = new Set(rows.map(r => r.studentId || r.admNo)).size;
+
+  const filterSummary = `Session: ${transportCollectionState.session} | View: ${transportCollectionState.periodType === 'month' ? transportCollectionState.month : (transportCollectionState.periodType === 'session' ? 'Full Session' : transportCollectionState.fromDate + ' to ' + transportCollectionState.toDate)} | Class: ${transportCollectionState.class === 'all' ? 'All Classes' : transportCollectionState.class} | Stop: ${transportCollectionState.stop === 'all' ? 'All Stops' : transportCollectionState.stop}`;
+
+  const html = `<!DOCTYPE html><html><head><title>Transport Fee Collection Report</title>
+  <style>
+    @page { size: A4 landscape; margin: 12mm 10mm; }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; font-family: Arial, sans-serif; font-size: 11px; color: #111; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .hdr { text-align: center; margin-bottom: 12px; border-bottom: 2px solid #059669; padding-bottom: 8px; }
+    .sch-name { font-size: 17px; font-weight: 700; color: #059669; }
+    .sch-sub { font-size: 11px; color: #555; margin-top: 2px; }
+    .rep-title { font-size: 13.5px; font-weight: 700; margin-top: 6px; color: #0f172a; }
+    .filters { font-size: 10.5px; color: #475569; margin-top: 3px; font-style: italic; }
+    .stats-box { background: #ecfdf5; border: 1px solid #d1fae5; border-radius: 6px; padding: 10px 14px; margin-bottom: 12px; display: flex; justify-content: space-between; font-size: 11.5px; }
+    table { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 10.5px; }
+    th { background: #059669; color: #fff; padding: 6px 8px; text-align: left; font-size: 11px; border: 1px solid #047857; }
+    td { padding: 5px 8px; border-bottom: 1px solid #e2e8f0; font-size: 10.5px; }
+    tr:nth-child(even) { background: #f8fafc; }
+    .text-right { text-align: right; }
+    .text-center { text-align: center; }
+    .footer { margin-top: 20px; padding-top: 10px; display: flex; justify-content: space-between; font-size: 10px; color: #64748b; border-top: 1px solid #e2e8f0; }
+  </style>
+  </head><body>
+    <div class="hdr">
+      <div class="sch-name">${escapeHtml(s.schoolName || 'School Management System')}</div>
+      <div class="sch-sub">${escapeHtml(s.schoolAddr || '')} ${s.schoolPhone ? '| Phone: ' + escapeHtml(s.schoolPhone) : ''}</div>
+      <div class="rep-title">Transport Fee Collection Report</div>
+      <div class="filters">${escapeHtml(filterSummary)}</div>
+      <div class="sch-sub" style="margin-top:2px">Generated on: ${new Date().toLocaleString('en-IN')}</div>
+    </div>
+    <div class="stats-box">
+      <div><strong>Total Collections:</strong> ₹ ${totalCollected.toLocaleString('en-IN')}</div>
+      <div><strong>Students Who Paid:</strong> ${distinctStudents.toLocaleString('en-IN')}</div>
+      <div><strong>Total Transactions:</strong> ${rows.length.toLocaleString('en-IN')}</div>
+    </div>
+    <table>
+      <thead>
+        <tr>
+          <th style="width:35px;text-align:center">#</th>
+          <th style="width:105px">Receipt No</th>
+          <th style="width:85px;text-align:center">Date</th>
+          <th style="width:80px">Adm No</th>
+          <th>Student Name</th>
+          <th style="width:75px">Class</th>
+          <th>Pickup Stop</th>
+          <th style="width:130px">Fee Period</th>
+          <th class="text-right" style="width:95px">Amount (₹)</th>
+          <th class="text-center" style="width:70px">Mode</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${rows.map((r, idx) => `
+          <tr>
+            <td class="text-center">${idx + 1}</td>
+            <td><strong>${escapeHtml(r.receiptNo)}</strong></td>
+            <td class="text-center">${escapeHtml(r.date)}</td>
+            <td>${escapeHtml(r.admNo)}</td>
+            <td>${escapeHtml(r.studentName)}</td>
+            <td>${escapeHtml(r.class)}</td>
+            <td>${escapeHtml(r.pickup)}</td>
+            <td>${escapeHtml(r.feePeriod)}</td>
+            <td class="text-right" style="font-weight:700;color:#059669">₹ ${safeNum(r.amountCollected, 0).toLocaleString('en-IN')}</td>
+            <td class="text-center">${escapeHtml(r.mode)}</td>
+          </tr>
+        `).join('')}
+      </tbody>
+    </table>
+    <div class="footer">
+      <span>SHIKSHA — Transport Management</span>
+      <span>Authorized Signatory: <strong>${escapeHtml(s.principalName || 'Principal')}</strong></span>
+      <span>Printed: ${new Date().toLocaleDateString('en-IN')}</span>
+    </div>
+  </body></html>`;
+
+  if (isEl && window.electronAPI && window.electronAPI.printContent) {
+    window.electronAPI.printContent(html);
+  } else {
+    const w = window.open('', '_blank');
+    if (w) {
+      w.document.write(html);
+      w.document.close();
+    }
+  }
 }
 
 // ============================================================

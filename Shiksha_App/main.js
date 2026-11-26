@@ -157,7 +157,7 @@ function isValidDatabasePayload(data) {
 }
 
 function safeAtomicWriteSync(targetPath, content) {
-  const tempFile = targetPath + '.tmp';
+  const tempFile = `${targetPath}.tmp.${process.pid}.${Date.now()}`;
   fs.writeFileSync(tempFile, content, 'utf8');
   let attempts = 0;
   const maxAttempts = 5;
@@ -179,9 +179,10 @@ function safeAtomicWriteSync(targetPath, content) {
 
 // Non-blocking asynchronous atomic write with retries and concurrency queue
 let _saveQueue = Promise.resolve();
+let _backupSeqCounter = 0;
 
 async function safeAtomicWriteAsync(targetPath, content) {
-  const tempFile = targetPath + '.tmp';
+  const tempFile = `${targetPath}.tmp.${process.pid}.${Date.now()}.${++_backupSeqCounter}`;
   await fs.promises.writeFile(tempFile, content, 'utf8');
   let attempts = 0;
   const maxAttempts = 5;
@@ -279,7 +280,25 @@ function pruneOldBackups(maxRetain = BACKUP_RETENTION_LIMIT) {
   }
 }
 
-function createAutomaticBackup(data, reason = 'auto') {
+const _activeBackupFilenames = new Set();
+
+function buildUniqueBackupFilename(reason = 'daily') {
+  const now = new Date();
+  const pad = (n) => String(n).padStart(2, '0');
+  const datePart = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+  const timePart = `${pad(now.getHours())}-${pad(now.getMinutes())}-${pad(now.getSeconds())}`;
+  let filename = `backup_${reason}_${datePart}_${timePart}.json`;
+  let targetFile = path.join(backupsDir, filename);
+  if (_activeBackupFilenames.has(filename) || fs.existsSync(targetFile)) {
+    const msPart = String(now.getMilliseconds()).padStart(3, '0');
+    filename = `backup_${reason}_${datePart}_${timePart}_${msPart}_${++_backupSeqCounter}.json`;
+    targetFile = path.join(backupsDir, filename);
+  }
+  _activeBackupFilenames.add(filename);
+  return { filename, targetFile };
+}
+
+function createAutomaticBackup(data, reason = 'daily') {
   try {
     if (!isValidDatabasePayload(data)) {
       console.warn(`[Backup Engine] Skipped backup (${reason}): Invalid database payload.`);
@@ -290,23 +309,23 @@ function createAutomaticBackup(data, reason = 'auto') {
       fs.mkdirSync(backupsDir, { recursive: true });
     }
 
-    const now = new Date();
-    const pad = (n) => String(n).padStart(2, '0');
-    const timestamp = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}_${pad(now.getHours())}-${pad(now.getMinutes())}-${pad(now.getSeconds())}`;
-    const filename = `backup_${timestamp}_${reason}.json`;
-    const targetFile = path.join(backupsDir, filename);
+    const { filename, targetFile } = buildUniqueBackupFilename(reason);
 
-    // Atomic write
+    // Atomic write via unique temp file then rename
     safeAtomicWriteSync(targetFile, JSON.stringify(data));
 
-    // Verify
+    // Verify written backup integrity immediately
     const raw = fs.readFileSync(targetFile, 'utf8');
-    JSON.parse(raw);
+    const parsed = JSON.parse(raw);
+    if (!isValidDatabasePayload(parsed)) {
+      try { fs.unlinkSync(targetFile); } catch(_) {}
+      throw new Error('Integrity check failed: written backup is missing essential structure.');
+    }
 
     lastBackupTime = Date.now();
     pruneOldBackups(BACKUP_RETENTION_LIMIT);
 
-    console.log(`[Backup Engine] Automatic backup created successfully: ${filename}`);
+    console.log(`[Backup Engine] Automatic backup created and verified: ${filename}`);
     return { success: true, filename, path: targetFile };
   } catch(err) {
     console.error(`[Backup Engine] Automatic backup failed (${reason}):`, err);
@@ -314,15 +333,66 @@ function createAutomaticBackup(data, reason = 'auto') {
   }
 }
 
+async function createAutomaticBackupAsync(data, reason = 'daily') {
+  try {
+    if (!isValidDatabasePayload(data)) {
+      console.warn(`[Backup Engine] Skipped async backup (${reason}): Invalid database payload.`);
+      return { success: false, error: 'INVALID_PAYLOAD' };
+    }
+
+    await fs.promises.mkdir(backupsDir, { recursive: true });
+    const { filename, targetFile } = buildUniqueBackupFilename(reason);
+
+    // Compact serialization + non-blocking async atomic write
+    await safeAtomicWriteAsync(targetFile, JSON.stringify(data));
+
+    // Async post-write integrity verification
+    const raw = await fs.promises.readFile(targetFile, 'utf8');
+    const parsed = JSON.parse(raw);
+    if (!isValidDatabasePayload(parsed)) {
+      try { await fs.promises.unlink(targetFile); } catch(_) {}
+      throw new Error('Integrity check failed: written backup is missing essential structure.');
+    }
+
+    lastBackupTime = Date.now();
+    pruneOldBackups(BACKUP_RETENTION_LIMIT);
+
+    console.log(`[Backup Engine] Async daily backup created and verified: ${filename}`);
+    return { success: true, filename, path: targetFile };
+  } catch(err) {
+    console.error(`[Backup Engine] Async automatic backup failed (${reason}):`, err);
+    return { success: false, error: err.message };
+  }
+}
+
+function getLocalDateString(dateObj) {
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${dateObj.getFullYear()}-${pad(dateObj.getMonth() + 1)}-${pad(dateObj.getDate())}`;
+}
+
 function triggerStartupBackupIfNeeded(parsedData) {
   try {
+    if (!parsedData || !isValidDatabasePayload(parsedData)) return { skipped: true, reason: 'invalid' };
+    const todayLocal = getLocalDateString(new Date());
+
+    // Avoid duplicate daily backups: check using b.name and LOCAL calendar date (not UTC)
     const existing = getAvailableBackups();
-    const now = Date.now();
-    const twelveHours = 12 * 60 * 60 * 1000;
-    if (existing.length === 0 || (now - existing[0].mtime) > twelveHours) {
-      createAutomaticBackup(parsedData, 'startup');
+    const alreadyBackedUpToday = existing.some(b => {
+      const nameMatch = b.name && b.name.includes(todayLocal);
+      const mtimeMatch = b.mtime && getLocalDateString(new Date(b.mtime)) === todayLocal;
+      return Boolean(nameMatch || mtimeMatch);
+    });
+
+    if (alreadyBackedUpToday) {
+      console.log(`[Backup Engine] Daily backup for ${todayLocal} already exists. Skipping duplicate backup.`);
+      return { skipped: true, reason: 'already_exists_today' };
     }
-  } catch(_) {}
+
+    return createAutomaticBackupAsync(parsedData, 'daily');
+  } catch(err) {
+    console.warn('[Startup Backup] Background daily backup notice:', err.message);
+    return { skipped: true, reason: err.message };
+  }
 }
 
 // ==============================================================================
@@ -444,16 +514,12 @@ ipcMain.handle('save-data', async (e, data) => {
     _dbDataCache = data;
     _dbDataMtime = Date.now();
     const serialized = JSON.stringify(data);
-    _saveQueue = _saveQueue.then(async () => {
+    // Recover queue on prior failure so subsequent saves are never poisoned
+    const writeTask = _saveQueue.catch(() => {}).then(async () => {
       await safeAtomicWriteAsync(dataFilePath, serialized);
     });
-    await _saveQueue;
-
-    // Scheduled periodic backup check (every 4 hours of active use)
-    const fourHours = 4 * 60 * 60 * 1000;
-    if (Date.now() - lastBackupTime > fourHours) {
-      createAutomaticBackup(data, 'scheduled');
-    }
+    _saveQueue = writeTask;
+    await writeTask;
 
     return { success: true };
   } catch(e) {
@@ -493,6 +559,9 @@ ipcMain.handle('restore-data', async () => {
   try {
     const content = fs.readFileSync(filePaths[0], 'utf8');
     const parsed = JSON.parse(content);
+    if (!isValidDatabasePayload(parsed)) {
+      return { error: 'Backup integrity check failed: file does not contain valid school database records (students or settings missing).' };
+    }
     return { data: parsed, filePath: filePaths[0] };
   } catch(e) {
     return { error: 'Invalid JSON file: ' + e.message };
